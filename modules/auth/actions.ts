@@ -1,10 +1,10 @@
 "use server";
 
-import { compare } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { loginSchema } from "@/modules/auth/schema";
-import { createSession, destroyCurrentSession } from "@/lib/auth/session";
+import { loginSchema, changePasswordSchema } from "@/modules/auth/schema";
+import { createSession, destroyCurrentSession, getCurrentUser } from "@/lib/auth/session";
 import { checkRateLimit, recordLoginFailure, clearLoginFailures } from "@/lib/auth/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { getClientIp } from "@/lib/request-ip";
@@ -75,7 +75,56 @@ export async function loginAction(
   }
 
   clearLoginFailures(ip);
-  // 登录后的落点：commit 4 改为强制改密判断，commit 5 改为按岗位跳转
+  // 强制改密优先于岗位跳转：需要改密的用户先去改密页（commit 5 会把 "/" 换成按岗位跳转）
+  redirect(user.mustChangePassword ? "/change-password" : "/");
+}
+
+export type ChangePasswordFormState =
+  | {
+      error?: string;
+      fieldErrors?: Record<string, string[] | undefined>;
+    }
+  | undefined;
+
+// 修改密码（首次登录强制改密 + 以后自愿改密，走同一个动作）。
+// 改密成功后保留当前会话（已确认的默认值）。
+export async function changePasswordAction(
+  _prevState: ChangePasswordFormState,
+  formData: FormData
+): Promise<ChangePasswordFormState> {
+  // 独立校验登录态：不依赖页面拦截，直接调接口也必须被拒绝
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const parsed = changePasswordSchema.safeParse({
+    newPassword: formData.get("newPassword"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+  if (parsed.data.newPassword !== parsed.data.confirmPassword) {
+    return { fieldErrors: { confirmPassword: ["两次输入的密码不一致"] } };
+  }
+
+  const passwordHash = await hash(parsed.data.newPassword, 10);
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, mustChangePassword: false },
+    });
+    await writeAudit({
+      actorId: user.id,
+      action: AuditAction.PASSWORD_CHANGE,
+      targetType: "User",
+      targetId: user.id,
+      ip: await getClientIp(),
+    });
+  } catch (e) {
+    console.error("修改密码失败:", e);
+    return { error: "修改密码失败，请稍后重试" };
+  }
+
   redirect("/");
 }
 

@@ -6,3 +6,9 @@ export const loginSchema = z.object({
   username: z.string().trim().min(1, "请输入用户名"),
   password: z.string().min(1, "请输入密码"),
 });
+
+// 修改密码表单校验（密码最短长度 8 位是开工前确认过的默认值）
+export const changePasswordSchema = z.object({
+  newPassword: z.string().min(8, "新密码至少 8 位"),
+  confirmPassword: z.string().min(1, "请再次输入新密码"),
+});

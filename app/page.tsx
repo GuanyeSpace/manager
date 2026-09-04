@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requirePageUser, requirePasswordChanged } from "@/lib/auth/permissions";
 import { ROLE_LABELS } from "@/lib/auth/role-labels";
 import { logoutAction } from "@/modules/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -7,10 +6,8 @@ import { Button } from "@/components/ui/button";
 // 临时首页：只用来验证登录/会话/退出链路。
 // commit 5 会把它换成按岗位跳转的工作台入口。
 export default async function HomePage() {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/login");
-  }
+  const user = await requirePageUser();
+  await requirePasswordChanged(user);
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
