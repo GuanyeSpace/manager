@@ -52,7 +52,7 @@ npx prisma migrate dev         # 改 schema 后同步结构
 
 ## 测试账号
 
-密码均为 `test1234`：`boss_test`（老板）、`controller01`（中控）、`anchor01`（主播）、`operator01`（运营，测试残留，可在 UI 里设为离职）。老板真实账号 WangGuanye 密码由老板本人保管。
+统一测试密码见 `.env` 的 `TEST_ACCOUNTS_PASSWORD`（不入库）：`boss_test`（老板）、`controller01`（中控）、`anchor01`（主播）、`operator01`（运营，测试残留，可在 UI 里设为离职）。老板真实账号 WangGuanye 密码由老板本人保管。
 
 ## 本版明确不做
 
