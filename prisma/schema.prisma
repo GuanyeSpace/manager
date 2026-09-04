@@ -1,0 +1,103 @@
+// 数据库结构定义：所有表结构变更都从这里改，再通过 `npx prisma migrate dev` 生成迁移
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 岗位
+enum Role {
+  BOSS // 老板
+  OPERATOR // 运营
+  CONTROLLER // 中控
+  ASSISTANT // 场控
+  ANCHOR // 主播
+  FINANCE // 财务
+}
+
+// 在职状态
+enum EmploymentStatus {
+  ACTIVE
+  RESIGNED
+}
+
+// 分公司状态
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// 审计日志动作
+enum AuditAction {
+  LOGIN_SUCCESS
+  LOGIN_FAIL
+  USER_CREATE
+  USER_UPDATE
+  USER_RESIGN
+  USER_REACTIVATE
+  PASSWORD_RESET // 老板给别人重置密码
+  PASSWORD_CHANGE // 本人修改自己的密码
+  BRANCH_CREATE
+  BRANCH_UPDATE
+}
+
+// 分公司
+model Branch {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  status    BranchStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  users     User[]
+}
+
+// 用户
+model User {
+  id                 String           @id @default(cuid())
+  username           String           @unique
+  name               String
+  passwordHash       String
+  role               Role
+  // 所属分公司；老板为 null 表示跨分公司
+  branchId           String?
+  branch             Branch?          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  employmentStatus   EmploymentStatus @default(ACTIVE)
+  mustChangePassword Boolean          @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  sessions           Session[]
+  auditLogs          AuditLog[]       @relation("ActorLogs")
+
+  @@index([branchId])
+  @@index([employmentStatus])
+}
+
+// 登录会话
+model Session {
+  id        String   @id // 会话 token，登录时用加密随机数生成
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// 审计日志
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorId    String? // 操作人；系统动作（如登录失败）可为空
+  actor      User?       @relation("ActorLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  action     AuditAction
+  targetType String // 如 "User"、"Branch"
+  targetId   String?
+  detail     Json?
+  ip         String?
+  createdAt  DateTime    @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+}
