@@ -41,10 +41,21 @@ export function canManageBranches(user: CurrentUser): boolean {
   return user.role === Role.BOSS;
 }
 
+// 能力：管理用户（本版只有老板有）
+export function canManageUsers(user: CurrentUser): boolean {
+  return user.role === Role.BOSS;
+}
+
 // 能力断言：server action 与数据查询内部调用，岗位不符立刻送回自己的工作台。
 // 每个 action / 查询都要自己调一遍，不得假设「页面已经拦过了」。
 export function assertCanManageBranches(user: CurrentUser): void {
   if (!canManageBranches(user)) {
+    redirect(getWorkbenchPath(user));
+  }
+}
+
+export function assertCanManageUsers(user: CurrentUser): void {
+  if (!canManageUsers(user)) {
     redirect(getWorkbenchPath(user));
   }
 }
