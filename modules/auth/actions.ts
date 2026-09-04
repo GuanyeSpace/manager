@@ -9,6 +9,7 @@ import { checkRateLimit, recordLoginFailure, clearLoginFailures } from "@/lib/au
 import { writeAudit } from "@/lib/audit";
 import { getClientIp } from "@/lib/request-ip";
 import { EmploymentStatus, AuditAction } from "@/app/generated/prisma/enums";
+import { getWorkbenchPath } from "@/lib/auth/permissions";
 
 // 用户不存在时也用这个假哈希做一次比较，让「用户不存在」和「密码错误」
 // 两种情况的耗时接近，避免攻击者用响应时间探测用户名是否存在。
@@ -75,8 +76,8 @@ export async function loginAction(
   }
 
   clearLoginFailures(ip);
-  // 强制改密优先于岗位跳转：需要改密的用户先去改密页（commit 5 会把 "/" 换成按岗位跳转）
-  redirect(user.mustChangePassword ? "/change-password" : "/");
+  // 强制改密优先于岗位跳转：需要改密的用户先去改密页，否则按岗位去各自工作台
+  redirect(user.mustChangePassword ? "/change-password" : getWorkbenchPath(user));
 }
 
 export type ChangePasswordFormState =

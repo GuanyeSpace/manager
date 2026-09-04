@@ -1,8 +1,9 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/session";
+import { Role } from "@/app/generated/prisma/enums";
 
-// 页面级访问控制。所有需要登录的页面，第一行都调用这两个函数，
+// 页面级访问控制。所有需要登录的页面，第一行都调用这里的函数，
 // 绝不在页面里自己写「读 cookie / 查用户 / 判断 redirect」的逻辑。
 
 // 第 1 步：必须登录。未登录 → 登录页。返回当前用户，供后续岗位/能力检查使用。
@@ -16,4 +17,41 @@ export async function requirePageUser(): Promise<CurrentUser> {
 // 改密页自身不调用本函数，其余每个受保护页面都要调用。
 export async function requirePasswordChanged(user: CurrentUser): Promise<void> {
   if (user.mustChangePassword) redirect("/change-password");
+}
+
+// ---- 岗位能力检查：业务代码只允许用这些具名函数判断岗位，禁止散写 role === "BOSS" ----
+
+// 当前用户登录后应去的工作台
+export function getWorkbenchPath(user: CurrentUser): string {
+  if (canAccessBossWorkspace(user)) return "/boss";
+  if (canAccessControllerWorkspace(user)) return "/controller";
+  return "/wip";
+}
+
+export function canAccessBossWorkspace(user: CurrentUser): boolean {
+  return user.role === Role.BOSS;
+}
+
+export function canAccessControllerWorkspace(user: CurrentUser): boolean {
+  return user.role === Role.CONTROLLER;
+}
+
+// ---- 页面守卫：工作台页面第一行调用；岗位不符时送回「自己的」工作台 ----
+
+export async function requireBossPage(): Promise<CurrentUser> {
+  const user = await requirePageUser();
+  await requirePasswordChanged(user);
+  if (!canAccessBossWorkspace(user)) {
+    redirect(getWorkbenchPath(user));
+  }
+  return user;
+}
+
+export async function requireControllerPage(): Promise<CurrentUser> {
+  const user = await requirePageUser();
+  await requirePasswordChanged(user);
+  if (!canAccessControllerWorkspace(user)) {
+    redirect(getWorkbenchPath(user));
+  }
+  return user;
 }
