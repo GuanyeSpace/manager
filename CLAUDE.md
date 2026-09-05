@@ -35,9 +35,14 @@
 5. **不物理删除用户**：离职 = employmentStatus RESIGNED（立即删其全部会话），可复职；**系统必须至少保留一个在职 BOSS**；老板不能离职自己、不能把自己的岗位改成非 BOSS。
 6. **新建用户 mustChangePassword 一律 true**；老板重置密码后也置 true 并删除该用户全部会话。
 7. **密码绝不落日志、源码、示例、版本库**；`.env` 不入库（`.env.example` 入库存模板）。
-8. **审计日志只通过 `lib/audit.ts` 的 writeAudit 写入**，禁止直接 prisma.auditLog.create。
+8. **审计日志只通过 `lib/audit.ts` 的 writeAudit 写入**，禁止直接 prisma.auditLog.create；用户/分公司/密码等关键写操作必须把 writeAudit 放进同一事务并传入 `db`，保证业务与审计原子提交。
 9. 错误信息不得向前端泄露数据库结构或堆栈；Prisma P2002（唯一冲突）要转成友好提示。
 10. Prisma 客户端生成到 `app/generated/prisma/`（gitignore，不入库）；改 schema 后跑 `npx prisma migrate dev`。
+11. **改密/重置会话撤销**：普通改密必须验证旧密码；是否强制改密只信数据库 `mustChangePassword`；所有改密/重置都撤销该用户其他会话并为当前浏览器签发新会话，且与新密码、审计在同一事务里完成（事务提交后再写 cookie）。
+12. **登录限流分层**：账号+IP、IP 总量、账号跨 IP 退避三层，阈值集中在 `lib/auth/rate-limit.ts`；不存在的用户名也受限流；限流键与登录的 username 匹配规则一致（当前区分大小写，不要擅自改）。
+13. **客户端 IP 信任**：只有 `TRUST_PROXY=true` 才信任 `x-forwarded-for` / `x-real-ip`；默认归入 `direct` 桶。生产接反向代理时必须让代理覆盖转发头并禁止直连应用端口。
+14. **在职老板不变量**：降岗/离职老板用 `modules/users/boss-guard.ts` 的 advisory lock 串行化计数与写入，禁止回到「先 count 再 update」。
+15. 岗位中文名：`CONTROLLER`=中控、`ASSISTANT`=小助理（枚举值不变）。
 
 ## 常用命令
 
@@ -48,6 +53,8 @@ docker compose up -d           # 启动数据库（先准备 .env）
 npx prisma db seed             # 种子数据（幂等）
 npx prisma studio              # 数据库图形界面
 npx prisma migrate dev         # 改 schema 后同步结构
+npm run test:rate-limit        # 限流逻辑回归（无数据库）
+npm run test:concurrency       # 在职老板不变量并发测试（需隔离测试库，见 README）
 ```
 
 ## 测试账号

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:concurrency": "tsx scripts/test-boss-invariant.ts",
+    "test:rate-limit": "tsx scripts/test-rate-limit.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
