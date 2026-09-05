@@ -139,14 +139,25 @@ Next.js App Router 的 server action 拿不到原始 socket 地址，只能看�
 ## 测试
 
 ```bash
-# 纯内存限流逻辑（无需数据库/服务）
+# 纯内存限流逻辑（无需数据库/服务，使用可注入假时间）
 npm run test:rate-limit
 
-# 并发「至少保留一个在职老板」不变量（必须在隔离的测试数据库运行，会清空该库）
+# 破坏性测试保护（纯校验，无需数据库）
+npm run test:db-protection
+
+# 隔离测试库准备（库名必须以 _test 结尾）
 docker exec manager-db createdb -U manager manager_test   # 首次执行一次
-DATABASE_URL="postgresql://manager:<密码>@localhost:5433/manager_test?schema=public" npx prisma migrate deploy
-DATABASE_URL="postgresql://manager:<密码>@localhost:5433/manager_test?schema=public" npm run test:concurrency
+TEST_DATABASE_URL="postgresql://manager:<密码>@localhost:5433/manager_test?schema=public" npx prisma migrate deploy
+
+# 并发「至少保留一个在职老板」不变量 + 登录/改密/重置/离职并发一致性
+# 必须显式设置 ALLOW_TEST_DESTRUCTION=true；测试只清理本次运行创建的数据。
+TEST_DATABASE_URL="postgresql://manager:<密码>@localhost:5433/manager_test?schema=public" \
+  ALLOW_TEST_DESTRUCTION=true npm run test:concurrency
+TEST_DATABASE_URL="postgresql://manager:<密码>@localhost:5433/manager_test?schema=public" \
+  ALLOW_TEST_DESTRUCTION=true npm run test:auth-concurrency
 ```
+
+破坏性测试保护：只有 `TEST_DATABASE_URL`（库名 `_test` 结尾、且不等于日常库）+ `ALLOW_TEST_DESTRUCTION=true` + 非生产环境时才会连接并执行；连接后还会用 `current_database()` 核对实际库名，防止误删。
 
 ## 已知问题
 

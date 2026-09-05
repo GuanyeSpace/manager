@@ -39,9 +39,9 @@
 9. 错误信息不得向前端泄露数据库结构或堆栈；Prisma P2002（唯一冲突）要转成友好提示。
 10. Prisma 客户端生成到 `app/generated/prisma/`（gitignore，不入库）；改 schema 后跑 `npx prisma migrate dev`。
 11. **改密/重置会话撤销**：普通改密必须验证旧密码；是否强制改密只信数据库 `mustChangePassword`；所有改密/重置都撤销该用户其他会话并为当前浏览器签发新会话，且与新密码、审计在同一事务里完成（事务提交后再写 cookie）。
-12. **登录限流分层**：账号+IP、IP 总量、账号跨 IP 退避三层，阈值集中在 `lib/auth/rate-limit.ts`；不存在的用户名也受限流；限流键与登录的 username 匹配规则一致（当前区分大小写，不要擅自改）。
+12. **登录限流分层**：账号+IP、IP 失败总量、账号跨 IP 退避三层，阈值集中在 `lib/auth/rate-limit.ts`；计数窗口与锁定期分离，锁未到期不因窗口过期被清；不存在的用户名也受限流；限流键与登录的 username 匹配规则一致（当前区分大小写，不要擅自改）。
 13. **客户端 IP 信任**：只有 `TRUST_PROXY=true` 才信任 `x-forwarded-for` / `x-real-ip`；默认归入 `direct` 桶。生产接反向代理时必须让代理覆盖转发头并禁止直连应用端口。
-14. **在职老板不变量**：降岗/离职老板用 `modules/users/boss-guard.ts` 的 advisory lock 串行化计数与写入，禁止回到「先 count 再 update」。
+14. **在职老板不变量**：所有岗位/在职状态写入先取 `pg_advisory_xact_lock`，再在事务内重读操作者与目标的最新状态（不依赖事务外快照），禁止回到「先 count 再 update」；操作者被并发降岗/离职时拒绝其过期修改。
 15. 岗位中文名：`CONTROLLER`=中控、`ASSISTANT`=小助理（枚举值不变）。
 
 ## 常用命令
@@ -54,8 +54,17 @@ npx prisma db seed             # 种子数据（幂等）
 npx prisma studio              # 数据库图形界面
 npx prisma migrate dev         # 改 schema 后同步结构
 npm run test:rate-limit        # 限流逻辑回归（无数据库）
-npm run test:concurrency       # 在职老板不变量并发测试（需隔离测试库，见 README）
+npm run test:db-protection     # 破坏性测试保护校验（无数据库）
+npm run test:concurrency       # 在职老板不变量并发测试（需 TEST_DATABASE_URL + ALLOW_TEST_DESTRUCTION）
+npm run test:auth-concurrency  # 登录/改密/重置/离职并发一致性（需隔离测试库）
 ```
+
+## 测试数据库安全（必须遵守）
+
+- 破坏性测试只接受 `TEST_DATABASE_URL`，缺失即退出，禁止回退到 `DATABASE_URL`。
+- 测试库名必须以 `_test` 结尾且不等于日常库；连接后核对 `current_database()`。
+- 必须显式设置 `ALLOW_TEST_DESTRUCTION=true`，并拒绝 `NODE_ENV=production`。
+- 测试数据带唯一运行标识，只清理本次创建的数据，禁止无条件全表删除。
 
 ## 测试账号
 
