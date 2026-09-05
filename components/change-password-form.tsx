@@ -23,6 +23,20 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       </CardHeader>
       <CardContent>
         <form action={formAction} className="flex flex-col gap-4">
+          {!forced && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="oldPassword">旧密码</Label>
+              <Input
+                id="oldPassword"
+                name="oldPassword"
+                type="password"
+                autoComplete="current-password"
+              />
+              {state?.fieldErrors?.oldPassword && (
+                <p className="text-sm text-destructive">{state.fieldErrors.oldPassword[0]}</p>
+              )}
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <Label htmlFor="newPassword">新密码</Label>
             <Input

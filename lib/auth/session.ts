@@ -21,13 +21,20 @@ export type CurrentUser = {
   lastLoginAt: Date | null;
 };
 
-// 登录成功后调用：数据库里建一条会话记录，并给浏览器发 httpOnly cookie。
-export async function createSession(userId: string): Promise<void> {
-  const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+// 生成一个新的会话 token。这里只生成随机值，不落库、不写 cookie，
+// 便于调用方把「创建会话记录」放进与业务写入相同的数据库事务里。
+export function generateSessionToken(): string {
+  return randomBytes(32).toString("base64url");
+}
 
-  await prisma.session.create({ data: { id: token, userId, expiresAt } });
+// 会话过期时间点。
+export function sessionExpiresAt(): Date {
+  return new Date(Date.now() + SESSION_DURATION_MS);
+}
 
+// 给浏览器写会话 cookie。必须在数据库事务成功提交之后再调用，
+// 避免出现「数据库回滚了、浏览器却拿到一个不存在会话的 cookie」。
+export async function setSessionCookie(token: string, expiresAt: Date): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, signSessionToken(token), {
     httpOnly: true, // 浏览器脚本读不到，防 XSS 偷会话
@@ -93,9 +100,4 @@ export async function destroyCurrentSession(): Promise<void> {
     await destroySessionByToken(token);
   }
   cookieStore.delete(SESSION_COOKIE_NAME);
-}
-
-// 删除某用户的所有会话（离职时调用）
-export async function destroyAllSessionsOfUser(userId: string): Promise<void> {
-  await prisma.session.deleteMany({ where: { userId } });
 }
