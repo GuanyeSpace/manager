@@ -6,9 +6,8 @@ import { prisma } from "@/lib/db";
 import { loginSchema, changePasswordSchema } from "@/modules/auth/schema";
 import {
   getCurrentUser,
+  getCurrentSessionToken,
   destroyCurrentSession,
-  generateSessionToken,
-  sessionExpiresAt,
   setSessionCookie,
 } from "@/lib/auth/session";
 import {
@@ -17,6 +16,12 @@ import {
   clearLoginFailures,
   type LoginRateLimitResult,
 } from "@/lib/auth/rate-limit";
+import {
+  createLoginSession,
+  changePasswordSession,
+  AuthStateChangedError,
+  SessionRevokedError,
+} from "@/modules/auth/auth-service";
 import { writeAudit } from "@/lib/audit";
 import { getClientIp } from "@/lib/request-ip";
 import { EmploymentStatus, AuditAction } from "@/app/generated/prisma/enums";
@@ -25,9 +30,6 @@ import { getWorkbenchPath } from "@/lib/auth/permissions";
 // 用户不存在时也用这个假哈希做一次比较，让「用户不存在」和「密码错误」
 // 两种情况的耗时接近，避免攻击者用响应时间探测用户名是否存在。
 const DUMMY_HASH = "$2b$10$3vG1FBjwdp6Dr.2nH7ChpeWf7gv1fuEZjxlp/dsWj4FNin0GIxyKq";
-
-// 改密事务内检测到密码已被并发重置/修改时抛出，用来回滚并提示用户重试。
-class PasswordStateChangedError extends Error {}
 
 export type LoginFormState =
   | {
@@ -85,40 +87,30 @@ export async function loginAction(
         ip,
       });
     } catch (e) {
-      // 登录失败审计是尽力而为，审计失败不应改变「统一提示用户名或密码错误」的结果
       console.error("登录失败审计写入失败:", e);
     }
     return { error: "用户名或密码错误" };
   }
 
-  const token = generateSessionToken();
-  const expiresAt = sessionExpiresAt();
-
+  let session: { token: string; expiresAt: Date; mustChangePassword: boolean };
   try {
-    // lastLoginAt、会话记录、成功审计一起提交，保证不会出现「有会话但审计缺失」的中间态。
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-      await tx.session.create({ data: { id: token, userId: user.id, expiresAt } });
-      await writeAudit({
-        db: tx,
-        actorId: user.id,
-        action: AuditAction.LOGIN_SUCCESS,
-        targetType: "User",
-        targetId: user.id,
-        ip,
-      });
-    });
+    // 事务内锁行复核密码哈希与在职状态，再创建会话；提交成功后才写 cookie。
+    session = await prisma.$transaction((tx) =>
+      createLoginSession(tx, { userId: user.id, verifiedHash: user.passwordHash, ip })
+    );
   } catch (e) {
+    if (e instanceof AuthStateChangedError) {
+      return { error: "登录失败，请稍后重试" };
+    }
     // 不向前端泄露任何数据库/堆栈细节
     console.error("登录处理失败:", e);
     return { error: "登录失败，请稍后重试" };
   }
 
   clearLoginFailures(ip, username);
-  // 事务提交成功后再写 cookie
-  await setSessionCookie(token, expiresAt);
-  // 强制改密优先于岗位跳转：需要改密的用户先去改密页，否则按岗位去各自工作台
-  redirect(user.mustChangePassword ? "/change-password" : getWorkbenchPath(user));
+  await setSessionCookie(session.token, session.expiresAt);
+  // redirect 必须放在 try/catch 之外：它通过抛异常实现，不能被子集 catch 吞掉。
+  redirect(session.mustChangePassword ? "/change-password" : getWorkbenchPath(user));
 }
 
 export type ChangePasswordFormState =
@@ -136,6 +128,8 @@ export async function changePasswordAction(
   // 独立校验登录态：不依赖页面拦截，直接调接口也必须被拒绝
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const sessionToken = await getCurrentSessionToken();
+  if (!sessionToken) redirect("/login");
 
   const parsed = changePasswordSchema.safeParse({
     oldPassword: formData.get("oldPassword") || undefined,
@@ -171,48 +165,32 @@ export async function changePasswordAction(
     return { fieldErrors: { newPassword: ["新密码不能与当前密码相同"] } };
   }
 
-  // 新密码哈希在事务外先算好，事务内只做快操作，减少持有行锁的时间。
   const passwordHash = await hash(parsed.data.newPassword, 10);
-  const token = generateSessionToken();
-  const expiresAt = sessionExpiresAt();
+  const ip = await getClientIp();
 
+  let session: { token: string; expiresAt: Date };
   try {
-    await prisma.$transaction(async (tx) => {
-      // 锁住用户行，重新确认密码哈希与校验时一致；若已被并发重置/修改则回滚。
-      const rows = await tx.$queryRaw<Array<{ passwordHash: string }>>`
-        SELECT "passwordHash" FROM "User" WHERE "id" = ${user.id} FOR UPDATE
-      `;
-      const row = rows[0];
-      if (!row || row.passwordHash !== current.passwordHash) {
-        throw new PasswordStateChangedError();
-      }
-
-      await tx.user.update({
-        where: { id: user.id },
-        data: { passwordHash, mustChangePassword: false },
-      });
-      // 撤销其他设备旧会话，为当前浏览器签发一个全新会话。
-      await tx.session.deleteMany({ where: { userId: user.id } });
-      await tx.session.create({ data: { id: token, userId: user.id, expiresAt } });
-      await writeAudit({
-        db: tx,
-        actorId: user.id,
-        action: AuditAction.PASSWORD_CHANGE,
-        targetType: "User",
-        targetId: user.id,
-        ip: await getClientIp(),
-      });
-    });
+    session = await prisma.$transaction(async (tx) =>
+      changePasswordSession(tx, {
+        userId: user.id,
+        sessionToken,
+        verifiedHash: current.passwordHash,
+        newPasswordHash: passwordHash,
+        ip,
+      })
+    );
   } catch (e) {
-    if (e instanceof PasswordStateChangedError) {
+    if (e instanceof SessionRevokedError) {
+      return { error: "会话已失效，请重新登录" };
+    }
+    if (e instanceof AuthStateChangedError) {
       return { error: "密码状态已变化，请重新提交" };
     }
     console.error("修改密码失败:", e);
     return { error: "修改密码失败，请稍后重试" };
   }
 
-  // 事务提交成功后再写 cookie，保证新 cookie 对应的会话一定存在。
-  await setSessionCookie(token, expiresAt);
+  await setSessionCookie(session.token, session.expiresAt);
   redirect("/");
 }
 

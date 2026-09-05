@@ -1,13 +1,11 @@
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { signSessionToken, verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/auth/session-token";
 import { EmploymentStatus, type Role } from "@/app/generated/prisma/enums";
 
-// 会话有效期：7 天（与需求确认过的默认值）
-export const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+export { SESSION_DURATION_MS, generateSessionToken, sessionExpiresAt } from "@/lib/auth/session-core";
 
 // 从会话里还原出的当前用户。故意不含 passwordHash，防止密码哈希在代码里到处流传。
 export type CurrentUser = {
@@ -21,17 +19,6 @@ export type CurrentUser = {
   lastLoginAt: Date | null;
 };
 
-// 生成一个新的会话 token。这里只生成随机值，不落库、不写 cookie，
-// 便于调用方把「创建会话记录」放进与业务写入相同的数据库事务里。
-export function generateSessionToken(): string {
-  return randomBytes(32).toString("base64url");
-}
-
-// 会话过期时间点。
-export function sessionExpiresAt(): Date {
-  return new Date(Date.now() + SESSION_DURATION_MS);
-}
-
 // 给浏览器写会话 cookie。必须在数据库事务成功提交之后再调用，
 // 避免出现「数据库回滚了、浏览器却拿到一个不存在会话的 cookie」。
 export async function setSessionCookie(token: string, expiresAt: Date): Promise<void> {
@@ -43,6 +30,13 @@ export async function setSessionCookie(token: string, expiresAt: Date): Promise<
     expires: expiresAt,
     path: "/",
   });
+}
+
+// 读取并校验当前会话 cookie，返回数据库里的会话 token（不查库）。
+// 用于改密等场景在事务内复核「当前会话是否已被并发撤销」。
+export async function getCurrentSessionToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return verifySessionToken(cookieStore.get(SESSION_COOKIE_NAME)?.value);
 }
 
 // 读取当前登录用户。返回 null 表示未登录、会话过期、或用户已离职。

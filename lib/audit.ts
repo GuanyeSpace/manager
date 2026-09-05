@@ -1,4 +1,3 @@
-import "server-only";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { AuditAction } from "@/app/generated/prisma/enums";
