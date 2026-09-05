@@ -43,8 +43,3 @@ export async function getUserById(actor: CurrentUser, id: string) {
   assertCanManageUsers(actor);
   return prisma.user.findUnique({ where: { id }, include: { branch: true } });
 }
-
-// 统计在职老板数量（「至少保留一个在职老板」规则使用）
-export async function countActiveBosses() {
-  return prisma.user.count({ where: { role: "BOSS", employmentStatus: "ACTIVE" } });
-}

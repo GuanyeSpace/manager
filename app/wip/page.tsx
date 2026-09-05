@@ -2,7 +2,7 @@ import { requirePageUser, requirePasswordChanged } from "@/lib/auth/permissions"
 import { ROLE_LABELS } from "@/lib/auth/role-labels";
 import { LogoutButton } from "@/components/logout-button";
 
-// 占位工作台：运营/场控/主播/财务等岗位暂时都到这里
+// 占位工作台：运营/小助理/主播/财务等岗位暂时都到这里
 export default async function WipPage() {
   const user = await requirePageUser();
   await requirePasswordChanged(user);

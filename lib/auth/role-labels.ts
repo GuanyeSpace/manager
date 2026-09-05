@@ -5,7 +5,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   BOSS: "老板",
   OPERATOR: "运营",
   CONTROLLER: "中控",
-  ASSISTANT: "场控",
+  ASSISTANT: "小助理",
   ANCHOR: "主播",
   FINANCE: "财务",
 };
