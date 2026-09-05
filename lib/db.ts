@@ -3,6 +3,11 @@ import { PrismaClient } from "@/app/generated/prisma/client";
 
 // Prisma 7 的客户端必须配一个「驱动适配器」才能连数据库，官方推荐 PrismaPg（基于 node-postgres）。
 // 连接串从 .env 的 DATABASE_URL 读取（Next.js 会自动加载 .env 到 process.env）。
+export function createPrismaClient(connectionString: string): PrismaClient {
+  const adapter = new PrismaPg({ connectionString });
+  return new PrismaClient({ adapter });
+}
+
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 
 // 开发模式下 Next.js 会热重载代码，用 globalThis 缓存单例，避免每次重载都新建连接池。
