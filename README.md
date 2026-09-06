@@ -163,7 +163,7 @@ TEST_DATABASE_URL="postgresql://manager:<密码>@localhost:5433/manager_test?sch
 
 破坏性测试保护：只有 `TEST_DATABASE_URL`（库名 `_test` 结尾、且不等于日常库）+ `ALLOW_TEST_DESTRUCTION=true` + 非生产环境时才会连接并执行；连接后还会用 `current_database()` 核对实际库名，防止误删。
 
-`test:auth-concurrency` 覆盖「顺序回归 / 旧状态复核」；`test:auth-overlap` 使用两个独立数据库连接与 barrier 明确暂停点，并用 `pg_backend_pid()` + `pg_blocking_pids()` 确认第二个事务确实被第一个事务阻塞后，才释放锁，覆盖真实的数据库锁竞争（登录 vs 重置/改密/离职）。`test:auth-overlap-fault` 验证「未观察到阻塞」与「事务报错」时能非零退出、释放锁并清理，不挂起。
+`test:auth-concurrency` 覆盖「顺序回归 / 旧状态复核」；`test:auth-overlap` 使用两个独立数据库连接与 barrier 明确暂停点，并用 `pg_backend_pid()` + `pg_blocking_pids()` 确认第二个事务确实被第一个事务阻塞后，才释放锁，覆盖真实的数据库锁竞争（登录 vs 重置/改密/离职）。`test:auth-overlap-fault` 验证故障路径：未观察到阻塞、事务报错、首个事务未达 barrier 报错、观察查询失败、清理失败仍断开其余连接，以及用子进程确认主流程抛异常时非零退出且本轮数据被清理、不挂起。
 
 ## 已知问题
 
