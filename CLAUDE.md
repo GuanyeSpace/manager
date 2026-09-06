@@ -43,6 +43,7 @@
 13. **客户端 IP 信任**：只有 `TRUST_PROXY=true` 才信任 `x-forwarded-for` / `x-real-ip`；默认归入 `direct` 桶。生产接反向代理时必须让代理覆盖转发头并禁止直连应用端口。
 14. **在职老板不变量**：所有岗位/在职状态写入先取 `pg_advisory_xact_lock`，再在事务内重读操作者与目标的最新状态（不依赖事务外快照），禁止回到「先 count 再 update」；操作者被并发降岗/离职时拒绝其过期修改。
 15. 岗位中文名：`CONTROLLER`=中控、`ASSISTANT`=小助理（枚举值不变）。
+16. **创建用户/重置密码的事务内授权**：与降岗/离职同用管理 advisory lock，锁内重读操作者（角色+在职+mustChangePassword）及当前会话；先管理锁、再用户行锁，避免死锁；分公司校验放进事务内业务流程。
 
 ## 常用命令
 
@@ -57,6 +58,7 @@ npm run test:rate-limit        # 限流逻辑回归（无数据库）
 npm run test:db-protection     # 破坏性测试保护校验（无数据库）
 npm run test:concurrency       # 在职老板不变量并发测试（需 TEST_DATABASE_URL + ALLOW_TEST_DESTRUCTION）
 npm run test:auth-concurrency  # 登录/改密/重置/离职并发一致性（需隔离测试库）
+npm run test:auth-overlap      # 真实数据库锁竞争（双连接 + barrier，需隔离测试库）
 ```
 
 ## 测试数据库安全（必须遵守）
