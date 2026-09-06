@@ -4,13 +4,7 @@
 import { hash } from "bcryptjs";
 import { Role, EmploymentStatus } from "../app/generated/prisma/enums";
 import type { PrismaClient } from "../app/generated/prisma/client";
-import {
-  resolveTestClient,
-  assertTestDatabase,
-  newRunId,
-  cleanupRun,
-  validateTestEnv,
-} from "./lib/test-db";
+import { runTestLifecycle } from "./lib/test-db";
 import { runOverlap, type OverlapOutcome } from "./lib/overlap-harness";
 import {
   createLoginSession,
@@ -48,15 +42,9 @@ function assertObservedBlocking(label: string, o: OverlapOutcome): void {
 }
 
 async function main(): Promise<void> {
-  const { dbName } = validateTestEnv();
-  const admin = resolveTestClient();
-  await assertTestDatabase(admin, dbName);
-  const left = resolveTestClient();
-  const right = resolveTestClient();
-  const observer = resolveTestClient();
-  const marker = newRunId();
+  await runTestLifecycle(3, async ({ admin, extras, marker }) => {
+    const [left, right, observer] = extras;
 
-  try {
     const branch = await admin.branch.create({ data: { name: `${marker}-branch` } });
     const oldHash = await hash("OldPass1234", 10);
     const newHash = await hash("NewPass1234", 10);
@@ -141,6 +129,10 @@ async function main(): Promise<void> {
         "改密阻塞旧登录：登录被拒",
         outcome.second.status === "rejected" && outcome.second.reason instanceof AuthStateChangedError
       );
+      const newToken = outcome.first.status === "fulfilled" ? (outcome.first.value as { token: string }).token : "";
+      check("改密阻塞旧登录：原会话失效", !(await isSessionAuthentic(admin, curToken)));
+      check("改密阻塞旧登录：改密返回的新会话可认证", newToken !== "" && (await isSessionAuthentic(admin, newToken)));
+      check("改密阻塞旧登录：被拒旧登录未额外创建会话", (await admin.session.count({ where: { userId: user.id } })) === 1);
     }
 
     // 4) 登录持锁，离职等待；登录提交后离职撤销其会话。
@@ -160,18 +152,7 @@ async function main(): Promise<void> {
       const token = outcome.first.status === "fulfilled" ? (outcome.first.value as { token: string }).token : "";
       check("登录阻塞离职：最终登录会话被撤销", token !== "" && !(await isSessionAuthentic(admin, token)));
     }
-  } finally {
-    // 独立断开：即使某个连接断开失败，也不影响其他连接关闭。
-    for (const c of [left, right, observer]) {
-      await c.$disconnect().catch(() => {});
-    }
-  }
-
-  try {
-    await cleanupRun(admin, marker);
-  } finally {
-    await admin.$disconnect().catch(() => {});
-  }
+  });
 
   if (failures > 0) {
     console.log(`\n${failures} FAILURES`);
