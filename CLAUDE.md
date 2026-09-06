@@ -59,6 +59,7 @@ npm run test:db-protection     # 破坏性测试保护校验（无数据库）
 npm run test:concurrency       # 在职老板不变量并发测试（需 TEST_DATABASE_URL + ALLOW_TEST_DESTRUCTION）
 npm run test:auth-concurrency  # 登录/改密/重置/离职并发一致性（需隔离测试库）
 npm run test:auth-overlap      # 真实数据库锁竞争（双连接 + barrier，需隔离测试库）
+npm run test:auth-overlap-fault # 锁竞争测试故障路径（无阻塞/事务报错清理）
 ```
 
 ## 测试数据库安全（必须遵守）
