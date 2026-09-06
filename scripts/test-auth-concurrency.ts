@@ -132,7 +132,7 @@ async function main(): Promise<void> {
       const login = await client.$transaction((tx) =>
         createLoginSession(tx, { userId: user.id, verifiedHash: fresh.passwordHash, ip: null })
       );
-      await client.$transaction((tx) => resignUserMutation(tx, boss.id, user.id));
+      await client.$transaction((tx) => resignUserMutation(tx, boss.id, undefined, user.id));
       check("离职后登录会话失效", !(await isSessionAuthentic(client, login.token)));
     }
 
@@ -158,6 +158,63 @@ async function main(): Promise<void> {
         rejected = e instanceof SessionRevokedError;
       }
       check("改密时当前会话已撤销则拒绝", rejected);
+    }
+
+    // 6) 改密时 sessionToken 属于他人：拒绝，不修改密码、不签发新会话。
+    {
+      const other = await client.user.create({
+        data: {
+          username: `${marker}-other`,
+          name: "other",
+          passwordHash: oldHash,
+          role: Role.CONTROLLER,
+          branchId: branch.id,
+          mustChangePassword: false,
+        },
+      });
+      const otherLogin = await client.$transaction((tx) =>
+        createLoginSession(tx, { userId: other.id, verifiedHash: oldHash, ip: null })
+      );
+      let rejected = false;
+      try {
+        await client.$transaction((tx) =>
+          changePasswordSession(tx, {
+            userId: user.id,
+            sessionToken: otherLogin.token,
+            verifiedHash: oldHash,
+            newPasswordHash: newHash,
+            ip: null,
+          })
+        );
+      } catch (e) {
+        rejected = e instanceof SessionRevokedError;
+      }
+      check("改密时 sessionToken 属于他人被拒", rejected);
+      check("被拒后密码未修改", (await client.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash === oldHash);
+      check("被拒后未签发新会话", (await client.session.count({ where: { userId: user.id } })) === 0);
+    }
+
+    // 7) 改密时当前会话已过期：拒绝。
+    {
+      const expiredToken = `${marker}-expired`;
+      await client.session.create({
+        data: { id: expiredToken, userId: user.id, expiresAt: new Date(Date.now() - 1000) },
+      });
+      let rejected = false;
+      try {
+        await client.$transaction((tx) =>
+          changePasswordSession(tx, {
+            userId: user.id,
+            sessionToken: expiredToken,
+            verifiedHash: oldHash,
+            newPasswordHash: newHash,
+            ip: null,
+          })
+        );
+      } catch (e) {
+        rejected = e instanceof SessionRevokedError;
+      }
+      check("改密时当前会话已过期被拒", rejected);
     }
   } finally {
     await cleanupRun(client, marker);

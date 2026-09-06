@@ -11,7 +11,8 @@
     "test:concurrency": "tsx scripts/test-boss-invariant.ts",
     "test:rate-limit": "tsx scripts/test-rate-limit.ts",
     "test:db-protection": "tsx scripts/test-db-protection.ts",
-    "test:auth-concurrency": "tsx scripts/test-auth-concurrency.ts"
+    "test:auth-concurrency": "tsx scripts/test-auth-concurrency.ts",
+    "test:auth-overlap": "tsx scripts/test-auth-overlap.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
