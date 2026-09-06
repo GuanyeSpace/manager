@@ -27,8 +27,15 @@ export async function acquireUserMutationLock(tx: Prisma.TransactionClient): Pro
 }
 
 // 重读操作者当前状态，确认仍是「在职老板」。调用前必须先持有 mutation 锁。
-export function assertActorCanManage(actor: { role: Role; employmentStatus: EmploymentStatus } | null): void {
-  if (!actor || actor.role !== Role.BOSS || actor.employmentStatus !== EmploymentStatus.ACTIVE) {
+export function assertActorCanManage(
+  actor: { role: Role; employmentStatus: EmploymentStatus; mustChangePassword: boolean } | null
+): void {
+  if (
+    !actor ||
+    actor.role !== Role.BOSS ||
+    actor.employmentStatus !== EmploymentStatus.ACTIVE ||
+    actor.mustChangePassword
+  ) {
     throw new ActorPermissionChangedError();
   }
 }

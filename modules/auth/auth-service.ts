@@ -6,11 +6,16 @@ import { generateSessionToken, sessionExpiresAt } from "@/lib/auth/session-core"
 export class AuthStateChangedError extends Error {}
 export class SessionRevokedError extends Error {}
 
+export type AuthTestHooks = {
+  afterUserLock?: () => Promise<void>;
+};
+
 // 登录：在事务内锁定用户行，复核「密码哈希未变 + 仍在职」，再写 lastLoginAt + 会话 + 审计。
 // verifiedHash 是事务外验证密码时用到的哈希；锁行后若哈希已变，说明期间发生过改密/重置。
 export async function createLoginSession(
   tx: Prisma.TransactionClient,
-  input: { userId: string; verifiedHash: string; ip: string | null }
+  input: { userId: string; verifiedHash: string; ip: string | null },
+  hooks?: AuthTestHooks
 ): Promise<{ token: string; expiresAt: Date; mustChangePassword: boolean }> {
   const rows = await tx.$queryRaw<Array<{ passwordHash: string; employmentStatus: EmploymentStatus; mustChangePassword: boolean }>>`
     SELECT "passwordHash", "employmentStatus", "mustChangePassword"
@@ -20,6 +25,7 @@ export async function createLoginSession(
   if (!row || row.passwordHash !== input.verifiedHash || row.employmentStatus !== EmploymentStatus.ACTIVE) {
     throw new AuthStateChangedError();
   }
+  await hooks?.afterUserLock?.();
 
   const token = generateSessionToken();
   const expiresAt = sessionExpiresAt();
@@ -46,7 +52,8 @@ export async function changePasswordSession(
     verifiedHash: string;
     newPasswordHash: string;
     ip: string | null;
-  }
+  },
+  hooks?: AuthTestHooks
 ): Promise<{ token: string; expiresAt: Date }> {
   const rows = await tx.$queryRaw<Array<{ passwordHash: string; employmentStatus: EmploymentStatus }>>`
     SELECT "passwordHash", "employmentStatus"
@@ -56,9 +63,14 @@ export async function changePasswordSession(
   if (!row || row.passwordHash !== input.verifiedHash || row.employmentStatus !== EmploymentStatus.ACTIVE) {
     throw new AuthStateChangedError();
   }
+  await hooks?.afterUserLock?.();
 
   const currentSession = await tx.session.findUnique({ where: { id: input.sessionToken } });
-  if (!currentSession) {
+  if (
+    !currentSession ||
+    currentSession.userId !== input.userId ||
+    currentSession.expiresAt.getTime() <= Date.now()
+  ) {
     throw new SessionRevokedError();
   }
 

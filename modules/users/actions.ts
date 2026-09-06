@@ -9,6 +9,7 @@ import {
   assertCanManageUsers,
 } from "@/lib/auth/permissions";
 import type { CurrentUser } from "@/lib/auth/session";
+import { getCurrentSessionToken } from "@/lib/auth/session";
 import { writeAudit } from "@/lib/audit";
 import { getClientIp } from "@/lib/request-ip";
 import {
@@ -26,8 +27,10 @@ import {
   updateUserMutation,
   resignUserMutation,
   reactivateUserMutation,
+  createUserMutation,
+  resetPasswordMutation,
 } from "@/modules/users/user-mutations";
-import { AuditAction, Role, BranchStatus } from "@/app/generated/prisma/enums";
+import { AuditAction } from "@/app/generated/prisma/enums";
 
 export type UserFormState =
   | {
@@ -36,19 +39,21 @@ export type UserFormState =
     }
   | undefined;
 
-// 每个动作的第一行都必须独立校验身份与能力，不依赖页面拦截
-async function guard(): Promise<CurrentUser> {
+// 页面级守卫：先做一次身份/岗位/强制改密校验。
+// 它只是第一道防线；敏感写入还会在事务内再次复核操作者与会话。
+async function guard(): Promise<{ actor: CurrentUser; sessionToken: string }> {
   const user = await requirePageUser();
   await requirePasswordChanged(user);
   assertCanManageUsers(user);
-  return user;
+  const sessionToken = await getCurrentSessionToken();
+  if (!sessionToken) redirect("/login");
+  return { actor: user, sessionToken };
 }
 
 function isUniqueConflict(e: unknown): boolean {
   return (e as { code?: string })?.code === "P2002";
 }
 
-// 把事务内抛出的领域错误映射成对用户友好的结果。
 function toUserFormState(e: unknown): UserFormState {
   if (e instanceof ActiveBossConstraintError) {
     return { error: "系统至少需要保留一个在职老板" };
@@ -65,19 +70,11 @@ function toUserFormState(e: unknown): UserFormState {
   return { error: "操作失败，请稍后重试" };
 }
 
-async function validateActiveBranch(branchId: string): Promise<string | null> {
-  const branch = await prisma.branch.findUnique({ where: { id: branchId } });
-  if (!branch || branch.status !== BranchStatus.ACTIVE) {
-    return "所选分公司不存在或已停用";
-  }
-  return null;
-}
-
 export async function createUserAction(
   _prevState: UserFormState,
   formData: FormData
 ): Promise<UserFormState> {
-  const actor = await guard();
+  const { actor, sessionToken } = await guard();
 
   const parsed = createUserSchema.safeParse({
     name: formData.get("name"),
@@ -90,28 +87,15 @@ export async function createUserAction(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  let branchId: string | null = null;
-  if (parsed.data.role !== Role.BOSS) {
-    if (!parsed.data.branchId) {
-      return { fieldErrors: { branchId: ["非老板岗位必须选择所属分公司"] } };
-    }
-    const branchError = await validateActiveBranch(parsed.data.branchId);
-    if (branchError) return { fieldErrors: { branchId: [branchError] } };
-    branchId = parsed.data.branchId;
-  }
-
   const passwordHash = await hash(parsed.data.initialPassword, 10);
   try {
     await prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
-        data: {
-          name: parsed.data.name,
-          username: parsed.data.username,
-          passwordHash,
-          role: parsed.data.role,
-          branchId,
-          mustChangePassword: true,
-        },
+      const newUser = await createUserMutation(tx, actor.id, sessionToken, {
+        name: parsed.data.name,
+        username: parsed.data.username,
+        passwordHash,
+        role: parsed.data.role,
+        branchId: parsed.data.branchId,
       });
       await writeAudit({
         db: tx,
@@ -125,8 +109,7 @@ export async function createUserAction(
     });
   } catch (e) {
     if (isUniqueConflict(e)) return { error: "用户名已存在" };
-    console.error("创建用户失败:", e);
-    return { error: "创建失败，请稍后重试" };
+    return toUserFormState(e);
   }
 
   redirect("/boss/users");
@@ -136,7 +119,7 @@ export async function updateUserAction(
   _prevState: UserFormState,
   formData: FormData
 ): Promise<UserFormState> {
-  const actor = await guard();
+  const { actor, sessionToken } = await guard();
 
   const parsed = updateUserSchema.safeParse({
     userId: formData.get("userId"),
@@ -150,11 +133,13 @@ export async function updateUserAction(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const { before, updated } = await updateUserMutation(tx, actor.id, parsed.data.userId, {
-        name: parsed.data.name,
-        role: parsed.data.role,
-        branchId: parsed.data.branchId,
-      });
+      const { before, updated } = await updateUserMutation(
+        tx,
+        actor.id,
+        sessionToken,
+        parsed.data.userId,
+        { name: parsed.data.name, role: parsed.data.role, branchId: parsed.data.branchId }
+      );
       await writeAudit({
         db: tx,
         actorId: actor.id,
@@ -183,14 +168,14 @@ export async function resignUserAction(
   _prevState: UserFormState,
   formData: FormData
 ): Promise<UserFormState> {
-  const actor = await guard();
+  const { actor, sessionToken } = await guard();
 
   const parsed = userIdSchema.safeParse({ userId: formData.get("userId") });
   if (!parsed.success) return { fieldErrors: parsed.error.flatten().fieldErrors };
 
   try {
     await prisma.$transaction(async (tx) => {
-      const target = await resignUserMutation(tx, actor.id, parsed.data.userId);
+      const target = await resignUserMutation(tx, actor.id, sessionToken, parsed.data.userId);
       await writeAudit({
         db: tx,
         actorId: actor.id,
@@ -212,14 +197,14 @@ export async function reactivateUserAction(
   _prevState: UserFormState,
   formData: FormData
 ): Promise<UserFormState> {
-  const actor = await guard();
+  const { actor, sessionToken } = await guard();
 
   const parsed = userIdSchema.safeParse({ userId: formData.get("userId") });
   if (!parsed.success) return { fieldErrors: parsed.error.flatten().fieldErrors };
 
   try {
     await prisma.$transaction(async (tx) => {
-      const target = await reactivateUserMutation(tx, actor.id, parsed.data.userId);
+      const target = await reactivateUserMutation(tx, actor.id, sessionToken, parsed.data.userId);
       await writeAudit({
         db: tx,
         actorId: actor.id,
@@ -241,7 +226,7 @@ export async function resetPasswordAction(
   _prevState: UserFormState,
   formData: FormData
 ): Promise<UserFormState> {
-  const actor = await guard();
+  const { actor, sessionToken } = await guard();
 
   const parsed = resetPasswordSchema.safeParse({
     userId: formData.get("userId"),
@@ -249,19 +234,16 @@ export async function resetPasswordAction(
   });
   if (!parsed.success) return { fieldErrors: parsed.error.flatten().fieldErrors };
 
-  const target = await prisma.user.findUnique({ where: { id: parsed.data.userId } });
-  if (!target) return { error: "用户不存在" };
-
   const passwordHash = await hash(parsed.data.newPassword, 10);
   try {
     await prisma.$transaction(async (tx) => {
-      // 锁住目标用户行，与本人改密/登录串行化，保证密码更新 + 旧会话撤销一致。
-      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${target.id} FOR UPDATE`;
-      await tx.user.update({
-        where: { id: target.id },
-        data: { passwordHash, mustChangePassword: true },
-      });
-      await tx.session.deleteMany({ where: { userId: target.id } });
+      const target = await resetPasswordMutation(
+        tx,
+        actor.id,
+        sessionToken,
+        parsed.data.userId,
+        passwordHash
+      );
       await writeAudit({
         db: tx,
         actorId: actor.id,
@@ -273,9 +255,8 @@ export async function resetPasswordAction(
       });
     });
   } catch (e) {
-    console.error("重置密码失败:", e);
-    return { error: "重置失败，请稍后重试" };
+    return toUserFormState(e);
   }
 
-  redirect(`/boss/users/${target.id}`);
+  redirect(`/boss/users/${parsed.data.userId}`);
 }
