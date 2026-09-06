@@ -1,5 +1,6 @@
-// 真实重叠执行（数据库锁竞争）测试：使用两个独立连接 + barrier 明确暂停点。
-// 与 test-auth-concurrency 的顺序回归/旧状态复核区分开。
+// 真实重叠执行（数据库锁竞争）测试：
+// 每个场景都用 pg_backend_pid() 确认两个事务使用不同连接，用 pg_blocking_pids()
+// 确认第二个事务确实被第一个事务阻塞，之后才释放第一个事务。
 import { hash } from "bcryptjs";
 import { Role, EmploymentStatus } from "../app/generated/prisma/enums";
 import type { PrismaClient } from "../app/generated/prisma/client";
@@ -10,6 +11,7 @@ import {
   cleanupRun,
   validateTestEnv,
 } from "./lib/test-db";
+import { runOverlap, type OverlapOutcome } from "./lib/overlap-harness";
 import {
   createLoginSession,
   changePasswordSession,
@@ -26,28 +28,6 @@ function check(name: string, cond: boolean, extra = ""): void {
   }
 }
 
-function latch(): { entered: Promise<void>; release: () => void; afterLock: () => Promise<void> } {
-  let enter!: () => void;
-  let release!: () => void;
-  const entered = new Promise<void>((r) => (enter = r));
-  const released = new Promise<void>((r) => (release = r));
-  return {
-    entered,
-    release,
-    afterLock: () => {
-      enter();
-      return released;
-    },
-  };
-}
-
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`超时: ${label}`)), ms)),
-  ]);
-}
-
 async function isSessionAuthentic(client: PrismaClient, token: string): Promise<boolean> {
   const s = await client.session.findUnique({ where: { id: token }, include: { user: true } });
   if (!s) return false;
@@ -62,12 +42,18 @@ async function resetUser(client: PrismaClient, userId: string, oldHash: string):
   await client.session.deleteMany({ where: { userId } });
 }
 
+function assertObservedBlocking(label: string, o: OverlapOutcome): void {
+  check(`${label}：确认使用不同数据库连接`, o.firstPid !== 0 && o.secondPid !== 0 && o.firstPid !== o.secondPid);
+  check(`${label}：已观察到预期锁阻塞`, o.observedBlocking, `firstPid=${o.firstPid} secondPid=${o.secondPid}`);
+}
+
 async function main(): Promise<void> {
   const { dbName } = validateTestEnv();
   const admin = resolveTestClient();
   await assertTestDatabase(admin, dbName);
   const left = resolveTestClient();
   const right = resolveTestClient();
+  const observer = resolveTestClient();
   const marker = newRunId();
 
   try {
@@ -95,47 +81,41 @@ async function main(): Promise<void> {
       },
     });
 
-    // 1) 重置事务持有用户行锁，旧密码登录等待；重置提交后登录被拒。
+    // 1) 重置持锁，旧密码登录等待；重置提交后登录被拒。
     {
-      const l = latch();
-      const resetP = left.$transaction((tx) =>
-        resetPasswordMutation(tx, boss.id, undefined, user.id, newHash, {
-          afterUserLock: () => l.afterLock(),
-        })
+      const outcome = await runOverlap(
+        left,
+        right,
+        observer,
+        (tx, { afterLock }) =>
+          resetPasswordMutation(tx, boss.id, undefined, user.id, newHash, { afterUserLock: afterLock }),
+        (tx) => createLoginSession(tx, { userId: user.id, verifiedHash: oldHash, ip: null })
       );
-      await withTimeout(l.entered, 5000, "entered-reset");
-      const loginP = right.$transaction((tx) =>
-        createLoginSession(tx, { userId: user.id, verifiedHash: oldHash, ip: null })
+      assertObservedBlocking("重置阻塞旧登录", outcome);
+      check("重置阻塞旧登录：重置成功", outcome.first.status === "fulfilled");
+      check(
+        "重置阻塞旧登录：登录被拒",
+        outcome.second.status === "rejected" && outcome.second.reason instanceof AuthStateChangedError
       );
-      l.release();
-      const results = await Promise.allSettled([
-        withTimeout(resetP, 5000, "reset"),
-        withTimeout(loginP, 5000, "login"),
-      ]);
-      check("重置持锁时旧登录被拒", results[0].status === "fulfilled" && results[1].status === "rejected" && results[1].reason instanceof AuthStateChangedError);
+      check("重置阻塞旧登录：登录被拒后未产生会话", (await admin.session.count({ where: { userId: user.id } })) === 0);
     }
 
-    // 2) 登录事务先持锁并创建会话，重置等待；随后重置撤销该会话。
+    // 2) 登录持锁，重置等待；登录提交后重置撤销其会话。
     {
       await resetUser(admin, user.id, oldHash);
-      const l = latch();
-      const loginP = left.$transaction((tx) =>
-        createLoginSession(tx, { userId: user.id, verifiedHash: oldHash, ip: null }, {
-          afterUserLock: () => l.afterLock(),
-        })
+      const outcome = await runOverlap(
+        left,
+        right,
+        observer,
+        (tx, { afterLock }) =>
+          createLoginSession(tx, { userId: user.id, verifiedHash: oldHash, ip: null }, { afterUserLock: afterLock }),
+        (tx) => resetPasswordMutation(tx, boss.id, undefined, user.id, newHash)
       );
-      await withTimeout(l.entered, 5000, "entered-login");
-      const resetP = right.$transaction((tx) =>
-        resetPasswordMutation(tx, boss.id, undefined, user.id, newHash)
-      );
-      l.release();
-      const results = await Promise.allSettled([
-        withTimeout(loginP, 5000, "login"),
-        withTimeout(resetP, 5000, "reset"),
-      ]);
-      const token = results[0].status === "fulfilled" ? (results[0].value as { token: string }).token : "";
-      check("登录与重置重叠：两者均完成", results.every((r) => r.status === "fulfilled"));
-      check("重置撤销了登录创建的会话", token !== "" && !(await isSessionAuthentic(admin, token)));
+      assertObservedBlocking("登录阻塞重置", outcome);
+      check("登录阻塞重置：登录成功", outcome.first.status === "fulfilled");
+      check("登录阻塞重置：重置成功", outcome.second.status === "fulfilled");
+      const token = outcome.first.status === "fulfilled" ? (outcome.first.value as { token: string }).token : "";
+      check("登录阻塞重置：最终登录会话被撤销", token !== "" && !(await isSessionAuthentic(admin, token)));
     }
 
     // 3) 本人改密持锁，旧密码登录等待；改密提交后登录被拒。
@@ -143,51 +123,54 @@ async function main(): Promise<void> {
       await resetUser(admin, user.id, oldHash);
       const curToken = `${marker}-cur`;
       await admin.session.create({ data: { id: curToken, userId: user.id, expiresAt: new Date(Date.now() + 60_000) } });
-      const l = latch();
-      const changeP = left.$transaction((tx) =>
-        changePasswordSession(
-          tx,
-          { userId: user.id, sessionToken: curToken, verifiedHash: oldHash, newPasswordHash: newHash, ip: null },
-          { afterUserLock: () => l.afterLock() }
-        )
+      const outcome = await runOverlap(
+        left,
+        right,
+        observer,
+        (tx, { afterLock }) =>
+          changePasswordSession(
+            tx,
+            { userId: user.id, sessionToken: curToken, verifiedHash: oldHash, newPasswordHash: newHash, ip: null },
+            { afterUserLock: afterLock }
+          ),
+        (tx) => createLoginSession(tx, { userId: user.id, verifiedHash: oldHash, ip: null })
       );
-      await withTimeout(l.entered, 5000, "entered-change");
-      const loginP = right.$transaction((tx) =>
-        createLoginSession(tx, { userId: user.id, verifiedHash: oldHash, ip: null })
+      assertObservedBlocking("改密阻塞旧登录", outcome);
+      check("改密阻塞旧登录：改密成功", outcome.first.status === "fulfilled");
+      check(
+        "改密阻塞旧登录：登录被拒",
+        outcome.second.status === "rejected" && outcome.second.reason instanceof AuthStateChangedError
       );
-      l.release();
-      const results = await Promise.allSettled([
-        withTimeout(changeP, 5000, "change"),
-        withTimeout(loginP, 5000, "login"),
-      ]);
-      check("改密持锁时旧登录被拒", results[0].status === "fulfilled" && results[1].status === "rejected" && results[1].reason instanceof AuthStateChangedError);
     }
 
     // 4) 登录持锁，离职等待；登录提交后离职撤销其会话。
     {
       await resetUser(admin, user.id, oldHash);
-      const l = latch();
-      const loginP = left.$transaction((tx) =>
-        createLoginSession(tx, { userId: user.id, verifiedHash: oldHash, ip: null }, {
-          afterUserLock: () => l.afterLock(),
-        })
+      const outcome = await runOverlap(
+        left,
+        right,
+        observer,
+        (tx, { afterLock }) =>
+          createLoginSession(tx, { userId: user.id, verifiedHash: oldHash, ip: null }, { afterUserLock: afterLock }),
+        (tx) => resignUserMutation(tx, boss.id, undefined, user.id)
       );
-      await withTimeout(l.entered, 5000, "entered-login2");
-      const resignP = right.$transaction((tx) => resignUserMutation(tx, boss.id, undefined, user.id));
-      l.release();
-      const results = await Promise.allSettled([
-        withTimeout(loginP, 5000, "login"),
-        withTimeout(resignP, 5000, "resign"),
-      ]);
-      const token = results[0].status === "fulfilled" ? (results[0].value as { token: string }).token : "";
-      check("登录与离职重叠：两者均完成", results.every((r) => r.status === "fulfilled"));
-      check("离职撤销了登录创建的会话", token !== "" && !(await isSessionAuthentic(admin, token)));
+      assertObservedBlocking("登录阻塞离职", outcome);
+      check("登录阻塞离职：登录成功", outcome.first.status === "fulfilled");
+      check("登录阻塞离职：离职成功", outcome.second.status === "fulfilled");
+      const token = outcome.first.status === "fulfilled" ? (outcome.first.value as { token: string }).token : "";
+      check("登录阻塞离职：最终登录会话被撤销", token !== "" && !(await isSessionAuthentic(admin, token)));
     }
   } finally {
-    await left.$disconnect().catch(() => {});
-    await right.$disconnect().catch(() => {});
+    // 独立断开：即使某个连接断开失败，也不影响其他连接关闭。
+    for (const c of [left, right, observer]) {
+      await c.$disconnect().catch(() => {});
+    }
+  }
+
+  try {
     await cleanupRun(admin, marker);
-    await admin.$disconnect();
+  } finally {
+    await admin.$disconnect().catch(() => {});
   }
 
   if (failures > 0) {
