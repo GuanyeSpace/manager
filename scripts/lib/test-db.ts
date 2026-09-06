@@ -72,3 +72,52 @@ export async function cleanupRun(client: PrismaClient, marker: string): Promise<
   }
   await client.branch.deleteMany({ where: { name: { startsWith: marker } } });
 }
+
+// 覆盖整个测试生命周期的外层清理：
+// - 数据清理与 admin 断连放进 finally，即使测试抛异常也会执行；
+// - 每个测试连接独立断开，一个失败不影响其余；
+// - 数据库校验/初始化中途失败也释放已创建的客户端；
+// - 保留原始错误，清理错误只记录不掩盖。
+export async function runTestLifecycle<T>(
+  extraClientCount: number,
+  run: (ctx: { admin: PrismaClient; extras: PrismaClient[]; marker: string }) => Promise<T>
+): Promise<T> {
+  const { dbName } = validateTestEnv();
+  const admin = resolveTestClient();
+  const extras: PrismaClient[] = [];
+  let marker = "";
+
+  try {
+    await assertTestDatabase(admin, dbName);
+    for (let i = 0; i < extraClientCount; i++) {
+      extras.push(resolveTestClient());
+    }
+    marker = newRunId();
+    return await run({ admin, extras, marker });
+  } finally {
+    await disconnectAllAndCleanup(admin, extras, marker);
+  }
+}
+
+// 断开所有测试连接并清理本轮数据。每个连接独立 catch；清理失败只记录，不掩盖原始错误；
+// 清理失败仍会断开 admin。
+export async function disconnectAllAndCleanup(
+  admin: PrismaClient,
+  extras: PrismaClient[],
+  marker: string
+): Promise<void> {
+  for (const c of extras) {
+    await c.$disconnect().catch(() => {});
+  }
+  if (marker) {
+    try {
+      await cleanupRun(admin, marker);
+    } catch (cleanupError) {
+      console.error("清理测试数据失败:", cleanupError);
+    } finally {
+      await admin.$disconnect().catch(() => {});
+    }
+  } else {
+    await admin.$disconnect().catch(() => {});
+  }
+}

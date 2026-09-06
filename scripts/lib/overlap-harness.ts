@@ -1,8 +1,19 @@
 import type { PrismaClient, Prisma } from "../../app/generated/prisma/client";
 
-export const TX_TIMEOUT = 20000;
-export const DB_TX_TIMEOUT = 30000;
-export const OBSERVE_TIMEOUT = 5000;
+// 各超时相互匹配：
+// - lock_timeout / statement_timeout 是数据库单语句层面的保护；
+// - DB_TX_TIMEOUT 是 Prisma 交互式事务的总体保护；
+// - SETTLE_TIMEOUT 是测试等待「原始事务真正 settle」的保护，必须大于 DB_TX_TIMEOUT。
+export const LOCK_TIMEOUT_MS = 8000;
+export const STATEMENT_TIMEOUT_MS = 12000;
+export const DB_TX_TIMEOUT = 15000;
+export const SETTLE_TIMEOUT = 20000;
+export const TX_TIMEOUT = 10000;
+export const OBSERVE_TIMEOUT = 4000;
+export const OBSERVE_QUERY_TIMEOUT = 2000;
+
+// 标记「withTimeout 包装器超时」：此时原始事务可能仍在运行，不能视为已结束。
+export class TransactionTimeoutError extends Error {}
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -17,7 +28,6 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
-// 第一个事务持锁的 barrier：afterLock 先通知「已持锁」，再等待 release。
 export function makeBarrier(): {
   locked: Promise<void>;
   release: () => void;
@@ -43,25 +53,35 @@ export function makeLatch(): { wait: () => Promise<void>; signal: () => void } {
   return { wait: () => p, signal: () => resolve() };
 }
 
-// 当前交互式事务所在数据库连接的 backend pid。
 export async function backendPid(tx: Prisma.TransactionClient): Promise<number> {
   const rows = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
   return Number(rows[0].pid);
 }
 
-// 观察连接上判断 blockedPid 是否正被 blockerPid 阻塞。
+async function setTxTimeouts(tx: Prisma.TransactionClient): Promise<void> {
+  // SET 不接受绑定参数，这里用常量字符串内联（数值由上面的常量派生）。
+  await tx.$executeRawUnsafe(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT_MS}ms'`);
+  await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = '${STATEMENT_TIMEOUT_MS}ms'`);
+}
+
+// 观察连接上判断 blockedPid 是否正被 blockerPid 阻塞；单次查询有明确超时。
 export async function isBlockedBy(
   observer: PrismaClient,
   blockedPid: number,
   blockerPid: number
 ): Promise<boolean> {
-  const rows = await observer.$queryRaw<Array<{ blocker: number }>>`
-    SELECT unnest(pg_blocking_pids(${blockedPid})) AS blocker
-  `;
+  const rows = await withTimeout(
+    observer.$queryRaw<Array<{ blocker: number }>>`
+      SELECT unnest(pg_blocking_pids(${blockedPid})) AS blocker
+    `,
+    OBSERVE_QUERY_TIMEOUT,
+    "观察阻塞查询"
+  );
   return rows.some((r) => Number(r.blocker) === blockerPid);
 }
 
 // 有界轮询，直到观察到 blockedPid 被 blockerPid 阻塞；超时返回 false（由调用方判失败）。
+// 单次观察查询报错按「本次未观察到」继续，循环仍有总截止时间，不挂起。
 export async function waitForBlock(
   observer: PrismaClient,
   blockedPid: number,
@@ -70,7 +90,11 @@ export async function waitForBlock(
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await isBlockedBy(observer, blockedPid, blockerPid)) return true;
+    try {
+      if (await isBlockedBy(observer, blockedPid, blockerPid)) return true;
+    } catch {
+      // 继续轮询；总截止时间由 deadline 控制。
+    }
     await sleep(20);
   }
   return false;
@@ -91,11 +115,21 @@ export type FirstBody = (
 
 export type SecondBody = (tx: Prisma.TransactionClient) => Promise<unknown>;
 
-// 运行两个真正重叠的事务：
-// 1) 第一个事务先取自己的 backend pid，再执行业务（业务内部在持锁后调用 afterLock）。
-// 2) 观察到第一个持锁后，启动第二个事务；第二个事务先取 pid，再执行业务（会阻塞）。
-// 3) 用独立观察连接确认第二个 pid 正被第一个 pid 阻塞，之后才释放第一个事务。
-// 无论成功失败，都保证 barrier 释放、两个事务 settle，不遗留持锁或挂起。
+async function settleOriginal(p: Promise<unknown>, label: string): Promise<PromiseSettledResult<unknown>> {
+  try {
+    const value = await withTimeout(p, SETTLE_TIMEOUT, label);
+    return { status: "fulfilled", value };
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("超时:")) {
+      return { status: "rejected", reason: new TransactionTimeoutError(label) };
+    }
+    return { status: "rejected", reason: e };
+  }
+}
+
+// 运行两个真正重叠的事务。无论成功失败都释放 barrier，并等待原始事务 settle（不是包装器）。
+// 若原始事务超过 SETTLE_TIMEOUT 仍未结束，返回 TransactionTimeoutError；外层 finally 会断开
+// 这些测试自有连接，从而触发数据库回滚，再清理数据。
 export async function runOverlap(
   left: PrismaClient,
   right: PrismaClient,
@@ -115,17 +149,19 @@ export async function runOverlap(
   try {
     firstPromise = left.$transaction(
       async (tx) => {
+        await setTxTimeouts(tx);
         firstPid = await backendPid(tx);
         return firstBody(tx, { afterLock: () => barrier.afterLock() });
       },
       { timeout: DB_TX_TIMEOUT }
     );
-    firstPromise.catch(() => {}); // 防止在 allSettled 接管前被当作未处理 rejection
+    firstPromise.catch(() => {}); // 防止在 settle 接管前被当作未处理 rejection
 
     await withTimeout(barrier.locked, TX_TIMEOUT, "第一个事务持锁");
 
     secondPromise = right.$transaction(
       async (tx) => {
+        await setTxTimeouts(tx);
         secondPid = await backendPid(tx);
         secondReady.signal();
         return secondBody(tx);
@@ -143,19 +179,11 @@ export async function runOverlap(
     barrier.release();
   }
 
-  const settled = await Promise.allSettled([
-    withTimeout(firstPromise ?? Promise.resolve(), TX_TIMEOUT, "第一个事务结束"),
-    withTimeout(secondPromise ?? Promise.resolve(), TX_TIMEOUT, "第二个事务结束"),
-  ]);
+  // 等待原始事务结束（回滚/提交），而不是等 withTimeout 包装器。
+  const first = await settleOriginal(firstPromise ?? Promise.resolve(), "第一个事务结束");
+  const second = await settleOriginal(secondPromise ?? Promise.resolve(), "第二个事务结束");
 
-  const outcome: OverlapOutcome = {
-    first: settled[0],
-    second: settled[1],
-    firstPid,
-    secondPid,
-    observedBlocking,
-  };
-
+  const outcome: OverlapOutcome = { first, second, firstPid, secondPid, observedBlocking };
   if (setupError) throw setupError;
   return outcome;
 }
