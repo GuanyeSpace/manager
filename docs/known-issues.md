@@ -27,6 +27,13 @@
 | K019 | 09-30审计发现，低 | modules/accounts/data.ts、modules/resources/data.ts把mustChangePassword查出来并传入客户端AccountForm/ResourceForm，两个组件实际未使用该字段 | 从select移除该字段；确认强制改密跳转仍由页面守卫负责后跑账号/资源回归 |
 | K020 | 09-30审计发现，低 | Branch无version列，分公司改名/启停无版本保护，仅靠管理锁串行化并记录审计前后值 | 如需加固，表单加expectedName比对而非新增迁移；先与用户确认优先级 |
 
+## 2026-10-01老板布局分支审查（未上线）
+
+- K021：已复现/P2，移动抽屉打开后跨到桌面断点，CSS隐藏但模态仍open，body指针与滚动锁未释放。
+- K022：已复现/P2，分公司抽屉打开后后退到员工，再前进会自行重新打开，openedAt旧路由状态复活。
+- K023：已复现/P2，多岗位老板管理页同时显示全局切换条与新顶栏切换，1366×768侧栏底部实测819px超出视口。
+- 上述仅存在于待审的feat/boss-layout-phase1（74fe14d），尚未合并发布；复现、位置、最小修复与验收见[审查文档](tasks/boss-layout-phase1-review.md)。
+
 ## 已关闭的近期问题
 
 - 手机号→手机返回丢失来源：09-29加入安全trail、逐级返回和编辑保存来源，隔离浏览器验收通过。
