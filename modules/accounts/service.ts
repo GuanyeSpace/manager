@@ -49,7 +49,7 @@ export async function saveAccount(tx: Prisma.TransactionClient, token: string, r
   if (before && before.branchId !== input.branchId && !isAccountBoss(actor)) {
     throw new UserActionError("跨公司调拨仅限老板操作");
   }
-  if (before && (before.branchId !== input.branchId || before.controllerId !== input.controllerId || before.operatorId !== (input.operatorId || null) || before.anchorId !== (input.anchorId || null) || input.active !== "true")) {
+  if (before && (before.branchId !== input.branchId || before.controllerId !== (input.controllerId || null) || before.operatorId !== (input.operatorId || null) || before.anchorId !== (input.anchorId || null) || input.active !== "true")) {
     const ongoing = await tx.workSession.findFirst({ where: { accountId: before.id, phase: { in: ["PREPARING", "LIVE"] } } });
     if (ongoing) throw new UserActionError("账号正在准备或直播中，请先取消准备或确认下播，再交接人员、调拨、停用或标记封禁");
   }
@@ -85,7 +85,7 @@ export async function saveAccount(tx: Prisma.TransactionClient, token: string, r
     douyinId: input.douyinId, name: input.name, homepageUrl: input.homepageUrl,
     realName: input.realName, phone: number?.number ?? input.phone, phoneNumberId, roomId, purpose: input.purpose, notes: input.notes,
     branchId: branch.id, operatorId: input.operatorId || null,
-    controllerId: input.controllerId, anchorId: input.anchorId || null, active: input.active === "true", banned: input.active === "banned",
+    controllerId: input.controllerId || null, anchorId: input.anchorId || null, active: input.active === "true", banned: input.active === "banned",
     unbanDate: input.active === "banned" ? input.unbanDate || null : null,
   };
   const now = new Date();
@@ -100,7 +100,7 @@ export async function saveAccount(tx: Prisma.TransactionClient, token: string, r
     accountId: account.id, branchId: branch.id, branchName: branch.name,
     douyinId: account.douyinId, name: account.name, active: account.active, banned: account.banned, unbanDate: account.unbanDate,
     operatorId: account.operatorId, operatorName: people.find((p) => p.id === account.operatorId)?.name ?? null,
-    controllerId: account.controllerId, controllerName: people.find((p) => p.id === account.controllerId)!.name,
+    controllerId: account.controllerId, controllerName: people.find((p) => p.id === account.controllerId)?.name ?? null,
     anchorId: account.anchorId, anchorName: people.find((p) => p.id === account.anchorId)?.name ?? null,
     actorName: actor.name, version: account.version, startedAt: now,
   } });

@@ -1,6 +1,6 @@
 # 数据字段速查（schema 快照）
 
-核对日期：2026-09-29；从当前 prisma/schema.prisma 提取。此文档便于查字段，不替代源码；变更 schema 时须同步本表。SQL 专属索引/检查约束仍须查看迁移。JSON 内部结构、业务含义和单位见 [数据模型](data-model.md) 与 [业务规则](business-rules.md)。
+核对日期：2026-10-01（本次更新User及账号中控可空字段）；从当前 prisma/schema.prisma 提取。此文档便于查字段，不替代源码；变更 schema 时须同步本表。SQL 专属索引/检查约束仍须查看迁移。JSON 内部结构、业务含义和单位见 [数据模型](data-model.md) 与 [业务规则](business-rules.md)。
 
 `?` 为可空，`[]` 为数组或关联集合。关联对象字段不是独立数据库列；其外键字段另列。约束列保留 Prisma 定义，不包含真实数据库内容。
 
@@ -87,6 +87,9 @@
 | `id` | `String` | 存储字段 | `@id @default(cuid())` | — |
 | `username` | `String` | 存储字段 | `@unique` | — |
 | `name` | `String` | 存储字段 | — | — |
+| `nickname` | `String` | 存储列 | `@default("")` | 本人昵称，不覆盖姓名 |
+| `contactPhone` | `String` | 存储列 | `@default("")` | 本人联系电话 |
+| `profileVersion` | `Int` | 存储列 | `@default(0)` | 个人资料并发版本 |
 | `passwordHash` | `String` | 存储字段 | — | — |
 | `role` | `Role` | 存储字段 | — | — |
 | `roles` | `Role[]` | 存储字段 | `@default([])` | 兼任岗位，原岗位保留 |
@@ -177,8 +180,8 @@
 | `branch` | `Branch` | 关联对象 | `@relation(fields: [branchId], references: [id], onDelete: Restrict)` | — |
 | `operatorId` | `String?` | 存储字段 | — | — |
 | `operator` | `User?` | 关联对象 | `@relation("AccountOperator", fields: [operatorId], references: [id], onDelete: Restrict)` | — |
-| `controllerId` | `String` | 存储字段 | — | — |
-| `controller` | `User` | 关联对象 | `@relation("AccountController", fields: [controllerId], references: [id], onDelete: Restrict)` | — |
+| `controllerId` | `String?` | 存储字段 | — | — |
+| `controller` | `User?` | 关联对象 | `@relation("AccountController", fields: [controllerId], references: [id], onDelete: Restrict)` | — |
 | `anchorId` | `String?` | 存储字段 | — | — |
 | `anchor` | `User?` | 关联对象 | `@relation("AccountAnchor", fields: [anchorId], references: [id], onDelete: Restrict)` | — |
 | `version` | `Int` | 存储字段 | `@default(1)` | — |
@@ -213,8 +216,8 @@
 | `unbanDate` | `String?` | 存储字段 | — | YYYY-MM-DD预计解封日期；未知为null，不自动解封 |
 | `operatorId` | `String?` | 存储字段 | — | — |
 | `operatorName` | `String?` | 存储字段 | — | — |
-| `controllerId` | `String` | 存储字段 | — | — |
-| `controllerName` | `String` | 存储字段 | — | — |
+| `controllerId` | `String?` | 存储字段 | — | — |
+| `controllerName` | `String?` | 存储字段 | — | — |
 | `anchorId` | `String?` | 存储字段 | — | — |
 | `anchorName` | `String?` | 存储字段 | — | — |
 | `actorName` | `String` | 存储字段 | — | — |
@@ -246,8 +249,8 @@
 | `branchName` | `String` | 存储字段 | — | — |
 | `accountName` | `String` | 存储字段 | — | — |
 | `douyinId` | `String` | 存储字段 | — | — |
-| `controllerId` | `String` | 存储字段 | — | — |
-| `controllerName` | `String` | 存储字段 | — | — |
+| `controllerId` | `String?` | 存储字段 | — | — |
+| `controllerName` | `String?` | 存储字段 | — | — |
 | `operatorId` | `String?` | 存储字段 | — | — |
 | `anchorId` | `String?` | 存储字段 | — | — |
 | `createdById` | `String` | 存储字段 | — | — |

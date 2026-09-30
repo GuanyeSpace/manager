@@ -63,13 +63,13 @@ export function AccountForm({ initial, branches, people, rooms, numbers }: {
       <div key={branchId} className="grid gap-4 sm:grid-cols-3">
         {([
           ["operatorId", "运营（可不选）", Role.OPERATOR],
-          ["controllerId", "直播中控（必选）", Role.CONTROLLER],
+          ["controllerId", "直播中控（可不选）", Role.CONTROLLER],
           ["anchorId", "主播（可不选）", Role.ANCHOR],
         ] as const).map(([key, label, role]) => <div key={key} className="flex flex-col gap-2">
           <Label htmlFor={key}>{label}</Label>
-          <select id={key} name={key} className={selectClass} required={key === "controllerId"}
+          <select id={key} name={key} className={selectClass}
             defaultValue={branchId === initial?.branchId ? initial[key] : ""}>
-            <option value="">{key === "controllerId" ? "请选择直播中控" : "无"}</option>
+            <option value="">无</option>
             {people.filter((p) => canFillAccountDuty(p, branchId, role)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           {errors[key]?.[0] && <p className="text-sm text-destructive">{errors[key]?.[0]}</p>}

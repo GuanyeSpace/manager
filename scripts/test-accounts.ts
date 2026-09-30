@@ -40,7 +40,7 @@ async function main() {
     await assert.rejects(appoint(boss.token, a.id, outsider.id, manager.id), /本公司/);
     await assert.rejects(appoint(boss.token, a.id, control.id), /已变化/);
     const input: AccountInput = { id: "", version: 0, douyinId: `${marker}-account`, name: "原账号名称", homepageUrl: "https://www.douyin.com/user/example", realName: "仅当前实名", phone: "13800000000", purpose: "直播", notes: "当前备注", branchId: a.id, operatorId: "", controllerId: control.id, anchorId: "", active: "true" };
-    assert.equal(accountSchema.safeParse({ ...input, controllerId: "" }).success, false);
+    assert.equal(accountSchema.safeParse({ ...input, controllerId: "" }).success, true);
     assert.equal(accountSchema.safeParse({ ...input, homepageUrl: "javascript:alert(1)" }).success, false);
     assert.equal(accountSchema.safeParse({ ...input, homepageUrl: "https://douyin.com.evil.example" }).success, false);
     await assert.rejects(save(control.token, input), /无权/);
@@ -101,6 +101,17 @@ async function main() {
     await assert.rejects(detail(control.token, id), /登录或权限/);
     await db.user.update({ where: { id: next.id }, data: { mustChangePassword: true } });
     await assert.rejects(db.$transaction((tx) => readAccountHistory(tx, next.token)), /登录或权限/);
+    const auxiliary = { ...input, id: "", version: 0, douyinId: `${marker}-card`, controllerId: "" };
+    const auxiliaryId = await save(boss.token, auxiliary);
+    assert.equal((await detail(boss.token, auxiliaryId)).account?.controller, null);
+    assert.equal((await list(outsider.token)).accounts.some(a => a.id === auxiliaryId), false);
+    const auxiliaryRecord = await db.accountRecord.findFirstOrThrow({ where: { accountId: auxiliaryId } });
+    assert.equal(auxiliaryRecord.controllerId, null);
+    assert.equal(auxiliaryRecord.controllerName, null);
+    await save(boss.token, { ...auxiliary, id: auxiliaryId, version: 1, controllerId: boss.id });
+    await save(boss.token, { ...auxiliary, id: auxiliaryId, version: 2 });
+    assert.equal((await db.accountRecord.findFirstOrThrow({ where: { accountId: auxiliaryId, version: 2 } })).controllerId, boss.id);
+    assert.equal((await db.douyinAccount.findUniqueOrThrow({ where: { id: auxiliaryId } })).controllerId, null);
     await db.session.delete({ where: { id: boss.token } });
     await assert.rejects(save(boss.token, { ...transferred, version: 4 }), /登录或权限/);
     console.log("PASS: 岗位校验、老板兼任、分公司授权、直接访问隔离、历史脱敏、交接前置、并发冲突、事务回滚、权限撤销");

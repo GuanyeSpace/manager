@@ -20,7 +20,7 @@ export const accountSchema = z.object({
   notes: z.string().trim().max(2000),
   branchId: z.string().min(1, "请选择分公司"),
   operatorId: z.string(),
-  controllerId: z.string().min(1, "请选择直播中控，可由老板兼任"),
+  controllerId: z.string().default(""),
   anchorId: z.string(),
   active: z.enum(["true", "false", "banned"]),
   unbanDate: z.string().optional().refine(value => {

@@ -79,7 +79,7 @@ export async function correctSession(tx: Prisma.TransactionClient, token: string
     if (!person) throw new UserActionError("请选择本分公司在职员工");
     if (s.startedAt && s.endedAt) await assertSessionInterval(tx, s, person.id, s.startedAt, s.endedAt);
     data.actualControllerId = person.id; data.actualControllerName = person.name;
-    change("actualControllerId", "本场直播中控", s.actualControllerId, person.id, s.actualControllerName ?? s.sourceRecord.controllerName, person.name);
+    change("actualControllerId", "本场直播中控", s.actualControllerId, person.id, s.actualControllerName ?? s.sourceRecord.controllerName ?? "未记录", person.name);
   } else if (input.kind === "task") {
     const task = workflow[input.phase][input.index], key = `${input.phase}:${input.index}`;
     if (!task || s.phase === "CANCELLED" && input.phase !== "before") throw new UserActionError("该事项不属于此场次已执行的阶段");

@@ -28,7 +28,7 @@ async function main() {
     async function session(phase: "LIVE" | "PREPARING" | "CANCELLED" | "COMPLETE", minutes: number, leadEligible = true) {
       const chosenAccount = (phase === "PREPARING" || minutes === 120) ? await db.$transaction(tx => saveAccount(tx, boss.token, { ...accountInput, douyinId: marker + String(minutes), controllerId: minutes === 120 ? controller2.id : controller.id }, "test")) : accountId;
       const chosenSource = chosenAccount === accountId ? source : await db.accountRecord.findFirstOrThrow({ where: { accountId: chosenAccount } });
-      return db.workSession.create({ data: { accountId: chosenAccount, sourceRecordId: chosenSource.id, controllerId: chosenSource.controllerId, label: "导粉测试" + minutes, phase, workflow: {}, workflowVersion: 1, leadEligible, startedAt: ["LIVE", "COMPLETE"].includes(phase) ? new Date(Date.now() - minutes * 60000) : null, endedAt: phase === "COMPLETE" ? new Date(Date.now() - (minutes - 10) * 60000) : null } });
+      return db.workSession.create({ data: { accountId: chosenAccount, sourceRecordId: chosenSource.id, controllerId: chosenSource.controllerId!, label: "导粉测试" + minutes, phase, workflow: {}, workflowVersion: 1, leadEligible, startedAt: ["LIVE", "COMPLETE"].includes(phase) ? new Date(Date.now() - minutes * 60000) : null, endedAt: phase === "COMPLETE" ? new Date(Date.now() - (minutes - 10) * 60000) : null } });
     }
     const live = await session("LIVE", 60), done = await session("LIVE", 120), old = await session("COMPLETE", 180, false), cancelled = await session("CANCELLED", 240), preparing = await session("PREPARING", 300);
     const cmd = (token: string, raw: object) => db.$transaction(tx => runLeadCommand(tx, token, raw, "test"));

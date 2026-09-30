@@ -127,3 +127,7 @@ lib/account-status.ts统一账号列表、详情、历史及工作台的封禁�
 ### 2026-10-01 管理框架交互修复
 
 管理框架以data-management-shell标识实际布局，globals.css仅在该布局存在时隐藏根级global-workspace-switcher，其他岗位工作台保留全局切换。抽屉使用布尔状态，路由改变及进入桌面断点时关闭；不再绑定可被历史返回恢复的旧URL。分组由用户折叠，新路由展开对应组，面板保留hidden节点以保持aria-controls有效。岗位映射和服务端授权不变。
+
+### D045中控页面与本人资料
+
+/workbench/attendance复用WorkShiftPanel/getShift，WorkBenchHome不再嵌入设备检查和上下班表单；原workbench layout守卫继续生效。/controller/profile使用ControllerShell、ProfileForm及既有ChangePasswordForm。modules/profile分离schema/actions/service，本人字段白名单、共享管理锁、锁内会话复核、profileVersion和USER_UPDATE审计同时执行。账号可空中控的写入规范由saveAccount统一处理，手机号换绑复用该服务，避免null被写为空外键。

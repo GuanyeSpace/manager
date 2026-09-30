@@ -1,6 +1,6 @@
 # 数据模型、关系与迁移
 
-核对：2026-09-30；精确字段和约束以 prisma/schema.prisma 及 prisma/migrations 为准。当前 20 个 model，19 次迁移。不将业务表数量当成生产记录数量。
+核对：2026-09-30；精确字段和约束以 prisma/schema.prisma 及 prisma/migrations 为准。当前 20 个 model，20 次迁移。不将业务表数量当成生产记录数量。
 
 逐字段定义另见 [数据字段速查](data-dictionary.md)。
 
@@ -40,7 +40,7 @@ erDiagram
 | User | username/name、passwordHash、role、roles、branchId、在职/强制改密 | username 唯一；保留 role，roles 为兼任数组；离职不删除 |
 | Session | 随机 token id、userId、expiresAt | 数据库会话；不是平台 Cookie；敏感，不输出日志/文档 |
 | AuditLog | actorId、action、targetType/id、detail、ip、时间 | detail JSON 保存前后值/原因；系统动作 actor 可空；不含明文密码 |
-| DouyinAccount | 平台账号资料、分公司、运营/中控/主播、phoneNumberId、roomId、version | 抖音号唯一；中控必填；phoneNumberId 唯一；当前资料可更改 |
+| DouyinAccount | 平台账号资料、分公司、运营/中控/主播、phoneNumberId、roomId、version | 抖音号唯一；中控可空；phoneNumberId 唯一；当前资料可更改 |
 | AccountRecord | 账号每版人员/公司/名称快照、起止时间 | accountId+version 唯一；不留实名/号码等敏感资料；用于历史范围 |
 | AccountWorkflow | accountId、content JSON、version、修改人 | 一个账号一份当前流程；场次复制为独立快照 |
 | WorkSession | 账号/来源版本、三类中控身份、shiftId、阶段/结果、流程/进度 JSON、实际起止、version | 本场记录不等于报表；leadEligible 控制新旧认领兼容 |
@@ -138,3 +138,7 @@ erDiagram
 ## 2026-09-30 账号封禁增量字段
 
 DouyinAccount和AccountRecord均新增banned Boolean默认false、unbanDate可空String（YYYY-MM-DD日期，不做时区转换）。保留active旧字段：启用为true/false，停用为false/false，封禁为false/true。SQL约束禁止封禁且启用、非封禁带解封日期。服务校验日历日期；恢复或停用时清空当前日期，旧AccountRecord继续保留。迁移20260929130000_account_ban只追加字段/约束，迁移专项核对20张旧表原列不变。
+
+## 2026-10-01 个人资料与账号中控可空
+
+迁移20261001040000_controller_profile为User新增nickname/contactPhone（默认空字符串）、profileVersion（默认0）；不复用name，历史姓名不回写。DouyinAccount.controllerId及对应User关联改可空；AccountRecord/LiveReport的controllerId/controllerName职责快照改可空。WorkSession.controllerId仍必填，创建准备时明确拒绝未绑定中控账号；绑定、清空与换绑均继续产生账号历史。迁移不更新任何旧列数据，隔离演练核对20张原表全部原列一致。

@@ -35,7 +35,7 @@ async function main() {
     const accountId = await db.$transaction(tx => saveAccount(tx, manager.token, a, "test"));
     const managerAnchor = (await db.$transaction(tx => readAnchors(tx, manager.token, anchor1.id))).anchors[0];
     assert.equal(managerAnchor.anchoredAccounts[0].operator?.name, "operator");
-    assert.equal(managerAnchor.anchoredAccounts[0].controller.name, "controller");
+    assert.equal(managerAnchor.anchoredAccounts[0].controller?.name, "controller");
     assert.equal(managerAnchor.anchoredAccounts[0].canEdit, true);
     assert.equal((await db.$transaction(tx => readAnchors(tx, controller.token, anchor1.id))).anchors[0].anchoredAccounts[0].canEdit, false);
     const phoneDigits = String(Date.now()).slice(-10);

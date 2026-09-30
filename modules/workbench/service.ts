@@ -7,13 +7,13 @@ import { writeAudit } from "@/lib/audit";
 import { shanghaiDate, shanghaiInput } from "@/modules/live-reports/schema";
 import { copyWorkflowSchema, commandSchema, dailyTasks, workflowSchema, type Progress, type EquipmentChecks } from "./schema";
 
-export function canEditWorkflow(actor: AccountActor, account: { branchId: string; controllerId: string; operatorId: string | null; branch: { id: string; managerId: string | null } }) {
+export function canEditWorkflow(actor: AccountActor, account: { branchId: string; controllerId: string | null; operatorId: string | null; branch: { id: string; managerId: string | null } }) {
   return !isExecutionController(actor) && (canManageAccountBranch(actor, account.branch) || (actor.branchId === account.branchId && account.operatorId === actor.id));
 }
 export function canEditScripts(actor: AccountActor, account: Parameters<typeof canEditWorkflow>[1]) {
   return canEditWorkflow(actor, account) || (actor.branchId === account.branchId && actor.id === account.controllerId);
 }
-export function canExecute(actor: AccountActor, account: { controllerId: string; branchId: string }, originalController = account.controllerId) {
+export function canExecute(actor: AccountActor, account: { controllerId: string | null; branchId: string }, originalController = account.controllerId) {
   return isAccountBoss(actor) || (actor.id === account.controllerId && actor.id === originalController && actor.branchId === account.branchId);
 }
 export async function saveWorkflow(tx: Prisma.TransactionClient, token: string, accountId: string, version: number, raw: unknown, ip: string, scriptsOnly = false) {
@@ -37,6 +37,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
   if (input.command === "create") {
     const account = await tx.douyinAccount.findUnique({ where: { id: input.id }, include: { branch: true, workflow: true } });
     if (!account || !canExecute(actor, account)) throw new UserActionError("仅负责直播中控或老板可以开始准备");
+    if (!account.controllerId) throw new UserActionError("请先为直播账号绑定直播中控，再开始准备");
     if (account.banned) throw new UserActionError("账号已封禁，请确认解封并启用后再开始准备");
     if (!account.active || account.branch.status !== "ACTIVE" || !account.anchorId) throw new UserActionError("请先启用账号、分公司并绑定主播");
     if (!account.workflow) throw new UserActionError("请先保存账号流程");

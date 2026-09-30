@@ -160,3 +160,7 @@ ALLOW_TEST_DESTRUCTION=true npm run test:accounts
 ## 每次更新同步GitHub（2026-09-30用户要求）
 
 仓库https://github.com/GuanyeSpace/manager.git，origin/main。用户已授权以后每次完成更新后提交并推送，无需重复询问。顺序为验证与文档同步→敏感检查→明确路径暂存→核对暂存差异→commit→fetch检查远程关系→非强制push→核对远程SHA。分支开发则同步对应远程分支，不擅自合并main。不提交已排除的.claude/launch.json删除、不输出含凭证的远程URL，不force push或覆盖他人改动。网络/认证/冲突导致失败时如实写明提交未同步，保留现场。纯文档更新验证文档，不触发生产部署。
+
+### 中控个人资料专项
+
+使用本地tsx执行scripts/test-profile.ts（本人字段、身份不可篡改、版本竞争、回滚、审计、失效会话）、scripts/test-controller-profile-migration.ts（独立临时库旧列守恒）、scripts/test-controller-workspace.ts（配置TEST_HTTP_BASE后验证页面入口及隔离）。均须通过隔离库保护；TEST_UI_HOLD=true可保留本轮合成夹具供浏览器验收，回车后必须检查ALL PASS (including cleanup)。不在生产造夹具。
