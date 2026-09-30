@@ -2,6 +2,12 @@
 
 本日志记录进度和决定；详细生产执行证据见 deployment.md。2026-09-29之前条目是按已有历史文档整理的里程碑，不是本轮重做验证。
 
+## 2026-09-30 — 启用每次更新远程同步
+
+- 用户指定origin为https://github.com/GuanyeSpace/manager.git，要求以后每次完成更新提交并推送。规则同步AGENTS/CLAUDE及开发交接文档。
+- 已fetch确认远程main是本地祖先，以非强制原子push将main从519c1d8推进到343a8c1，同时推送production-baseline-20260930标签；未推送排除的删除，未改生产。
+- 规则文档作为后续独立提交同步；未来需逐项审查暂存、处理分叉并核对远程SHA，推送失败不宣称成功。
+
 ## 2026-09-30 — Git基线审查
 
 - 已完成本地基线：忽略规则4a06f5c、应用整体ab4b610、文档交接独立提交，附注标签production-baseline-20260930。逐项暂存，无git add .，未push。

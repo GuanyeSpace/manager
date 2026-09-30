@@ -9,6 +9,8 @@
 3. 遵循 [开发与测试规范](docs/development-guide.md)；发布遵循 [运维手册](docs/operations.md)。
 4. 每次决定、进度、验证或部署变化必须同轮更新对应文件。不要把聊天回答当成项目记录。
 
+每次完成更新须按AGENTS.md审查、提交并推送origin对应分支（主分支main），核对远程结果；这不等同于生产部署。
+
 ## 必须保留的工程约束
 
 - 正式库禁止重置、清空、seed、测试造数据；只做兼容旧数据的增量迁移，小步修改。
@@ -19,6 +21,6 @@
 - 用户不物理删除，离职撤销会话；至少一位在职老板，老板不能自行撤销老板资格。
 - 密码、Cookie、私钥、SESSION_SECRET与真实连接串不得进入日志、文档或版本库。
 - 测试只用隔离_test库，TEST_DATABASE_URL + ALLOW_TEST_DESTRUCTION=true，禁止生产环境；迁移命令读取的是DATABASE_URL，须明确区分。
-- 保护已有未提交文件，不用reset/clean回到旧HEAD；当前HEAD不是完整生产版本。
+- 保护已有未提交文件，不用reset/clean回到旧HEAD；Git已建立生产源码基线，具体范围和最新状态见current-status.md。
 
 旧阶段记录保存在 [历史CLAUDE说明](docs/history/CLAUDE-before-handoff.md)，不得将其中“中控空壳”“中控填数据”“尚未上线”当成当前事实。

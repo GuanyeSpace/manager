@@ -48,6 +48,8 @@
 
 | D038 | 建立经过审查的生产源码Git基线 | 09-30已执行；逐项分类和暂存，忽略敏感/构建/临时文件；保留用户要求排除的.claude/launch.json删除，附注标签production-baseline-20260930，不push、不声称等于服务器环境。 |
 
+| D039 | 每次完成更新提交并推送GitHub | 09-30用户明确授权；origin=https://github.com/GuanyeSpace/manager.git，main跟踪origin/main。先验证/同步文档/敏感检查，逐项暂存，非强制推送并核对SHA；失败如实报告，不把push视为生产部署。取代D038仅本地的交付范围，保留排除项。 |
+
 ## 最关键的取舍
 
 ### 执行记录与统计数据分开

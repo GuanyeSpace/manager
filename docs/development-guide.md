@@ -154,3 +154,7 @@ ALLOW_TEST_DESTRUCTION=true npm run test:accounts
 使用既有隔离测试环境运行 `npx tsx scripts/test-branches.ts`；覆盖增改启停、管理锁真实等待、会话撤销、撤岗/离职/强制改密拒绝及审计回滚。完整本轮矩阵见 [检查报告](system-review-20260929.md)。测试仍不得对正式库运行。
 
 账号封禁专项：`scripts/test-account-ban.ts`覆盖日期校验、权限、封禁/到期执行限制、换绑保留、状态历史；`scripts/test-ban-migration.ts`在独立临时库验证20表旧列及新增约束。仍按本文件隔离测试要求执行。
+
+## 每次更新同步GitHub（2026-09-30用户要求）
+
+仓库https://github.com/GuanyeSpace/manager.git，origin/main。用户已授权以后每次完成更新后提交并推送，无需重复询问。顺序为验证与文档同步→敏感检查→明确路径暂存→核对暂存差异→commit→fetch检查远程关系→非强制push→核对远程SHA。分支开发则同步对应远程分支，不擅自合并main。不提交已排除的.claude/launch.json删除、不输出含凭证的远程URL，不force push或覆盖他人改动。网络/认证/冲突导致失败时如实写明提交未同步，保留现场。纯文档更新验证文档，不触发生产部署。
