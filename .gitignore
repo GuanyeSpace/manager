@@ -22,6 +22,7 @@
 
 # misc
 .DS_Store
+._*
 *.pem
 
 # debug
@@ -42,3 +43,24 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+/.data/
+
+# local credentials, database backups and temporary output
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+id_ecdsa*
+.ssh/
+*.dump
+*.sql.gz
+*.sqlite
+*.sqlite3
+*.log
+*.tar.gz
+/backups/
+/screenshots/
+/tmp/
+/temp/
