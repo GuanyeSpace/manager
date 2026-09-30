@@ -123,3 +123,7 @@ lib/account-status.ts统一账号列表、详情、历史及工作台的封禁�
 ## 2026-09-30 打粉数据入口
 
 管理侧栏与老板概览直接链接/live-reports?view=monetization，ManagementShell结合pathname和view选择唯一活动入口；报表标题/来源名称匹配打粉视图。打粉表详情链接携带view=monetization。复用现有查询、筛选和权限，没有新路由/模型。
+
+### 2026-10-01 管理框架交互修复
+
+管理框架以data-management-shell标识实际布局，globals.css仅在该布局存在时隐藏根级global-workspace-switcher，其他岗位工作台保留全局切换。抽屉使用布尔状态，路由改变及进入桌面断点时关闭；不再绑定可被历史返回恢复的旧URL。分组由用户折叠，新路由展开对应组，面板保留hidden节点以保持aria-controls有效。岗位映射和服务端授权不变。

@@ -128,3 +128,7 @@
     @apply font-sans;
   }
 }
+/* 管理外框已有切换菜单；按实际布局隐藏全局条，其他岗位工作台仍保留。 */
+body:has([data-management-shell]) > .global-workspace-switcher {
+  display: none;
+}

@@ -279,3 +279,12 @@
 - 备份 /var/backups/manager/manager-20260930T115823Z.dump及同名.screenshots.tar.gz，归档可读；摘要 /opt/manager/data-before-numberphones-20260930.json，20表原列一致，19迁移无待应用。
 - 旧程序 /opt/manager/standalone-before-numberphones-20260930；旧源码 /opt/manager/source-before-numberphones-20260930.tar.gz；源码包 /opt/manager/numberphones-source.tar.gz。
 - 196部署文件哈希一致，manager/nginx/docker/备份及续期timer active，HTTPS登录200、未登录手机号列表307。
+
+## 2026-10-01 老板管理框架与交互修复发布
+
+- 内容：第一阶段侧栏/顶栏/页面外框，以及独立审查R1–R4修复；不改首页数据查询、权限、schema或依赖。
+- 构建：manager-bosslayout-build，MemoryMax=1100M、MemorySwapMax=300M、CPUQuota=100%、Node堆768MiB；webpack构建退出0，耗时134.058秒，内存峰值806MiB。
+- 暂停写入后备份：/var/backups/manager/manager-20260930T193802Z.dump及同名.screenshots.tar.gz（实际服务器文件名）；pg_restore --list与tar目录检查通过。
+- 数据：/opt/manager/data-before-bosslayout-20261001.json，20张业务表在切换前核对一致；19个迁移无待执行，无新增迁移。
+- 回退：/opt/manager/standalone-before-bosslayout-20261001，源码/opt/manager/source-before-bosslayout-20261001.tar.gz；部署错误钩子可恢复旧standalone。本次未触发回退。
+- 发布后：199个部署源文件SHA-256与本地一致；manager/nginx/docker/backup.timer/cert-renew.timer active；有效HTTPS /login 200、未登录/boss 307。未在正式库造验收数据；交互验证在隔离库完成，范围见current-status.md。timer active不代表本次实际完成续期。

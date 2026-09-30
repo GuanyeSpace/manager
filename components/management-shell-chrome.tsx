@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { Dialog as DialogPrimitive, DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { NavigationTrail } from "@/components/context-link";
 import { LogoutButton } from "@/components/logout-button";
@@ -52,16 +52,15 @@ function MenuRow({ item, active, onNavigate }: { item: MenuItem; active: boolean
   );
 }
 
-function MenuList({ pathname, view, collapsed, activeGroup, onToggle, onNavigate, idPrefix }: {
-  pathname: string; view: string | null; collapsed: Record<string, boolean>; activeGroup: string | null;
+function MenuList({ pathname, view, collapsed, onToggle, onNavigate, idPrefix }: {
+  pathname: string; view: string | null; collapsed: Record<string, boolean>;
   onToggle: (title: string) => void; onNavigate?: () => void; idPrefix: string;
 }) {
   return (
     <div className="space-y-3">
       <MenuRow item={TOP_ITEM} active={isMenuActive(TOP_ITEM.href, pathname, view)} onNavigate={onNavigate} />
       {MENU_GROUPS.map(group => {
-        // 当前页所在分组始终展开（路由切换后自动展开且不可折叠）；其余分组按本地折叠偏好。
-        const open = group.title === activeGroup || !collapsed[group.title];
+        const open = !collapsed[group.title];
         const panelId = `${idPrefix}-group-${group.title}`;
         return (
           <section key={group.title}>
@@ -75,13 +74,11 @@ function MenuList({ pathname, view, collapsed, activeGroup, onToggle, onNavigate
               <span>{group.title}</span>
               <ChevronDown aria-hidden className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
             </button>
-            {open && (
-              <div id={panelId} className="mt-1 space-y-0.5">
+            <div id={panelId} hidden={!open} className="mt-1 space-y-0.5">
                 {group.items.map(item => (
                   <MenuRow key={item.href} item={item} active={isMenuActive(item.href, pathname, view)} onNavigate={onNavigate} />
                 ))}
               </div>
-            )}
           </section>
         );
       })}
@@ -122,17 +119,30 @@ export function ManagementShellChrome({ name, workspaces, children }: {
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  // 抽屉的开启状态绑定到打开时的路由：任何跳转（含前进后退）都会自动收起，不需要副作用同步。
-  const [openedAt, setOpenedAt] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const navKey = `${pathname}?${searchParams.toString()}`;
-  const mobileOpen = openedAt === navKey;
+  const [previousNavKey, setPreviousNavKey] = useState(navKey);
   const location = currentLocation(pathname, view);
   const activeGroup = activeGroupTitle(pathname, view);
+
+  // 在提交新路由前重置瞬时状态，历史返回不会恢复旧的抽屉打开标记。
+  if (previousNavKey !== navKey) {
+    setPreviousNavKey(navKey);
+    setMobileOpen(false);
+    if (activeGroup) setCollapsed(previous => ({ ...previous, [activeGroup]: false }));
+  }
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => { if (desktop.matches) setMobileOpen(false); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
 
   const toggle = (title: string) => setCollapsed(previous => ({ ...previous, [title]: !previous[title] }));
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div data-management-shell className="min-h-screen bg-slate-50 text-slate-900">
       <div className="lg:grid lg:grid-cols-[224px_minmax(0,1fr)]">
         <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:border-r lg:bg-white">
           <div className="shrink-0 px-4 py-4">
@@ -140,13 +150,13 @@ export function ManagementShellChrome({ name, workspaces, children }: {
             <p className="mt-0.5 text-[11px] text-slate-400">业务管理系统</p>
           </div>
           <nav aria-label="管理菜单" className="flex-1 overflow-y-auto px-2 pb-6">
-            <MenuList pathname={pathname} view={view} collapsed={collapsed} activeGroup={activeGroup} onToggle={toggle} idPrefix="desktop" />
+            <MenuList pathname={pathname} view={view} collapsed={collapsed} onToggle={toggle} idPrefix="desktop" />
           </nav>
         </aside>
 
         <div className="flex min-w-0 flex-col">
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-white px-4 lg:px-6">
-            <DialogPrimitive.Root open={mobileOpen} onOpenChange={next => setOpenedAt(next ? navKey : null)}>
+            <DialogPrimitive.Root open={mobileOpen} onOpenChange={setMobileOpen}>
               <DialogPrimitive.Trigger asChild>
                 <Button variant="ghost" size="icon-sm" className="lg:hidden" aria-label="打开管理菜单">
                   <MenuIcon aria-hidden />
@@ -164,7 +174,7 @@ export function ManagementShellChrome({ name, workspaces, children }: {
                       <Button variant="ghost" size="icon-sm" aria-label="关闭管理菜单"><X aria-hidden /></Button>
                     </DialogPrimitive.Close>
                   </div>
-                  <MenuList pathname={pathname} view={view} collapsed={collapsed} activeGroup={activeGroup} onToggle={toggle} onNavigate={() => setOpenedAt(null)} idPrefix="mobile" />
+                  <MenuList pathname={pathname} view={view} collapsed={collapsed} onToggle={toggle} onNavigate={() => setMobileOpen(false)} idPrefix="mobile" />
                 </DialogPrimitive.Content>
               </DialogPrimitive.Portal>
             </DialogPrimitive.Root>
