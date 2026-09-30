@@ -1,6 +1,6 @@
 # 已知限制、待核对问题与后续候选
 
-最后更新：2026-09-29。**本文件是待办和证据，不是立即实现授权。** 用户要求小步推进；讨论确定后才改相应业务。确认修复后标记关闭并链接验证/发布，不直接删条目。
+最后更新：2026-09-30。**本文件是待办和证据，不是立即实现授权。** 用户要求小步推进；讨论确定后才改相应业务。确认修复后标记关闭并链接验证/发布，不直接删条目。
 
 ## 待办清单
 
@@ -11,18 +11,21 @@
 | K003 | 已关闭本地基线缺口（09-30） | 已审查并分别提交源码/迁移/测试/部署模板/文档，标签production-baseline-20260930；195个版本化生产源文件一致 | .claude/launch.json删除按用户确认排除；main及基线标签已推送用户指定的origin。边界与完整清单见git-baseline-review-20260930.md |
 | K004 | 已发现实现边界，待产品核对 | isExecutionController包括有中控但无老板/运营的人，canManageAccountBranch/reportManagementScope等因此拒绝其管理能力；可能影响中控兼分公司负责人 | 确认负责人身份是否应覆盖执行限制，分别测试中控+负责人、中控+导粉+负责人、运营+负责人；本轮未变更权限 |
 | K005 | 已关闭（09-29上线） | modules/workbench/service.ts非execution分支和schema.moneyPending仍以hasSales缺值判断待补；新导粉不填带货，因此管理/兼运营视图可能长期显示待补 | 已区分leadEligible新旧场次；隔离回归覆盖完整零值、缺项、删除、收尾、旧带货/GMV保留，已上线；未额外做浏览器验收 |
-| K006 | 历史验收缺口 | 09-28导粉及多岗位有服务/HTTP回归，未完成完整浏览器目视；09-29只新增导航/手机页面浏览器验收 | 用隔离库验收兼职双工作台、认领并发提示、草稿、更正、回收站及窄屏；不得写“所有页面已测” |
+| K006 | 历史验收缺口 | 09-28导粉及多岗位有服务/HTTP回归，未完成完整浏览器目视；09-29只新增导航/手机页面浏览器验收；09-30复查用headless Chrome覆盖账号列表、手机号列表、老板概览和打粉视图四页，其余页面仍未目视 | 用隔离库验收兼职双工作台、认领并发提示、草稿、更正、回收站及窄屏；不得写“所有页面已测”，09-30四页结果见system-review-20260930.md |
 | K007 | 待补真实拖动验收 | 流程排序此前通过类型/事件/业务验证，09-15日志明确浏览器工具不可用 | 实际浏览器鼠标拖动+键盘按钮、同阶段边界、保存、旧场次快照对比；不要仅DOM渲染即关闭 |
 | K008 | 测试工具整理候选 | 新phone-navigation/multi-roles/role-migration/phone-migration无npm别名；部分测试脚本共库会互相干扰老板数量 | 优先使用文档直接tsx；若改脚本，增加稳定入口、顺序执行/独立库，保留防误库保护 |
 | K009 | 已知限制 | scripts/lib/test-db.ts的公共cleanup helper存在清理失败只记录的路径，旧CLAUDE已有待办；新专项各有自己的清理方式 | 对使用此helper的测试核对错误传播，用清理失败注入验证非零退出；不能只根据ALL PASS判断 |
 | K010 | 未接入 | 自动采集、抖音扫码/Cookie、粉丝/黑名单/屏蔽词无实际接口 | 先验证官方主播版/开放平台权限、真实字段、频率、凭证机制，再设计；勿写未验证承诺 |
 | K011 | 当前架构限制 | 登录限流在进程内存，重启清零，多实例不共享 | 目前单实例保留；若扩容再评估共享存储，不为猜想直接引入Redis |
-| K012 | 09-29重新审计，待影响分析 | npm audit --omit=dev报告4个high包，经Prisma链引入deepmerge-ts/mysql2，含传递计数；尚未验证线上可利用性 | 单独分析运行可达性与兼容修复；工具建议跨主版本降级，不自动执行，见system-review-20260929.md |
+| K012 | 09-30重新审计，待影响分析 | `npm audit --omit=dev`报7项：high为brace-expansion(shadcn→ts-morph→minimatch)、deepmerge-ts/@prisma/config、mysql2、prisma；moderate为fast-uri(@prisma/dev→ajv)和ip-address(shadcn→MCP sdk/socks)。应用运行时用PostgreSQL适配器，mysql2等属Prisma CLI链，但未做代码级可达性验证 | 单独分析运行可达性与兼容修复；`npm audit fix --force`会把Prisma降到6.19.3主版本变更，不自动执行，见system-review-20260930.md |
 | K013 | 尚未授权功能 | 薪酬/打粉单价/佣金结算、分析图表、通用审计后台、财务专用工作台未完整交付 | 逐项讨论业务口径后开发；目前有效人数/旧GMV不是结算金额 |
-| K014 | 导航广度验收候选 | 已统一许多详情与保存来源，但不是每个老板入口、所有组合筛选都做了浏览器端到端 | 按accounts/users/resources/config/reports/leads逐链路验收；单独修复发现的问题，避免整站导航重构 |
+| K014 | 导航广度验收候选 | 已统一许多详情与保存来源，但不是每个老板入口、所有组合筛选都做了浏览器端到端；09-30只覆盖账号/手机号列表、概览和打粉视图 | 按accounts/users/resources/config/reports/leads逐链路验收；单独修复发现的问题，避免整站导航重构 |
 | K015 | 待业务确认的兼容行为 | 已归档场次时间更正明确不修改统计数据，可能与已完成LiveReport.startedAt出现差异 | 核对老板是否希望两者独立；改变前明确时长/唯一键/认领与审计影响，不能自动联动历史指标 |
-
 | K016 | 已关闭（09-30上线） | 分公司增改启停原缺事务内权限复核及管理锁，撤权交错请求有继续写入风险 | 新服务锁内验证及真实竞争/回滚测试通过；浏览器增改停通过；随账号封禁发布，数据库及截图备份可读，20表旧列核对一致 |
+| K017 | 09-30审计发现，低 | modules/leads/actions.ts的leadAction入口只检查会话，未调用requirePageUser/requirePasswordChanged；服务层runLeadCommand仍会拒绝，不构成越权 | 与其他action文件统一补入口守卫；改动后跑导粉、权限和多岗位回归；属纵深防御，需用户确认后小步修改 |
+| K018 | 09-30审计发现，低 | lib/db.ts、lib/audit.ts及部分modules写入文件未import "server-only"；已核对36个'use client'文件当前无引用，属纵深防御缺口 | 在确实只服务端使用的模块补server-only；不改变运行行为，需与构建一起验证 |
+| K019 | 09-30审计发现，低 | modules/accounts/data.ts、modules/resources/data.ts把mustChangePassword查出来并传入客户端AccountForm/ResourceForm，两个组件实际未使用该字段 | 从select移除该字段；确认强制改密跳转仍由页面守卫负责后跑账号/资源回归 |
+| K020 | 09-30审计发现，低 | Branch无version列，分公司改名/启停无版本保护，仅靠管理锁串行化并记录审计前后值 | 如需加固，表单加expectedName比对而非新增迁移；先与用户确认优先级 |
 
 ## 已关闭的近期问题
 

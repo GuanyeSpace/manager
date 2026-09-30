@@ -12,7 +12,7 @@
 | [当前业务规则](docs/business-rules.md) | 岗位权限、中控执行、导粉认领、数据口径、物资关系 |
 | [开发决策](docs/decisions.md) | 已确认决定、理由、被替代方案、新增决定模板 |
 | [架构地图](docs/architecture.md) | 路由、服务、组件、权限、事务和导航 |
-| [数据模型](docs/data-model.md) | 20个模型、关系、JSON、单位、18次迁移 |
+| [数据模型](docs/data-model.md) | 20个模型、关系、JSON、单位、19次迁移 |
 | [开发规范](docs/development-guide.md) | 本地启动、隔离测试、验证和文档更新要求 |
 | [运维手册](docs/operations.md) | 生产位置、构建、备份、发布、恢复 |
 | [发布记录](docs/deployment.md) | 每次实际上线证据及历史问题 |

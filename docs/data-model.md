@@ -1,6 +1,6 @@
 # 数据模型、关系与迁移
 
-核对：2026-09-29；精确字段和约束以 prisma/schema.prisma 及 prisma/migrations 为准。当前 20 个 model，18 次迁移。不将业务表数量当成生产记录数量。
+核对：2026-09-30；精确字段和约束以 prisma/schema.prisma 及 prisma/migrations 为准。当前 20 个 model，19 次迁移。不将业务表数量当成生产记录数量。
 
 逐字段定义另见 [数据字段速查](data-dictionary.md)。
 
@@ -131,6 +131,7 @@ erDiagram
 | 20260927192208_lead_specialist | 导粉岗位、LeadTask、leadEligible 旧false/新true |
 | 20260928150022_user_multi_roles | User.roles，旧员工为空数组 |
 | 20260928171643_phone_login_accounts | 实际登录微信文本和手机/抖音多对多表 |
+| 20260929130000_account_ban | 账号与账号历史的封禁标记、预计解封日期及一致性约束 |
 
 并发部分唯一索引、检查约束以迁移 SQL 为准；禁止修改已应用迁移来“修正”线上状态。新增变更另开兼容迁移，在独立测试库核对旧列保持不变。
 

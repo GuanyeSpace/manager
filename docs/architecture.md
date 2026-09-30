@@ -1,6 +1,6 @@
 # 架构与代码地图
 
-核对日期：2026-09-29。本文件提供定位，不替代读取目标文件及 Next.js 本地文档。
+核对日期：2026-09-30。本文件提供定位，不替代读取目标文件及 Next.js 本地文档。
 
 ## 技术栈与部署形态
 
@@ -49,7 +49,7 @@ flowchart LR
 | /workbench/history、/workbench/shifts | 场次历史、上班历史 |
 | /workbench/screenshots/[id] | 校验权限后读取截图文件，不是公开静态文件 |
 | /leads、/leads/[id] | 认领池、待补、完成、回收站与场次填报 |
-| /live-reports、/live-reports/new、/live-reports/[id] | 直播/打粉报表与历史录入；导粉关联记录转到导粉详情维护 |
+| /live-reports、/live-reports/new、/live-reports/[id] | 直播/打粉报表与历史录入；同一路由用 `?view=monetization` 切到打粉视图（老板侧栏与概览可直达），导粉关联记录转到导粉详情维护 |
 | /resources/[kind]、/[id]、/new | anchors、rooms、numbers、phones、equipment、materials |
 
 ## 模块责任地图

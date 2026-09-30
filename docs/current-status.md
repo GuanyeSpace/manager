@@ -53,7 +53,19 @@
 
 - 建立当前规则、数据模型、架构、决策、进度、开发与运维说明，消除旧文档直接误导。
 - 将每次决策/进度变化同步文档列为仓库协作要求。
-- 本轮文档验收：23份Markdown、78个本地链接、20个model、18次迁移、35个决定ID核对通过，代码围栏及git diff --check通过；字段速查包含349个存储/关联字段。未重新运行数据库业务测试，未发布纯文档。
+- 09-29文档交付验收（历史条目）：当时记录23份Markdown、78个本地链接、20个model、18次迁移、35个决定ID、349个字段。09-30全系统复查按当前仓库重核为24份Markdown、84条本地链接全部有效、20个model、19次迁移、41个决定ID、353个存储/关联字段。未重新运行数据库业务测试，未发布纯文档。
+
+## 2026-09-30 全系统复查（只读）
+
+- 范围：隔离库运行24个测试入口（23个脚本+1个组件测试）全部通过；typecheck、`eslint app components lib modules scripts`、git diff --check通过；headless Chrome覆盖`/accounts`、`/resources/numbers`、`/boss`、`/live-reports?view=monetization`；权限与安全只读审计；npm audit；生产只读核验。未改业务代码、无新迁移、未发布。
+- 首次`test-work-evidence`因复查环境`WORK_SCREENSHOT_DIR`与`WORKBENCH_HTTP_SCREENSHOT_DIR`不一致报404，改为同一临时目录后重跑通过；属测试环境配置问题，不是应用缺陷，未放宽断言。
+- 隔离库`manager_accounts_test`为19次迁移；运行后`test-%`数据与浏览器夹具残留均为0。正式库未写入、未迁移。
+- 权限审计：写服务的锁、锁内会话/岗位复核、version保护与同事务审计落实；未发现只按`actor.role`授权、未鉴权Server Action/Route Handler或凭证泄漏；登记K017–K020四条低风险加固，K004仍待产品确认。
+- 依赖审计：`npm audit --omit=dev`为7项（5 high / 2 moderate），新增brace-expansion、fast-uri、ip-address，K012已更新；未执行自动修复。
+- 生产只读：manager/nginx/docker与两个timer active，HTTPS`/login`200、`/`307，磁盘18G/40G；证书2026-10-03 19:23:41 UTC到期（约3天，K001继续跟踪）；未在生产运行测试或发布。
+- 文档修正：迁移数18→19并补account_ban清单、统计重核为353字段/84链接/19迁移/41决定ID、decisions索引补D036–D041、architecture补打粉视图、相关日期戳统一为09-30；详见[全系统复查报告](system-review-20260930.md)。
+- 清单时效：`production-source-manifest-20260930.json`仍是封禁发布时点快照；其后三次发布的4个文件（app/accounts/page.tsx、components/number-directory.tsx、modules/resources/data.ts、modules/accounts/data.ts）不在清单内。各次发布已在服务器核对196个部署文件，属清单时间点属性，不是发布异常。
+- 本地环境：日常开发库`manager`仍为5次迁移、8张表（落后14次）；下一次本地开发前先确认连接再执行`migrate deploy`，禁止reset/seed。
 
 ## 当前未完成任务与下一步
 
@@ -73,7 +85,7 @@ Git基线审查已完成：按明确文件清单分别提交忽略规则、应�
 
 K016分公司锁内权限修复随本次上线。全系统检查历史范围仍见[检查报告](system-review-20260929.md)，没有扩大为全部页面人工验收。
 
-剩余：确认K004兼职负责人权限和K015场次/报表时间联动；分析K012依赖风险及K009清理错误传播；补完整多岗位与拖动浏览器验收。临时浏览器夹具已清理、隔离3102服务已停止。本轮迁移了隔离测试库和生产库；日常本地开发库未迁移，下一次启动前按本机确认后的连接执行migrate deploy（不得reset/seed）。
+剩余：确认K004兼职负责人权限和K015场次/报表时间联动；09-30复查新增K017–K020（引导粉入口守卫、server-only纵深防御、多余下发mustChangePassword、分公司无版本保护）四条低风险加固，待确认后小步修改；分析K012依赖风险及K009清理错误传播；补完整多岗位与拖动浏览器验收。临时浏览器夹具已清理、隔离3102服务已停止。本轮迁移了隔离测试库和生产库；日常本地开发库未迁移（实测仍停在5次迁移/8张表，落后14次），下一次启动前按本机确认后的连接执行migrate deploy（不得reset/seed）。
 
 ## 工作区与版本控制
 
