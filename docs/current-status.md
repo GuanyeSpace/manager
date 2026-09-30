@@ -11,10 +11,10 @@
 | 项目 | 最近核验值 |
 | --- | --- |
 | 服务地址 | https://8.163.69.11 ，无域名的 IP HTTPS |
-| 最近业务发布 | 2026-09-30：老板打粉数据独立入口（保留封禁及K016修复） |
-| 发布前备份 | /var/backups/manager/manager-20260930T054404Z.dump 及同名 .screenshots.tar.gz |
-| 数据校验摘要 | /opt/manager/data-before-entry-20260930.json |
-| 保留旧程序 | /opt/manager/standalone-before-entry-20260930 |
+| 最近业务发布 | 2026-09-30：抖音账号列表增加实名人 |
+| 发布前备份 | /var/backups/manager/manager-20260930T113403Z.dump 及同名 .screenshots.tar.gz |
+| 数据校验摘要 | /opt/manager/data-before-realname-20260930.json |
+| 保留旧程序 | /opt/manager/standalone-before-realname-20260930 |
 | 数据迁移 | 19 个，最新 20260929130000_account_ban |
 | 最新模型数量 | 20 个 Prisma model；本次发布核对全部20张业务表数据 |
 | 验证证据 | 196 个部署文件 SHA-256 一致；原数据摘要一致；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
@@ -56,6 +56,8 @@
 - 本轮文档验收：23份Markdown、78个本地链接、20个model、18次迁移、35个决定ID核对通过，代码围栏及git diff --check通过；字段速查包含349个存储/关联字段。未重新运行数据库业务测试，未发布纯文档。
 
 ## 当前未完成任务与下一步
+
+09-30账号列表实名人列已上线：位于抖音号后，空值显示未填写；复用realName及现有权限，无迁移。typecheck/相关eslint/账号权限与历史回归通过；隔离浏览器验证空值和填写后列表显示。测试夹具已清理、3102服务停止。代码与文档按明确路径提交并同步origin/main。
 
 Git基线审查已完成：按明确文件清单分别提交忽略规则、应用整体和交接文档。本地基线标签production-baseline-20260930；业务源码提交ab4b610，忽略规则提交4a06f5c。生产196个文件比对一致，195个可版本化文件与提交内容核对；另一个next-env.d.ts为生成文件。仅保留用户明确排除的.claude/launch.json删除。基线main及标签已推送origin，未改生产。详见[完整审查](git-baseline-review-20260930.md)。
 

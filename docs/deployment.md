@@ -252,3 +252,12 @@
 - 备份 /var/backups/manager/manager-20260930T054404Z.dump 及同名.screenshots.tar.gz，归档列表可读。摘要 /opt/manager/data-before-entry-20260930.json，暂停写入后20表原列核对一致，19迁移无待应用。
 - 旧程序 /opt/manager/standalone-before-entry-20260930；旧源码 /opt/manager/source-before-entry-20260930.tar.gz；源码包 /opt/manager/entry-source.tar.gz。196个部署文件与本地SHA-256一致。
 - manager/nginx/docker/备份与续期timer active；HTTPS登录200，未登录打粉视图307。隔离库浏览器首页直达、标题、侧栏唯一选中及切回直播验证通过，未修改正式业务数据。
+
+## 2026-09-30 — 账号列表显示实名人
+
+- 2个业务文件变动：app/accounts/page.tsx新增实名人列与空表11列跨度；modules/accounts/data.ts选择已有realName。权限/历史查询不变，无schema变更。
+- 隔离账号回归、typecheck、相关eslint通过；浏览器空值及保存测试姓名后列表显示通过，夹具清理、开发服务停止。未修改正式账号测试。
+- stage /opt/manager/build-realname-20260930，manager-realname-build受限1100M/300M swap/100% CPU/node768M；成功退出，耗时121.524秒、峰值843.1MiB。
+- 备份 /var/backups/manager/manager-20260930T113403Z.dump及同名.screenshots.tar.gz，归档可读；摘要 /opt/manager/data-before-realname-20260930.json核对20表原列完全一致，19迁移无待应用。
+- 旧程序 /opt/manager/standalone-before-realname-20260930；旧源码 /opt/manager/source-before-realname-20260930.tar.gz；源码包 /opt/manager/realname-source.tar.gz。
+- 196部署文件哈希一致；manager/nginx/docker/备份及续期timer active；HTTPS/login200，未登录/accounts307。Git提交及推送独立核验，不把基线标签的旧摘要覆盖成新版。

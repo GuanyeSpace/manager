@@ -10,7 +10,7 @@ export async function readAccountList(tx: Prisma.TransactionClient, token: strin
   const accounts = await tx.douyinAccount.findMany({
     where: { AND: [currentAccountScope(actor), { OR: [{ name: { contains: q } }, { douyinId: { contains: q } }] }] },
     select: {
-      id: true, name: true, douyinId: true, active: true, banned: true, unbanDate: true, phone: true,
+      id: true, name: true, douyinId: true, realName: true, active: true, banned: true, unbanDate: true, phone: true,
       phoneNumber: { select: { id: true, number: true } }, room: { select: { id: true, name: true } },
       branch: { select: { name: true } },
       operator: { select: { name: true } }, controller: { select: { name: true } }, anchor: { select: { name: true } },
