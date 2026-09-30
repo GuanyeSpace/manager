@@ -83,7 +83,10 @@ async function main() {
       const headers = { Cookie: `session=${signSessionToken(boss.id)}` };
       for (const path of [start, `/resources/phones?q=${marker}`, followHref(`/resources/phones/${device}`, followHref(`/resources/numbers/${all[20].id}`, start))]) {
         const response: Response = await fetch(base + path, { headers }); assert.equal(response.status, 200, path);
-        const html = await response.text(); assert.doesNotMatch(html, /Application error/); assert.match(html, /手机号管理/);
+        const html = await response.text(); assert.doesNotMatch(html, /Application error/);
+        // 断言各页自身的标题：手机号列表/详情为「手机号管理」，手机列表为「手机管理」。
+        // 侧栏展示名已按 D043 改为「手机号」「手机」，不再用侧栏文案当页面标识。
+        assert.match(html, path.startsWith("/resources/phones?") ? /手机管理/ : /手机号管理/);
         if (path.startsWith("/resources/phones?")) { assert.match(html, /登录抖音号/); assert.match(html, /wx_one/); assert.match(html, /卡槽/); }
         if (path.includes("via=")) assert.match(html, /返回手机号管理详情/);
       }
