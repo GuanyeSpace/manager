@@ -69,11 +69,25 @@
 
 ## 当前未完成任务与下一步
 
-10-01老板工作台第一步已确认（D043）：仅侧栏、顶部导航和页面框架，首页数据总览延期至用户测试数据后再确认。已提供[DeepSeek实施提示词](tasks/boss-layout-phase1.md)，待用户转交实施；尚无实施分支成果或审查结果。保留首页内容与统计口径，未改业务代码/数据库/生产。本轮仅文档，检查链接和差异后同步远程。
+10-01老板工作台第一步已实现待Codex审查（D043）：只改侧栏、顶部导航与页面外框；首页统计、数据查询、计算口径和快捷入口原样保留，未新增指标、图表或异常提醒。基准cdcb57b，分支feat/boss-layout-phase1。新增lib/navigation-menu.ts、lib/navigation-menu.test.ts、lib/auth/workspaces.ts、components/management-shell-chrome.tsx；ManagementShell改为服务端壳（对外签名不变，7个layout未改），workspace-switcher复用lib/auth/workspaces.ts。typecheck/相关eslint/git diff --check通过；菜单专项单测7/7；隔离库构建exit 0；scripts/test-phone-navigation.ts在隔离库跑通并保留浏览器夹具，生产构建+headless Chrome共54项断言全部通过（15张截图见/tmp/manager-boss-layout-20261001/）。数据总览延期至用户测试数据后再确认。未上线、未合并main、未连正式库。
 
 10-01协作方式已确认（D042）：以后用户提需求，Codex提供实施提示词，由用户交给DeepSeek在开发分支实现、自测、同步文档并推送；用户提供分支/提交后，Codex独立审查验收并负责正式发布。实施者不合并main、不访问生产凭证或正式库、不部署。规则已写入AGENTS.md、CLAUDE.md及development-guide.md。本次仅协作文档更新，检查差异、链接与敏感信息后提交推送；不构建、不执行数据库测试、不部署。下一步等待用户新需求，没有启动实施代理或后台任务。
 
-当前任务：手机号列表隐藏分公司、显示所在手机及卡槽，其他手机显示登记文本。复用卡槽双向关系与设备权限，无迁移；类型/相关eslint、手机关联导航权限与手机号专项回归通过（初次误用不存在的test-numbers.ts，已改为test-number-management.ts通过）。已上线，20表原列一致、196部署文件哈希一致、19迁移无新增。测试数据已清理，无本地测试进程；未另做浏览器目视验收。文档同步后提交推送。
+当前任务：老板工作台布局第一步（[实施提示词](tasks/boss-layout-phase1.md)）。
+
+- 状态：已实现待Codex审查，未上线。
+- 范围与不做：只改管理端侧栏、顶部导航与页面外框；16个菜单入口、四个分组与展示名按任务文档执行。不做首页数据总览、不加统计/图表/异常提醒/待补数量，不改权限、查询、表单字段、关联数据、schema、迁移与依赖。
+- 涉及决策ID：D043（范围不变）；D042（开发分支交付、Codex独立审查后发布）。
+- 修改文件 / 数据迁移：新增lib/navigation-menu.ts、lib/navigation-menu.test.ts、lib/auth/workspaces.ts、components/management-shell-chrome.tsx；修改components/management-shell.tsx（改为服务端壳，签名不变）、components/workspace-switcher.tsx（复用共享岗位映射）、app/boss/page.tsx（仅外框引起的背景/描边两处class）、scripts/test-phone-navigation.ts（一处标签断言，见下）；无迁移、无新依赖、未改lib/navigation-trail.ts与context-link。
+- 已经完成：置顶工作台+四组共16入口；分组折叠且当前项所在组始终展开；唯一选中（/boss精确、详情按模块、直播/打粉用view=monetization含详情）；56px顶栏位置导航+切换工作台+真实姓名+退出；<1024px Radix 抽屉（Esc/遮罩/焦点返回/选后自动关闭/锁背景滚动）；内容区去大白卡片、浅灰底、24/16px间距、表格内部滚动。
+- 实际验证（2026-10-01，本机隔离环境）：npm run typecheck通过；eslint变更文件通过；git diff --check通过；`tsx --test lib/navigation-menu.test.ts` 7/7通过；DATABASE_URL指向manager_accounts_test的`npm run build` exit 0且全路由dynamic；`ALLOW_TEST_DESTRUCTION=true TEST_HTTP_BASE=…`跑scripts/test-phone-navigation.ts通过并自行清理夹具；生产构建（同样指向隔离库）+headless Chrome CDP在1440×900/1366×768/390×844执行54项断言全部通过，覆盖16路由可达与唯一选中、位置文案、折叠自动展开、筛选后第2页→手机号→手机→账号逐级返回且openedBy/page/pageSize保留、保存后来源via保留、抽屉键盘与焦点、宽表格不被整页撑宽、首页三卡与快捷入口原样、无重复“管理中心”。15张截图与report.json在/tmp/manager-boss-layout-20261001/（未提交）。
+- 尚未验证：打粉报表详情页在浏览器中的高亮未单独走查（夹具没有LiveReport，未在隔离库造报表业务数据），该路由由lib/navigation-menu.test.ts覆盖；未重跑完整业务测试矩阵（本次不改服务）；未做真机移动端触摸与iOS Safari验收。另：headless Chrome下Next开发服务器不执行hydration，浏览器交互验收改用`npm run build`+`next start`的生产构建，已在报告中如实说明。
+- 已知既有行为（非本次回归）：同时具备老板以外岗位的用户会在页面顶部看到全局「切换工作台」条，此时左侧栏按100vh计算高度会比可视区高出一个切换条的高度；在高度≤约800px的视口下，侧栏最后的分公司入口需先把整页滚动约40px才能完全露在可视区。旧实现同样是`calc(100vh-4rem)`加64px顶栏，存在同样偏差，本次未改；夹具为纯老板账号（不出现全局切换条），该组合未在浏览器实测。
+- 部署：未部署，未合并main。
+- 数据保护：未接触正式库、生产凭证与生产服务器；隔离库manager_accounts_test夹具按marker清理，User/Branch/PhoneNumber/AssetDevice/DouyinAccount残留均为0；本地日常库manager仍为5次迁移、未迁移。
+- 剩余步骤：Codex独立审查差异、权限与浏览器证据，通过后由Codex发布；数据总览待用户测试数据后另行确认。
+- 交接：分支feat/boss-layout-phase1（基准cdcb57b）；工作区仅保留用户明确排除的.claude/launch.json删除；无运行中的临时服务、Chrome或遗留进程；截图与临时脚本在/tmp，未提交。
+- 需审查者重点确认：app/boss/page.tsx只用背景/描边修补外框引起的对比度问题；scripts/test-phone-navigation.ts把通用断言`/手机号管理/`改为按路径断言（手机列表页断言页面自身标题`/手机管理/`），原因是侧栏展示名按D043由“手机号管理/手机管理”改为“手机号/手机”，不是放宽权限断言。
 
 09-30当前任务：账号列表增加所在手机，隐藏分公司和运营列；复用手机实际登录账号关联及设备可见范围，不改数据库。已上线。typecheck/相关eslint/手机关联导航和账号权限回归通过，测试数据已清理，含账号可见但手机不可见的权限断言。生产20表数据一致、196文件哈希一致、19迁移无新增。未另做浏览器目视验收，无运行中的本地测试进程。源码提交7ecd6d1，发布文档单独同步。
 

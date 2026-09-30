@@ -2,6 +2,17 @@
 
 本日志记录进度和决定；详细生产执行证据见 deployment.md。2026-09-29之前条目是按已有历史文档整理的里程碑，不是本轮重做验证。
 
+## 2026-10-01 — 老板工作台布局第一步（侧栏/顶部导航/页面外框）
+
+- 状态：已实现待Codex审查，未上线；不合并main、不部署、未接触正式库。
+- 需求/决定：按D043与[tasks/boss-layout-phase1.md](tasks/boss-layout-phase1.md)只改管理端侧栏、顶部导航与页面外框；数据总览延期。
+- 变更：新增lib/navigation-menu.ts（16入口分组/展示名与唯一选中、当前位置文案，纯函数）、lib/navigation-menu.test.ts、lib/auth/workspaces.ts（岗位→可切换工作台唯一来源）、components/management-shell-chrome.tsx（客户端侧栏/顶栏/抽屉/外框）；components/management-shell.tsx 改为服务端壳（对外签名不变，7个layout与各自身份检查未改）；components/workspace-switcher.tsx 复用共享岗位映射；app/boss/page.tsx 仅两处背景/描边修补；scripts/test-phone-navigation.ts 一处标签断言按新展示名调整。无schema、无迁移、无新依赖；未改lib/navigation-trail.ts、context-link、controller-shell。
+- 数据影响：无数据库结构或数据变更；未连接正式库。
+- 验证（实际）：typecheck、变更文件eslint、git diff --check通过；`tsx --test lib/navigation-menu.test.ts` 7/7；隔离库`manager_accounts_test`构建exit 0；`ALLOW_TEST_DESTRUCTION=true TEST_HTTP_BASE=…`跑scripts/test-phone-navigation.ts通过并清理夹具（残留计数0）；生产构建+headless Chrome CDP在1440×900/1366×768/390×844执行54项浏览器断言全部通过，含16路由唯一选中、折叠自动展开、筛选第2页→手机号→手机→账号逐级返回且参数保留、保存保留via、抽屉Esc与焦点、宽表格内部滚动、首页三卡与快捷入口原样；15张截图与report.json见/tmp/manager-boss-layout-20261001/。
+- 上线/回退（如有）：无，未部署。
+- 未完成/限制：打粉报表详情页的浏览器高亮未单独走查（隔离库未造报表业务数据），由单测覆盖该路由；未重跑完整业务测试矩阵（不改服务）；未做真机移动端验收；headless Chrome下Next开发服务器不执行hydration，交互验收改用生产构建，已在current-status说明。
+- 关联文档与代码：docs/current-status.md、docs/architecture.md、components/management-shell.tsx、components/management-shell-chrome.tsx、lib/navigation-menu.ts、lib/auth/workspaces.ts。
+
 ## 2026-09-30 — 全系统复查（只读）
 
 - 状态：复查完成，未改业务代码、无新迁移、未发布生产；只同步文档。

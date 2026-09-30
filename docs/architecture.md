@@ -1,6 +1,6 @@
 # 架构与代码地图
 
-核对日期：2026-09-30。本文件提供定位，不替代读取目标文件及 Next.js 本地文档。
+核对日期：2026-09-30；2026-10-01 按老板布局第一步更新「主要组件」与 lib/navigation-menu.ts 条目，未重核其他章节。本文件提供定位，不替代读取目标文件及 Next.js 本地文档。
 
 ## 技术栈与部署形态
 
@@ -81,10 +81,12 @@ flowchart LR
 | lib/audit.ts | 审计写入入口 |
 | lib/datetime.ts | UTC / Asia/Shanghai 展示；具体表单解析还在报表 schema |
 | lib/navigation-trail.ts | 安全站内来源路径、循环截断、列表参数保留 |
+| lib/navigation-menu.ts | 管理侧栏分组/展示名与唯一选中、当前位置文案；不涉及权限 |
 
 ## 主要组件
 
-- management-shell、controller-shell、workspace-switcher：侧栏/顶部/岗位切换；菜单隐藏不是权限控制。
+- management-shell（服务端壳，算当前岗位可切换的工作台）+ management-shell-chrome（客户端侧栏/顶栏/抽屉/页面外框）、controller-shell、workspace-switcher：侧栏/顶部/岗位切换；菜单隐藏不是权限控制。
+- lib/navigation-menu.ts：管理菜单分组、展示名与唯一选中/位置文案的唯一来源（纯函数，可单测）；lib/auth/workspaces.ts：岗位→可切换工作台的唯一来源，供顶栏切换菜单与 workspace-switcher 共用。
 - context-link：关联跳转携带来源，ReturnLink 逐级返回，NavigationFields 隐藏保存来源，NavigationTrail 路径导航。
 - workflow-editor、workflow-copy：三阶段事项、拖动/上下移动、秒数、口令/定时、话术与复制。
 - workbench-home、work-shift-panel、work-session-view：上班、账号与本场主工作空间。
