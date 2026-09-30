@@ -270,3 +270,12 @@
 - 备份 /var/backups/manager/manager-20260930T114701Z.dump及同名.screenshots.tar.gz，归档列表可读；摘要 /opt/manager/data-before-accountphones-20260930.json核对20表原列一致，19迁移无待应用。
 - 旧程序 /opt/manager/standalone-before-accountphones-20260930；旧源码 /opt/manager/source-before-accountphones-20260930.tar.gz；源码包 /opt/manager/accountphones-source.tar.gz。
 - 196部署文件哈希一致；manager/nginx/docker/备份及续期timer active；HTTPS登录200、未登录账号页307。
+
+## 2026-09-30 — 手机号列表所在手机
+
+- components/number-directory.tsx替换分公司列；modules/resources/data.ts按deviceScope批量查询本页卡槽位置，支持otherPhone原登记文本。无结构变更。
+- 类型/相关eslint、手机关联导航权限及手机号专项回归通过；初次测试路径误写为test-numbers.ts未执行，纠正为test-number-management.ts后通过。测试数据清理；未另做浏览器目视验收。
+- stage /opt/manager/build-numberphones-20260930，manager-numberphones-build成功退出；资源限制1100M/300M swap/100% CPU/node768M，134.304秒、峰值842.7MiB。
+- 备份 /var/backups/manager/manager-20260930T115823Z.dump及同名.screenshots.tar.gz，归档可读；摘要 /opt/manager/data-before-numberphones-20260930.json，20表原列一致，19迁移无待应用。
+- 旧程序 /opt/manager/standalone-before-numberphones-20260930；旧源码 /opt/manager/source-before-numberphones-20260930.tar.gz；源码包 /opt/manager/numberphones-source.tar.gz。
+- 196部署文件哈希一致，manager/nginx/docker/备份及续期timer active，HTTPS登录200、未登录手机号列表307。

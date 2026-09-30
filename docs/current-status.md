@@ -11,10 +11,10 @@
 | 项目 | 最近核验值 |
 | --- | --- |
 | 服务地址 | https://8.163.69.11 ，无域名的 IP HTTPS |
-| 最近业务发布 | 2026-09-30：账号列表所在手机关联，隐藏分公司和运营 |
-| 发布前备份 | /var/backups/manager/manager-20260930T114701Z.dump 及同名 .screenshots.tar.gz |
-| 数据校验摘要 | /opt/manager/data-before-accountphones-20260930.json |
-| 保留旧程序 | /opt/manager/standalone-before-accountphones-20260930 |
+| 最近业务发布 | 2026-09-30：手机号列表所在手机关联，隐藏分公司 |
+| 发布前备份 | /var/backups/manager/manager-20260930T115823Z.dump 及同名 .screenshots.tar.gz |
+| 数据校验摘要 | /opt/manager/data-before-numberphones-20260930.json |
+| 保留旧程序 | /opt/manager/standalone-before-numberphones-20260930 |
 | 数据迁移 | 19 个，最新 20260929130000_account_ban |
 | 最新模型数量 | 20 个 Prisma model；本次发布核对全部20张业务表数据 |
 | 验证证据 | 196 个部署文件 SHA-256 一致；原数据摘要一致；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
@@ -56,6 +56,8 @@
 - 本轮文档验收：23份Markdown、78个本地链接、20个model、18次迁移、35个决定ID核对通过，代码围栏及git diff --check通过；字段速查包含349个存储/关联字段。未重新运行数据库业务测试，未发布纯文档。
 
 ## 当前未完成任务与下一步
+
+当前任务：手机号列表隐藏分公司、显示所在手机及卡槽，其他手机显示登记文本。复用卡槽双向关系与设备权限，无迁移；类型/相关eslint、手机关联导航权限与手机号专项回归通过（初次误用不存在的test-numbers.ts，已改为test-number-management.ts通过）。已上线，20表原列一致、196部署文件哈希一致、19迁移无新增。测试数据已清理，无本地测试进程；未另做浏览器目视验收。文档同步后提交推送。
 
 09-30当前任务：账号列表增加所在手机，隐藏分公司和运营列；复用手机实际登录账号关联及设备可见范围，不改数据库。已上线。typecheck/相关eslint/手机关联导航和账号权限回归通过，测试数据已清理，含账号可见但手机不可见的权限断言。生产20表数据一致、196文件哈希一致、19迁移无新增。未另做浏览器目视验收，无运行中的本地测试进程。源码提交7ecd6d1，发布文档单独同步。
 

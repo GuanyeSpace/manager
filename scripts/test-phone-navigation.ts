@@ -56,6 +56,12 @@ async function main() {
     for (let i = 0; i < 51; i++) await db.phoneNumber.create({ data: { branchId: a.id, number: `${100+i}${digits}`, openedBy: marker, userId: employee.id, status: "NORMAL", wechat: "sim_bound_wechat" } });
     const all = await db.phoneNumber.findMany({ where: { openedBy: marker }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
     await save({ ...initial, sim1: all[20].id });
+    const linkedNumber = (await db.$transaction(tx => readNumberList(tx, boss.id, all[20].number, 1))).rows[0];
+    assert.equal(linkedNumber.phoneSlot?.device.id, device);
+    assert.equal(linkedNumber.phoneSlot?.slot, 1);
+    await db.assetDevice.update({ where: { id: device }, data: { userId: other.id } });
+    assert.equal((await db.$transaction(tx => readNumberList(tx, employee.id, all[20].number, 1))).rows[0].phoneSlot, null);
+    await db.assetDevice.update({ where: { id: device }, data: { userId: employee.id } });
     initial = (await detail())!.initial;
     assert.deepEqual(initial.loginAccountIds, [account]); assert.equal(initial.loginWechats, "wx_one\nwx_two");
     await assert.rejects(save({ ...initial, version: initial.version - 1, loginAccountIds: [] }), /已被修改/);

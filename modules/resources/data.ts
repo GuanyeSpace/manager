@@ -112,11 +112,13 @@ export async function readNumberList(tx: Prisma.TransactionClient, token: string
   const where: Prisma.PhoneNumberWhereInput = { AND: [scope, statusFilter, { openedBy: { contains: filters.openedBy }, ...(filters.userId ? { userId: filters.userId === "unassigned" ? null : filters.userId } : {}), OR: [{ number: { contains: q } }, { purpose: { contains: q } }, { wechat: { contains: q } }, { xiaohongshu: { contains: q } }, { kuaishou: { contains: q } }, { account: { AND: [currentAccountScope(actor), { name: { contains: q } }] } }] }] };
   const pageSize = pageSizeSchema.parse(requestedSize);
   const total = await tx.phoneNumber.count({ where }), pages = Math.max(1, Math.ceil(total / pageSize)), page = Math.min(pages, Math.max(1, Math.trunc(requestedPage) || 1));
-  const rows = await tx.phoneNumber.findMany({ where, select: { id: true, number: true, openedBy: true, wechat: true, xiaohongshu: true, kuaishou: true, status: true, active: true, user: person, branch: { select: { name: true } }, account: { select: { id: true, name: true, douyinId: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: pageSize, skip: (page - 1) * pageSize });
+  const rows = await tx.phoneNumber.findMany({ where, select: { id: true, number: true, openedBy: true, wechat: true, xiaohongshu: true, kuaishou: true, status: true, active: true, user: person, otherPhone: true, account: { select: { id: true, name: true, douyinId: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: pageSize, skip: (page - 1) * pageSize });
+  const slots = await tx.deviceSlot.findMany({ where: { phoneNumberId: { in: rows.map(r => r.id) }, device: deviceScope(actor) }, select: { phoneNumberId: true, slot: true, device: { select: { id: true, code: true } } } });
+  const slotsByNumber = new Map(slots.map(slot => [slot.phoneNumberId, slot]));
   const visibleAccounts = new Set((await tx.douyinAccount.findMany({ where: { AND: [currentAccountScope(actor), { id: { in: rows.flatMap(r => r.account ? [r.account.id] : []) } }] }, select: { id: true } })).map(a => a.id));
   const users = await tx.user.findMany({ where: { usedNumbers: { some: scope } }, select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }] });
   const manager = !isExecutionController(actor) && (isAccountBoss(actor) || !!await tx.branch.findFirst({ where: { id: actor.branchId ?? "", managerId: actor.id } }));
-  return { rows: rows.map(r => ({ ...r, account: r.account && visibleAccounts.has(r.account.id) ? r.account : null, status: numberStatus(r.status, r.active) })), total, pages, page, pageSize, users, manager, filters };
+  return { rows: rows.map(r => ({ ...r, phoneSlot: slotsByNumber.get(r.id) ?? null, account: r.account && visibleAccounts.has(r.account.id) ? r.account : null, status: numberStatus(r.status, r.active) })), total, pages, page, pageSize, users, manager, filters };
 }
 
 export async function readPhoneList(tx: Prisma.TransactionClient, token: string, q: string, requestedPage: number, requestedSize = 20, userId = "", rawStatus = "") {
