@@ -11,10 +11,10 @@
 | 项目 | 最近核验值 |
 | --- | --- |
 | 服务地址 | https://8.163.69.11 ，无域名的 IP HTTPS |
-| 最近业务发布 | 2026-09-30：抖音账号列表增加实名人 |
-| 发布前备份 | /var/backups/manager/manager-20260930T113403Z.dump 及同名 .screenshots.tar.gz |
-| 数据校验摘要 | /opt/manager/data-before-realname-20260930.json |
-| 保留旧程序 | /opt/manager/standalone-before-realname-20260930 |
+| 最近业务发布 | 2026-09-30：账号列表所在手机关联，隐藏分公司和运营 |
+| 发布前备份 | /var/backups/manager/manager-20260930T114701Z.dump 及同名 .screenshots.tar.gz |
+| 数据校验摘要 | /opt/manager/data-before-accountphones-20260930.json |
+| 保留旧程序 | /opt/manager/standalone-before-accountphones-20260930 |
 | 数据迁移 | 19 个，最新 20260929130000_account_ban |
 | 最新模型数量 | 20 个 Prisma model；本次发布核对全部20张业务表数据 |
 | 验证证据 | 196 个部署文件 SHA-256 一致；原数据摘要一致；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
@@ -57,7 +57,7 @@
 
 ## 当前未完成任务与下一步
 
-09-30当前任务：账号列表增加所在手机，隐藏分公司和运营列；复用手机实际登录账号关联及设备可见范围，不改数据库。实现完成，typecheck/相关eslint/手机关联导航和账号权限回归通过（测试数据已清理）；服务器受限构建中，待发布及Git同步。
+09-30当前任务：账号列表增加所在手机，隐藏分公司和运营列；复用手机实际登录账号关联及设备可见范围，不改数据库。已上线。typecheck/相关eslint/手机关联导航和账号权限回归通过，测试数据已清理，含账号可见但手机不可见的权限断言。生产20表数据一致、196文件哈希一致、19迁移无新增。未另做浏览器目视验收，无运行中的本地测试进程。源码提交7ecd6d1，发布文档单独同步。
 
 09-30账号列表实名人列已上线：位于抖音号后，空值显示未填写；复用realName及现有权限，无迁移。typecheck/相关eslint/账号权限与历史回归通过；隔离浏览器验证空值和填写后列表显示。测试夹具已清理、3102服务停止。代码与文档按明确路径提交并同步origin/main。
 

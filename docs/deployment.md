@@ -261,3 +261,12 @@
 - 备份 /var/backups/manager/manager-20260930T113403Z.dump及同名.screenshots.tar.gz，归档可读；摘要 /opt/manager/data-before-realname-20260930.json核对20表原列完全一致，19迁移无待应用。
 - 旧程序 /opt/manager/standalone-before-realname-20260930；旧源码 /opt/manager/source-before-realname-20260930.tar.gz；源码包 /opt/manager/realname-source.tar.gz。
 - 196部署文件哈希一致；manager/nginx/docker/备份及续期timer active；HTTPS/login200，未登录/accounts307。Git提交及推送独立核验，不把基线标签的旧摘要覆盖成新版。
+
+## 2026-09-30 — 账号列表所在手机关联
+
+- app/accounts/page.tsx新增所在手机链接、移除分公司/运营列；modules/accounts/data.ts按deviceScope读取已有PhoneAccountLogin。无新增迁移、无业务写入。
+- typecheck、相关eslint、手机关联/导航和账号权限回归通过，新增账号可见但设备不可见的权限断言；测试数据已清理。未另做浏览器目视验收。
+- stage /opt/manager/build-accountphones-20260930；manager-accountphones-build沿用1100M/300M swap/100% CPU/node768M，成功退出，130.466秒、峰值838.7MiB。
+- 备份 /var/backups/manager/manager-20260930T114701Z.dump及同名.screenshots.tar.gz，归档列表可读；摘要 /opt/manager/data-before-accountphones-20260930.json核对20表原列一致，19迁移无待应用。
+- 旧程序 /opt/manager/standalone-before-accountphones-20260930；旧源码 /opt/manager/source-before-accountphones-20260930.tar.gz；源码包 /opt/manager/accountphones-source.tar.gz。
+- 196部署文件哈希一致；manager/nginx/docker/备份及续期timer active；HTTPS登录200、未登录账号页307。
