@@ -12,8 +12,8 @@ export async function readAccountList(tx: Prisma.TransactionClient, token: strin
     select: {
       id: true, name: true, douyinId: true, realName: true, active: true, banned: true, unbanDate: true, phone: true,
       phoneNumber: { select: { id: true, number: true } }, room: { select: { id: true, name: true } },
-      branch: { select: { name: true } },
-      operator: { select: { name: true } }, controller: { select: { name: true } }, anchor: { select: { name: true } },
+      phoneLogins: { where: { device: deviceScope(actor) }, select: { device: { select: { id: true, code: true } } }, orderBy: { device: { code: "asc" } } },
+      controller: { select: { name: true } }, anchor: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
   });

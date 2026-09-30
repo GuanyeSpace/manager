@@ -4,7 +4,7 @@ import { validateTestEnv, resolveTestClient, assertTestDatabase, newRunId, clean
 import { saveResource } from "../modules/resources/service";
 import { readResourceDetail, readPhoneList, readNumberList, readResourceList } from "../modules/resources/data";
 import { saveAccount } from "../modules/accounts/service";
-import { readAccountDetail } from "../modules/accounts/data";
+import { readAccountDetail, readAccountList } from "../modules/accounts/data";
 import { followHref, parseTrail, withTrail } from "../lib/navigation-trail";
 import { signSessionToken } from "../lib/auth/session-token";
 import { writeFileSync } from "node:fs";
@@ -28,7 +28,7 @@ async function main() {
     const boss = await db.user.create({ data: { username: marker, name: "页面验收", role: "BOSS", mustChangePassword: false, passwordHash: await hash("Navigation-test-only-2026", 10) } });
     const employee = await db.user.create({ data: { username: marker + "employee", name: "测试使用人", role: "CONTROLLER", branchId: a.id, mustChangePassword: false, passwordHash: "not-real" } });
     const other = await db.user.create({ data: { username: marker + "other", name: "其他中控", role: "CONTROLLER", branchId: a.id, mustChangePassword: false, passwordHash: "not-real" } });
-    for (const u of [boss, employee]) await db.session.create({ data: { id: u.id, userId: u.id, expiresAt: new Date(Date.now() + 3600000) } });
+    for (const u of [boss, employee, other]) await db.session.create({ data: { id: u.id, userId: u.id, expiresAt: new Date(Date.now() + 3600000) } });
     const baseAccount = { id: "", version: 0, douyinId: marker, name: "验收抖音账号", homepageUrl: "", realName: "", phone: "", purpose: "", notes: "", branchId: a.id, operatorId: "", controllerId: other.id, anchorId: "", active: "true" as const };
     const account = await db.$transaction(tx => saveAccount(tx, boss.id, baseAccount, "test"));
     const save = (data: object, token = boss.id) => db.$transaction(tx => saveResource(tx, token, "phones", data, "test"));
@@ -39,6 +39,12 @@ async function main() {
     let initial = (await detail())!.initial;
     assert.deepEqual(initial.loginAccountIds, [account]);
     assert.equal((await db.$transaction(tx => readAccountDetail(tx, boss.id, account))).phones[0].id, device);
+    const bossAccounts = await db.$transaction(tx => readAccountList(tx, boss.id, marker));
+    assert.equal(bossAccounts.accounts[0].phoneLogins[0].device.id, device);
+    const controllerAccounts = await db.$transaction(tx => readAccountList(tx, other.id, marker));
+    assert.equal(controllerAccounts.accounts.length, 1);
+    assert.equal(controllerAccounts.accounts[0].phoneLogins.length, 0, "账号负责人不得读取未分配给自己的手机");
+    assert.equal((await db.$transaction(tx => readAccountList(tx, employee.id, marker))).accounts.length, 0);
     await assert.rejects(save({ ...initial, branchId: b.id, userId: "" }), /登录抖音号/);
     await assert.rejects(db.$transaction(tx => saveAccount(tx, boss.id, { ...baseAccount, id: account, version: 1, branchId: b.id, controllerId: boss.id }, "test")), /手机登录关联/);
     await assert.rejects(save(initial, employee.id), /仅老板/);
