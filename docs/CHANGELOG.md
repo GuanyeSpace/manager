@@ -184,3 +184,9 @@ D043已确认：只做侧栏、顶部及页面框架，首页数据总览延期�
 ### 中控调整实施与验收完成，待发布
 
 新增/workbench/attendance、/controller/profile、modules/profile、兼容迁移20261001040000_controller_profile。迁移只新增User三字段及放宽账号/历史/报表中控非空约束；保留所有旧列。类型、相关eslint、隔离构建和12项业务/认证回归通过；新增个人资料服务、HTTP页面及迁移演练通过。CUA验证上班后展示设备检查、结束上班、个人资料保存刷新、校验错误保留输入，截图/tmp/manager-controller-profile-20261001.png；未通过浏览器改密码，复用流程由认证测试验证。暂无生产迁移，服务器构建中。
+
+## 2026-10-01 中控调整发布完成
+
+独立上班/下班、精简侧栏、个人资料及账号中控可选已上线。受限构建128.828秒，峰值844.3MiB；备份 /var/backups/manager/manager-20260930T222321Z.dump 及同名.screenshots.tar.gz，归档目录检查通过（未做完整恢复演练）。20张业务表原列摘要 /opt/manager/data-before-controllerprofile-20261001.json，迁移前后相同；20次迁移到位。206部署文件哈希一致，manager/nginx/docker及两个timer active，HTTPS登录200、未登录个人资料307。
+
+旧程序 /opt/manager/standalone-before-controllerprofile-20261001，旧源码 /opt/manager/source-before-controllerprofile-20261001.tar.gz。产生空中控账号后旧程序回退需空值兼容，见operations.md。正式库未造测试数据。隔离浏览器覆盖上下班、资料保存刷新与错误保留输入；密码复用既有认证测试，未通过浏览器改密。夹具清理、3103停止。代码提交80cb241，发布文档随后同步main。

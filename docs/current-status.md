@@ -11,13 +11,13 @@
 | 项目 | 最近核验值 |
 | --- | --- |
 | 服务地址 | https://8.163.69.11 ，无域名的 IP HTTPS |
-| 最近业务发布 | 2026-10-01：老板管理框架与四项交互修复 |
-| 发布前备份 | /var/backups/manager/manager-20260930T193802Z.dump 及同名 .screenshots.tar.gz |
-| 数据校验摘要 | /opt/manager/data-before-bosslayout-20261001.json |
-| 保留旧程序 | /opt/manager/standalone-before-bosslayout-20261001 |
-| 数据迁移 | 19 个，最新 20260929130000_account_ban |
+| 最近业务发布 | 2026-10-01：中控导航、个人资料与账号中控可选 |
+| 发布前备份 | /var/backups/manager/manager-20260930T222321Z.dump 及同名 .screenshots.tar.gz |
+| 数据校验摘要 | /opt/manager/data-before-controllerprofile-20261001.json |
+| 保留旧程序 | /opt/manager/standalone-before-controllerprofile-20261001 |
+| 数据迁移 | 20 个，最新 20261001040000_controller_profile |
 | 最新模型数量 | 20 个 Prisma model；本次发布核对全部20张业务表数据 |
-| 验证证据 | 199 个部署文件 SHA-256 一致；原数据摘要一致；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
+| 验证证据 | 206 个部署文件 SHA-256 一致；原数据摘要一致；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
 
 这些是最近一次核验结果，不是永久监控结果。后续上线前重新核对服务、证书、备份与迁移；不要据此推断今日业务数据条数。
 
@@ -69,7 +69,9 @@
 
 ## 当前未完成任务与下一步
 
-当前任务（10-01）：独立上班/下班入口，精简中控侧栏，新增本人昵称/联系电话和改密入口，账号中控改可选。代码与隔离验收完成，服务器构建中，尚未发布；现有上班约束、权限和历史保留。
+当前任务（10-01）：独立上班/下班入口，精简中控侧栏，新增本人昵称/联系电话和改密入口，账号中控改可选。已完成并上线；现有上班约束、权限和历史保留。
+
+最新发布核验：备份 /var/backups/manager/manager-20260930T222321Z.dump 及同名截图归档；20张表旧列一致，20次迁移到位，206部署文件哈希一致。HTTPS登录200、未登录个人资料307。旧程序 /opt/manager/standalone-before-controllerprofile-20261001。下方老板布局记录为此前发布，详情见deployment.md。
 
 本轮验证：类型/相关lint/构建通过；profile、账号、上下班、工作台、更正、直播报表、导粉、资源、手机号、认证并发、多岗位、手机导航回归通过；迁移演练保留20张表原列。HTTP专项与CUA浏览器验证独立上班/下班、资料保存刷新、错误保留输入及侧栏；资料本人写入/岗位不可篡改/并发版本/事务回滚均有服务测试。临时3103服务停止、夹具清理成功。
 

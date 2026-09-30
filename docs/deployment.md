@@ -288,3 +288,9 @@
 - 数据：/opt/manager/data-before-bosslayout-20261001.json，20张业务表在切换前核对一致；19个迁移无待执行，无新增迁移。
 - 回退：/opt/manager/standalone-before-bosslayout-20261001，源码/opt/manager/source-before-bosslayout-20261001.tar.gz；部署错误钩子可恢复旧standalone。本次未触发回退。
 - 发布后：199个部署源文件SHA-256与本地一致；manager/nginx/docker/backup.timer/cert-renew.timer active；有效HTTPS /login 200、未登录/boss 307。未在正式库造验收数据；交互验证在隔离库完成，范围见current-status.md。timer active不代表本次实际完成续期。
+
+## 2026-10-01 中控调整发布完成
+
+独立上班/下班、精简侧栏、个人资料及账号中控可选已上线。受限构建128.828秒，峰值844.3MiB；备份 /var/backups/manager/manager-20260930T222321Z.dump 及同名.screenshots.tar.gz，归档目录检查通过（未做完整恢复演练）。20张业务表原列摘要 /opt/manager/data-before-controllerprofile-20261001.json，迁移前后相同；20次迁移到位。206部署文件哈希一致，manager/nginx/docker及两个timer active，HTTPS登录200、未登录个人资料307。
+
+旧程序 /opt/manager/standalone-before-controllerprofile-20261001，旧源码 /opt/manager/source-before-controllerprofile-20261001.tar.gz。产生空中控账号后旧程序回退需空值兼容，见operations.md。正式库未造测试数据。隔离浏览器覆盖上下班、资料保存刷新与错误保留输入；密码复用既有认证测试，未通过浏览器改密。夹具清理、3103停止。代码提交80cb241，发布文档随后同步main。
