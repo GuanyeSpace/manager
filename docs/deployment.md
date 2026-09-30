@@ -294,3 +294,12 @@
 独立上班/下班、精简侧栏、个人资料及账号中控可选已上线。受限构建128.828秒，峰值844.3MiB；备份 /var/backups/manager/manager-20260930T222321Z.dump 及同名.screenshots.tar.gz，归档目录检查通过（未做完整恢复演练）。20张业务表原列摘要 /opt/manager/data-before-controllerprofile-20261001.json，迁移前后相同；20次迁移到位。206部署文件哈希一致，manager/nginx/docker及两个timer active，HTTPS登录200、未登录个人资料307。
 
 旧程序 /opt/manager/standalone-before-controllerprofile-20261001，旧源码 /opt/manager/source-before-controllerprofile-20261001.tar.gz。产生空中控账号后旧程序回退需空值兼容，见operations.md。正式库未造测试数据。隔离浏览器覆盖上下班、资料保存刷新与错误保留输入；密码复用既有认证测试，未通过浏览器改密。夹具清理、3103停止。代码提交80cb241，发布文档随后同步main。
+
+## 2026-10-01 D046上班清单与下班规则发布
+
+- 正式迁移21：20261001070000_shift_checklist，仅新增WorkShift三个可空字段；无历史回填。受限webpack构建129.594秒，CPU123.787秒，峰值834.4MiB；成功marker、退出0及server.js均核验后才切换。
+- 停止应用写入后备份：/var/backups/manager/manager-20260930T230830Z.dump 及同名.screenshots.tar.gz。pg_restore --list和tar目录检查通过；不代表本次完整恢复演练。
+- 20张业务表全部旧字段迁移前后摘要一致：/opt/manager/data-before-shiftchecklist-20261001.json。迁移状态21项全部到位，无测试资料写入正式库。
+- 保留旧程序/opt/manager/standalone-before-shiftchecklist-20261001、旧源码/opt/manager/source-before-shiftchecklist-20261001.tar.gz。未触发回退；旧版不执行8小时/四项完成门槛，回退语义限制见operations.md。
+- 207个部署文件SHA-256与本地一致；manager/nginx/docker及备份/续期timer active；HTTPS证书正常，/login 200，未登录/workbench/attendance 307。timer active不代表此次完成证书续期。
+- 隔离库完成专项、关联回归和桌面浏览器交互；测试夹具清理、3103服务停止。截图在本机/tmp/manager-shift-checklist-complete.png、/tmp/manager-shift-checklist-history.png，仓库外。代码与文档同次提交main，不把Git推送当成上线证据。

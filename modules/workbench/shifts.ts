@@ -5,14 +5,14 @@ import { isAccountBoss } from "@/lib/auth/account-permissions";
 import { requireAccountActor } from "@/modules/accounts/service";
 import { acquireUserMutationLock, UserActionError } from "@/modules/users/boss-guard";
 import { writeAudit } from "@/lib/audit";
-import { equipmentLabels, shiftCommandSchema, type EquipmentChecks } from "./schema";
+import { completedCheckCount, SHIFT_MINIMUM_MS, equipmentLabels, shiftCommandSchema, type EquipmentChecks } from "./schema";
 
 export async function readShift(tx: Prisma.TransactionClient, token: string) {
   const actor = await requireAccountActor(tx, token);
   const shift = await tx.workShift.findFirst({ where: { userId: actor.id, endedAt: null } });
   const first = shift ? await tx.workSession.findFirst({ where: { shiftId: shift.id, startedAt: { not: null } }, orderBy: { startedAt: "asc" }, select: { startedAt: true } }) : null;
   const unfinished = await tx.workSession.count({ where: { phase: { in: ["PREPARING", "LIVE", "WRAP"] }, OR: [{ loginUserId: actor.id }, { loginUserId: null, controllerId: actor.id }] } });
-  return { shift, firstStartedAt: first?.startedAt ?? null, unfinished };
+  return { shift, firstStartedAt: first?.startedAt ?? null, unfinished, serverNow: new Date() };
 }
 
 export async function runShiftCommand(tx: Prisma.TransactionClient, token: string, raw: unknown, ip: string) {
@@ -25,7 +25,7 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
     const startedAt = input.startedAt ? correctedTime(input.startedAt, null) : new Date();
     if (input.startedAt && !input.reason) throw new UserActionError("补填到岗时间必须填写原因");
     await assertShiftInterval(tx, actor.id, "", startedAt, null);
-    const shift = await tx.workShift.create({ data: { startedAt, userId: actor.id, userName: actor.name, branchId: actor.branchId } });
+    const shift = await tx.workShift.create({ data: { startedAt, clockStartedAt: new Date(), userId: actor.id, userName: actor.name, branchId: actor.branchId } });
     await writeAudit({ db: tx, actorId: actor.id, action: "DAILY_WORK_UPDATE", targetType: "WorkShift", targetId: shift.id, detail: { command: input.command, startedAt: shift.startedAt.toISOString(), reason: input.reason, actorName: actor.name }, ip });
     return shift.id;
   }
@@ -33,6 +33,7 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
   const shift = await tx.workShift.findFirst({ where: { id: input.id, ...(!isAccountBoss(actor) || !correcting ? { userId: actor.id } : {}), ...(!correcting ? { endedAt: null } : {}) } });
   if (!shift) throw new UserActionError("本次上班不存在或已结束");
   if (shift.version !== input.version) throw new UserActionError("上班记录已更新，请刷新后重试");
+  if (["shiftCheck", "shiftCorrectCheck"].includes(input.command) && !(raw as { status?: unknown }).status) throw new UserActionError("请选择检查结果");
   if (correcting) {
     if (!input.reason) throw new UserActionError("请填写更正原因");
     const changes: CorrectionChange[] = [];
@@ -62,20 +63,26 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
       const next = { status: input.status, note: input.note, at: old?.at ?? new Date().toISOString(), actor: old?.actor ?? actor.name };
       before = { item: input.item, result: old ?? null }; after = { item: input.item, result: next };
       changes.push({ field: equipmentLabels[input.item], before: old ? `${old.status === "normal" ? "正常" : "异常"} · ${old.note || "无备注"}` : "未检查", after: `${next.status === "normal" ? "正常" : "异常"} · ${next.note || "无备注"}` });
-      await tx.workShift.update({ where: { id: shift.id }, data: { checks: { ...checks, [input.item]: next }, version: { increment: 1 } } });
+      await tx.workShift.update({ where: { id: shift.id }, data: { checks: { ...checks, [input.item]: next }, ...(!shift.endedAt && !shift.checkedInAt && completedCheckCount(checks) < 4 && completedCheckCount({ ...checks, [input.item]: next }) === 4 ? { checkedInAt: new Date() } : {}), version: { increment: 1 } } });
     }
     await writeAudit({ db: tx, actorId: actor.id, action: "DAILY_WORK_UPDATE", targetType: "WorkShift", targetId: shift.id, detail: { command: input.command, reason: input.reason, actorName: actor.name, before, after, changes, version: shift.version + 1 }, ip });
-  } else if (input.command === "shiftEnd") {
+  } else if (input.command === "shiftEnd" || input.command === "shiftEarlyEnd") {
     const { unfinished } = await readShift(tx, token);
     if (unfinished) throw new UserActionError("还有准备中、直播中或待收尾场次，请全部处理后结束上班");
+    if (completedCheckCount(shift.checks as EquipmentChecks) !== 4) throw new UserActionError("请先完成四项设备检查，确认到岗后才能结束上班");
     const endedAt = new Date();
-    await tx.workShift.update({ where: { id: shift.id }, data: { endedAt, version: { increment: 1 } } });
-    await writeAudit({ db: tx, actorId: actor.id, action: "DAILY_WORK_UPDATE", targetType: "WorkShift", targetId: shift.id, detail: { command: input.command, endedAt: endedAt.toISOString() }, ip });
+    const elapsed = endedAt.getTime() - (shift.clockStartedAt ?? shift.createdAt).getTime();
+    if (input.command === "shiftEnd" && elapsed < SHIFT_MINIMUM_MS) throw new UserActionError("工作未满8小时；如需提前下班，请填写提前下班原因");
+    if (input.command === "shiftEarlyEnd" && !input.reason) throw new UserActionError("请填写提前下班原因");
+    if (input.command === "shiftEarlyEnd" && elapsed >= SHIFT_MINIMUM_MS) throw new UserActionError("已满8小时，请使用正常结束上班");
+    const earlyEndReason = input.command === "shiftEarlyEnd" ? input.reason : null;
+    await tx.workShift.update({ where: { id: shift.id }, data: { endedAt, earlyEndReason, version: { increment: 1 } } });
+    await writeAudit({ db: tx, actorId: actor.id, action: "DAILY_WORK_UPDATE", targetType: "WorkShift", targetId: shift.id, detail: { command: input.command, endedAt: endedAt.toISOString(), earlyEndReason, clockStartedAt: (shift.clockStartedAt ?? shift.createdAt).toISOString() }, ip });
   } else {
     if (input.status === "issue" && !input.note) throw new UserActionError("设备异常必须填写原因");
     const before = shift.checks as EquipmentChecks;
     const result = { status: input.status, note: input.note, at: new Date().toISOString(), actor: actor.name };
-    await tx.workShift.update({ where: { id: shift.id }, data: { checks: { ...before, [input.item]: result }, version: { increment: 1 } } });
+    await tx.workShift.update({ where: { id: shift.id }, data: { checks: { ...before, [input.item]: result }, ...(!shift.checkedInAt && completedCheckCount(before) < 4 && completedCheckCount({ ...before, [input.item]: result }) === 4 ? { checkedInAt: new Date() } : {}), version: { increment: 1 } } });
     await writeAudit({ db: tx, actorId: actor.id, action: "DAILY_WORK_UPDATE", targetType: "WorkShift", targetId: shift.id, detail: { command: input.command, item: equipmentLabels[input.item], before: before[input.item] ?? null, after: result }, ip });
   }
   return shift.id;

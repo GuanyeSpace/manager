@@ -124,7 +124,8 @@ async function main() {
       console.log("PASS: 截图 HTTP 原始字节、私有响应头、越权 404、匿名拒绝及归档截图入口");
     }
     assert.equal((await db.$transaction(tx => readShift(tx, controller.token))).unfinished, 0);
-    await shift(controller.token, { command: "shiftEnd", id: shiftOne, version: 4 });
+    await shift(controller.token, { command: "shiftCheck", id: shiftOne, version: 4, item: "computer", status: "normal" });
+    await shift(controller.token, { command: "shiftEarlyEnd", id: shiftOne, version: 5, reason: "测试提前结束" });
     assert((await db.workSession.findUniqueOrThrow({ where: { id: first } })).phase === "CANCELLED");
 
     const shiftTwo = await startShift();
@@ -202,7 +203,8 @@ async function main() {
     await work(controller.token, { id: third, version: 5, command: "complete", incident: "no" });
     assert.equal((await db.workSession.findUniqueOrThrow({ where: { id: third } })).hasIncident, false);
     assert.equal(await db.workScreenshot.count({ where: { sessionId: third } }), 0);
-    await shift(controller.token, { command: "shiftEnd", id: shiftTwo, version: 4 });
+    await shift(controller.token, { command: "shiftCheck", id: shiftTwo, version: 4, item: "computer", status: "normal" });
+    await shift(controller.token, { command: "shiftEarlyEnd", id: shiftTwo, version: 5, reason: "测试提前结束" });
     console.log("PASS: 截图校验、私有文件与授权读取、失败清理、未开播和异常中断、话术同步及历史隔离");
   } finally {
     try {

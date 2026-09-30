@@ -164,3 +164,10 @@ ALLOW_TEST_DESTRUCTION=true npm run test:accounts
 ### 中控个人资料专项
 
 使用本地tsx执行scripts/test-profile.ts（本人字段、身份不可篡改、版本竞争、回滚、审计、失效会话）、scripts/test-controller-profile-migration.ts（独立临时库旧列守恒）、scripts/test-controller-workspace.ts（配置TEST_HTTP_BASE后验证页面入口及隔离）。均须通过隔离库保护；TEST_UI_HOLD=true可保留本轮合成夹具供浏览器验收，回车后必须检查ALL PASS (including cleanup)。不在生产造夹具。
+
+### D046专项验证
+
+- scripts/test-shift-checklist.ts：四项完成/异常到岗、缺项与缺原因、他人记录/撤销会话、并发版本、审计回滚、计时更正绕过、7小时59分/8小时、旧记录createdAt回退、三种未收尾阶段阻挡两类下班。
+- scripts/test-shift-checklist-migration.ts：专用临时数据库先应用前20次迁移，建立旧记录，新增第21次迁移，比较20张旧业务表全部原有列不变，验证新增三列为空，然后清理临时库。
+- 延续test-work-shifts、test-work-corrections、test-work-evidence、test-workbench、test-multi-roles和test-controller-workspace隔离回归；绝不在正式库运行这些夹具。
+- 本次桌面浏览器验收使用隔离库+next生产构建：初始无默认结果、异常备注必填且保留草稿、逐项保存、异常也到岗、修改/刷新不重置首次完成、普通下班禁用、提前原因及审计可见。未做生产真实员工写操作。

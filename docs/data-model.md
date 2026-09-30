@@ -1,6 +1,6 @@
 # 数据模型、关系与迁移
 
-核对：2026-09-30；精确字段和约束以 prisma/schema.prisma 及 prisma/migrations 为准。当前 20 个 model，20 次迁移。不将业务表数量当成生产记录数量。
+核对：2026-09-30；精确字段和约束以 prisma/schema.prisma 及 prisma/migrations 为准。当前 20 个 model，21 次迁移。不将业务表数量当成生产记录数量。
 
 逐字段定义另见 [数据字段速查](data-dictionary.md)。
 
@@ -142,3 +142,7 @@ DouyinAccount和AccountRecord均新增banned Boolean默认false、unbanDate可�
 ## 2026-10-01 个人资料与账号中控可空
 
 迁移20261001040000_controller_profile为User新增nickname/contactPhone（默认空字符串）、profileVersion（默认0）；不复用name，历史姓名不回写。DouyinAccount.controllerId及对应User关联改可空；AccountRecord/LiveReport的controllerId/controllerName职责快照改可空。WorkSession.controllerId仍必填，创建准备时明确拒绝未绑定中控账号；绑定、清空与换绑均继续产生账号历史。迁移不更新任何旧列数据，隔离演练核对20张原表全部原列一致。
+
+### D046 WorkShift增量（迁移20261001070000_shift_checklist）
+
+clockStartedAt为服务器开始计时点，checkedInAt为首次四项检查完成时间，earlyEndReason为提前结束原因；均可空以兼容旧行。新开始记录写clockStartedAt，员工更正不更新；旧未结束记录使用createdAt。checkedInAt只在活动班次首次完成全部检查时写入，后续重检不改变。旧已结束记录不补写，历史已完成但无确认时间明确显示未记录。现有checks JSON及审计保留。迁移只增加列，不改旧值。

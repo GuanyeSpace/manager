@@ -119,7 +119,8 @@ async function main() {
     await assert.rejects(correctShift({ startedAt: time(121) }, stranger.token), /不存在/);
     await correctShift({ startedAt: time(125) });
     await assert.rejects(correctShift({ startedAt: time(126), endedAt: time(1) }), /正常流程/);
-    await shift(control.token, { command: "shiftEnd", id: sid, version: (await db.workShift.findUniqueOrThrow({ where: { id: sid } })).version });
+    await shift(control.token, { command: "shiftCheck", id: sid, version: (await db.workShift.findUniqueOrThrow({ where: { id: sid } })).version, item: "computer", status: "normal" });
+    await shift(control.token, { command: "shiftEarlyEnd", id: sid, version: (await db.workShift.findUniqueOrThrow({ where: { id: sid } })).version, reason: "测试提前结束" });
     const endedShift = await db.workShift.findUniqueOrThrow({ where: { id: sid } });
     await correctShift({ startedAt: time(130), endedAt: shanghaiInput(endedShift.endedAt!) });
     assert.equal((await db.workShift.findUniqueOrThrow({ where: { id: sid } })).endedAt!.toISOString(), endedShift.endedAt!.toISOString());

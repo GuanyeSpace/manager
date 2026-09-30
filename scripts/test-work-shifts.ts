@@ -108,12 +108,13 @@ async function main() {
     for (let index = 0; index < defaultWorkflow.after.length; index++) await work(a.token, { id: sessionA, version: version++, command: "check", phase: "after", index, status: "done" });
     await work(a.token, { id: sessionA, version: version++, command: "violation", violation: "no" });
     await work(a.token, { id: sessionA, version, command: "complete", incident: "no" });
-    await shift(a.token, { command: "shiftEnd", id: shiftA, version: 5 });
+    await shift(a.token, { command: "shiftCheck", id: shiftA, version: 5, item: "computer", status: "normal" });
+    await shift(a.token, { command: "shiftEarlyEnd", id: shiftA, version: 6, reason: "测试提前结束" });
     assert.equal((await state(a.token)).shift, null);
     assert.equal((await history(a.token)).find(s => s.id === shiftA)!.sessions[0].id, sessionA);
     const secondShiftA = await shift(a.token, { command: "shiftStart" });
     assert.notEqual(secondShiftA, shiftA);
-    await assert.rejects(shift(a.token, { command: "shiftCheck", id: shiftA, version: 6, item: "computer" }), /不存在/);
+    await assert.rejects(shift(a.token, { command: "shiftCheck", id: shiftA, version: 7, item: "computer" }), /不存在/);
 
     // 两场的账号原主责相同；实际登录人和执行人均不同，不应被旧 controllerId 唯一索引拦截。
     const bossShift = await shift(boss.token, { command: "shiftStart" });
@@ -139,7 +140,8 @@ async function main() {
     }
     await finish(b.token, sessionB);
     await finish(boss.token, bossSession);
-    await shift(boss.token, { command: "shiftEnd", id: bossShift, version: 4 });
+    await shift(boss.token, { command: "shiftCheck", id: bossShift, version: 4, item: "computer", status: "normal" });
+    await shift(boss.token, { command: "shiftEarlyEnd", id: bossShift, version: 5, reason: "测试提前结束" });
 
     // 取消准备可结束上班；执行记录与审计在同一事务中回滚。
     await work(b.token, { id: sessionC, version: 1, command: "cancel", note: "本场取消" });
@@ -147,8 +149,10 @@ async function main() {
     await assert.rejects(db.$transaction(async tx => { await runShiftCommand(tx, b.token, { command: "shiftCheck", id: shiftB, version: 4, item: "computer", status: "normal" }, "test"); throw new Error("rollback"); }), /rollback/);
     assert.equal((await db.workShift.findUniqueOrThrow({ where: { id: shiftB } })).version, 4);
     assert.equal(await db.auditLog.count({ where: { targetType: "WorkShift", targetId: shiftB } }), before);
-    await shift(b.token, { command: "shiftEnd", id: shiftB, version: 4 });
-    await shift(a.token, { command: "shiftEnd", id: secondShiftA, version: 1 });
+    await shift(b.token, { command: "shiftCheck", id: shiftB, version: 4, item: "computer", status: "normal" });
+    await shift(b.token, { command: "shiftEarlyEnd", id: shiftB, version: 5, reason: "测试提前结束" });
+    for (const [index, item] of (["computer", "sound", "picture", "network"] as const).entries()) await shift(a.token, { command: "shiftCheck", id: secondShiftA, version: index + 1, item, status: "normal" });
+    await shift(a.token, { command: "shiftEarlyEnd", id: secondShiftA, version: 5, reason: "测试提前结束" });
 
     // 旧场次没有新增字段，仍可按原负责人读取，并保留原有执行权限。
     const record = await db.accountRecord.findFirstOrThrow({ where: { accountId: accountC, endedAt: null } });

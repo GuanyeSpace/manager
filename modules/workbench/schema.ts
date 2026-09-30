@@ -63,9 +63,19 @@ export function moveTask<T>(items: T[], from: number, to: number): T[] {
 }
 
 export const equipmentLabels = { computer: "电脑", sound: "麦克风与声音", picture: "摄像机与画面", network: "网络" } as const;
+export const equipmentTargets = {
+  computer: "电脑正常开机，直播伴侣、音乐软件、直播保镖等正常使用。",
+  sound: "打开直播伴侣录屏，测试播放声音和麦克风收音正常。",
+  picture: "摄像机/手机直播画面正常，灯光和各种贴片正常。",
+  network: "直播伴侣测速正常，大于 50 Mb。",
+} as const;
+export const SHIFT_MINIMUM_MS = 8 * 60 * 60 * 1000;
+export function completedCheckCount(checks: EquipmentChecks) {
+  return Object.keys(equipmentLabels).filter(key => ["normal", "issue"].includes(checks[key as keyof EquipmentChecks]?.status ?? "")).length;
+}
 export type EquipmentChecks = Partial<Record<keyof typeof equipmentLabels, { status: "normal" | "issue"; note: string; at: string; actor: string }>>;
 export const shiftCommandSchema = z.object({
-  command: z.enum(["shiftStart", "shiftCheck", "shiftEnd", "shiftCorrectTime", "shiftCorrectCheck"]),
+  command: z.enum(["shiftStart", "shiftCheck", "shiftEnd", "shiftEarlyEnd", "shiftCorrectTime", "shiftCorrectCheck"]),
   id: z.string().max(100).default(""), version: z.coerce.number().int().min(0).default(0),
   startedAt: z.string().max(30).default(""), endedAt: z.string().max(30).default(""), reason: z.string().trim().max(2000).default(""),
   item: z.enum(["computer", "sound", "picture", "network"]).default("computer"),

@@ -59,3 +59,16 @@ export async function saveSessionScriptsAction(_state: WorkState, form: FormData
   catch (error) { return { ...errorState(error), savedVersion: _state?.savedVersion }; }
   refresh(); return { success: "已更新本场及账号话术，下一场也会沿用", savedVersion: Number(form.get("version")) + 1 };
 }
+
+// 检查清单返回事务内保存后的快照，下一项使用最新版本串行提交。
+export async function saveShiftCheckAction(form: FormData): Promise<{ error?: string; saved?: { version: number; checks: import("./schema").EquipmentChecks; checkedInAt: string | null } }> {
+  const token = await guard(), ip = await getClientIp();
+  try {
+    const saved = await prisma.$transaction(async tx => {
+      const id = await runShiftCommand(tx, token, { ...Object.fromEntries(form), command: "shiftCheck" }, ip);
+      const row = await tx.workShift.findUniqueOrThrow({ where: { id } });
+      return { version: row.version, checks: row.checks as import("./schema").EquipmentChecks, checkedInAt: row.checkedInAt?.toISOString() ?? null };
+    });
+    refresh(); return { saved };
+  } catch (error) { return { error: errorState(error)?.error ?? "保存失败，请重试" }; }
+}

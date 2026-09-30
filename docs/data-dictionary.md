@@ -588,6 +588,9 @@
 | `userName` | `String` | 存储字段 | — | — |
 | `branchId` | `String?` | 存储字段 | — | — |
 | `startedAt` | `DateTime` | 存储字段 | `@default(now())` | — |
+| `clockStartedAt` | `DateTime?` | 存储字段 | 可空；新记录服务器写入 | 不随登记时间更正；旧行fallback createdAt |
+| `checkedInAt` | `DateTime?` | 存储字段 | 可空 | 首次四项完成；历史不补造 |
+| `earlyEndReason` | `String?` | 存储字段 | 可空 | 提前下班必填；更正保留 |
 | `endedAt` | `DateTime?` | 存储字段 | — | — |
 | `checks` | `Json` | 存储字段 | `@default("{}")` | — |
 | `version` | `Int` | 存储字段 | `@default(1)` | — |
