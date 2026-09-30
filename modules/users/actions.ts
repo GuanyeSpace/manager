@@ -1,7 +1,10 @@
 "use server";
+import { userRoles } from "@/lib/auth/roles";
 
 import { hash } from "bcryptjs";
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
+import { parseTrail, withTrail } from "@/lib/navigation-trail";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
   requirePageUser,
@@ -80,7 +83,8 @@ export async function createUserAction(
     name: formData.get("name"),
     username: formData.get("username"),
     initialPassword: formData.get("initialPassword"),
-    role: formData.get("role"),
+    roles: formData.getAll("roles"),
+    expectedRoles: formData.get("expectedRoles") ?? undefined,
     branchId: formData.get("branchId") || undefined,
   });
   if (!parsed.success) {
@@ -94,7 +98,7 @@ export async function createUserAction(
         name: parsed.data.name,
         username: parsed.data.username,
         passwordHash,
-        role: parsed.data.role,
+        role: parsed.data.role, roles: parsed.data.roles,
         branchId: parsed.data.branchId,
       });
       await writeAudit({
@@ -103,7 +107,7 @@ export async function createUserAction(
         action: AuditAction.USER_CREATE,
         targetType: "User",
         targetId: newUser.id,
-        detail: { username: newUser.username, role: newUser.role, branchId: newUser.branchId },
+        detail: { username: newUser.username, roles: userRoles(newUser), role: newUser.role, branchId: newUser.branchId },
         ip: await getClientIp(),
       });
     });
@@ -112,7 +116,8 @@ export async function createUserAction(
     return toUserFormState(e);
   }
 
-  redirect("/boss/users");
+  const trail = parseTrail(formData.get("via"));
+  redirect(trail.at(-1) ? withTrail(trail[trail.length - 1], trail.slice(0, -1)) : "/boss/users", RedirectType.replace);
 }
 
 export async function updateUserAction(
@@ -124,7 +129,8 @@ export async function updateUserAction(
   const parsed = updateUserSchema.safeParse({
     userId: formData.get("userId"),
     name: formData.get("name"),
-    role: formData.get("role"),
+    roles: formData.getAll("roles"),
+    expectedRoles: formData.get("expectedRoles") ?? undefined,
     branchId: formData.get("branchId") || undefined,
   });
   if (!parsed.success) {
@@ -138,7 +144,7 @@ export async function updateUserAction(
         actor.id,
         sessionToken,
         parsed.data.userId,
-        { name: parsed.data.name, role: parsed.data.role, branchId: parsed.data.branchId }
+        { name: parsed.data.name, role: parsed.data.role, roles: parsed.data.roles, expectedRoles: parsed.data.expectedRoles, branchId: parsed.data.branchId }
       );
       await writeAudit({
         db: tx,
@@ -150,7 +156,7 @@ export async function updateUserAction(
           username: before.username,
           changes: {
             name: { from: before.name, to: updated.name },
-            role: { from: before.role, to: updated.role },
+            roles: { from: userRoles(before), to: userRoles(updated) },
             branchId: { from: before.branchId, to: updated.branchId },
           },
         },
@@ -161,7 +167,8 @@ export async function updateUserAction(
     return toUserFormState(e);
   }
 
-  redirect(`/boss/users/${parsed.data.userId}`);
+  revalidatePath("/", "layout");
+  redirect(withTrail(`/boss/users/${parsed.data.userId}`, parseTrail(formData.get("via"))), RedirectType.replace);
 }
 
 export async function resignUserAction(
@@ -190,7 +197,7 @@ export async function resignUserAction(
     return toUserFormState(e);
   }
 
-  redirect(`/boss/users/${parsed.data.userId}`);
+  redirect(withTrail(`/boss/users/${parsed.data.userId}`, parseTrail(formData.get("via"))), RedirectType.replace);
 }
 
 export async function reactivateUserAction(
@@ -219,7 +226,7 @@ export async function reactivateUserAction(
     return toUserFormState(e);
   }
 
-  redirect(`/boss/users/${parsed.data.userId}`);
+  redirect(withTrail(`/boss/users/${parsed.data.userId}`, parseTrail(formData.get("via"))), RedirectType.replace);
 }
 
 export async function resetPasswordAction(
@@ -258,5 +265,5 @@ export async function resetPasswordAction(
     return toUserFormState(e);
   }
 
-  redirect(`/boss/users/${parsed.data.userId}`);
+  redirect(withTrail(`/boss/users/${parsed.data.userId}`, parseTrail(formData.get("via"))), RedirectType.replace);
 }

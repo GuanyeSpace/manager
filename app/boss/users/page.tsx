@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { rolesLabel } from "@/lib/auth/roles";
+import Link from "@/components/context-link";
 import { requireBossPage } from "@/lib/auth/permissions";
 import { listUsers } from "@/modules/users/queries";
 import { listBranches } from "@/modules/branches/queries";
@@ -6,7 +7,6 @@ import { usersFilterSchema } from "@/modules/users/schema";
 import { ROLE_LABELS } from "@/lib/auth/role-labels";
 import { formatDateTime } from "@/lib/datetime";
 import { Role, EmploymentStatus } from "@/app/generated/prisma/enums";
-import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -27,7 +27,7 @@ export default async function UsersPage({ searchParams }: PageProps<"/boss/users
   const [users, branches] = await Promise.all([listUsers(actor, filters), listBranches(actor)]);
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6">
+    <main className="flex flex-1 flex-col gap-6">
       <header className="flex items-center justify-between">
         <div className="flex items-baseline gap-4">
           <Link href="/boss" className="text-sm text-muted-foreground hover:text-foreground">
@@ -39,8 +39,6 @@ export default async function UsersPage({ searchParams }: PageProps<"/boss/users
           <Link href="/boss/users/new">
             <Button>新增用户</Button>
           </Link>
-          <span className="text-sm text-muted-foreground">{actor.name}</span>
-          <LogoutButton />
         </div>
       </header>
 
@@ -127,7 +125,7 @@ export default async function UsersPage({ searchParams }: PageProps<"/boss/users
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell>{u.username}</TableCell>
-                <TableCell>{ROLE_LABELS[u.role]}</TableCell>
+                <TableCell>{rolesLabel(u)}</TableCell>
                 <TableCell>{u.branch?.name ?? "—"}</TableCell>
                 <TableCell>
                   {u.employmentStatus === EmploymentStatus.ACTIVE ? (

@@ -8,3 +8,13 @@ export async function listBranches(actor: CurrentUser) {
   assertCanManageBranches(actor);
   return prisma.branch.findMany({ orderBy: { createdAt: "asc" } });
 }
+
+// 仅返回指定负责人所需的安全字段。
+export async function listBranchManagerCandidates(actor: CurrentUser) {
+  assertCanManageBranches(actor);
+  return prisma.user.findMany({
+    where: { employmentStatus: "ACTIVE" },
+    select: { id: true, name: true, role: true, roles: true, branchId: true },
+    orderBy: { name: "asc" },
+  });
+}

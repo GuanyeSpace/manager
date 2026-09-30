@@ -1,4 +1,5 @@
 "use client";
+import { NavigationFields } from "@/components/context-link";
 
 import { useActionState } from "react";
 import { resetPasswordAction, type UserFormState } from "@/modules/users/actions";
@@ -14,7 +15,7 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
 
   return (
     <form action={formAction} className="flex max-w-md flex-col gap-4">
-      <input type="hidden" name="userId" value={userId} />
+      <NavigationFields /><input type="hidden" name="userId" value={userId} />
       <div className="flex flex-col gap-2">
         <Label htmlFor="reset-password">新密码（重置后该用户需重新登录并强制改密）</Label>
         <Input id="reset-password" name="newPassword" type="password" />

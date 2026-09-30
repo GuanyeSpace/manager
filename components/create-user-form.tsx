@@ -1,8 +1,9 @@
 "use client";
+import { NavigationFields } from "@/components/context-link";
 
-import { useActionState } from "react";
+import { startTransition, useActionState } from "react";
 import { createUserAction, type UserFormState } from "@/modules/users/actions";
-import { ROLE_LABELS } from "@/lib/auth/role-labels";
+import { UserRoleFields } from "@/components/user-role-fields";
 import { Role } from "@/app/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,15 +14,19 @@ const selectClass =
 
 export type BranchOption = { id: string; name: string };
 
-export function CreateUserForm({ branches }: { branches: BranchOption[] }) {
+export function CreateUserForm({ branches, defaultRole }: { branches: BranchOption[]; defaultRole?: Role }) {
   const [state, formAction, pending] = useActionState<UserFormState, FormData>(
     createUserAction,
     undefined
   );
 
   return (
-    <form action={formAction} className="flex max-w-md flex-col gap-4">
-      <div className="flex flex-col gap-2">
+    <form className="flex max-w-md flex-col gap-4" onSubmit={(event) => {
+      event.preventDefault();
+      const formData = new FormData(event.currentTarget);
+      startTransition(() => formAction(formData));
+    }}>
+      <NavigationFields /><div className="flex flex-col gap-2">
         <Label htmlFor="name">姓名</Label>
         <Input id="name" name="name" placeholder="例如：张三" />
         {state?.fieldErrors?.name && (
@@ -45,22 +50,7 @@ export function CreateUserForm({ branches }: { branches: BranchOption[] }) {
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="role">岗位</Label>
-        <select id="role" name="role" defaultValue="" className={selectClass}>
-          <option value="" disabled>
-            请选择岗位
-          </option>
-          {Object.values(Role).map((role) => (
-            <option key={role} value={role}>
-              {ROLE_LABELS[role]}
-            </option>
-          ))}
-        </select>
-        {state?.fieldErrors?.role && (
-          <p className="text-sm text-destructive">{state.fieldErrors.role[0]}</p>
-        )}
-      </div>
+      <UserRoleFields initial={defaultRole ? [defaultRole] : []} error={state?.fieldErrors?.roles?.[0]} />
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="branchId">所属分公司（老板跨分公司，可不选）</Label>

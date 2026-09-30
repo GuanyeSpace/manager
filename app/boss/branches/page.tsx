@@ -1,20 +1,22 @@
-import Link from "next/link";
+import { BranchManagerForm } from "@/components/branch-manager-form";
+import { isAccountBoss } from "@/lib/auth/account-permissions";
+import Link from "@/components/context-link";
 import { requireBossPage } from "@/lib/auth/permissions";
-import { listBranches } from "@/modules/branches/queries";
+import { listBranches, listBranchManagerCandidates } from "@/modules/branches/queries";
 import { toggleBranchAction } from "@/modules/branches/actions";
 import { formatDateTime } from "@/lib/datetime";
 import { BranchStatus } from "@/app/generated/prisma/enums";
 import { CreateBranchForm } from "@/components/create-branch-form";
 import { BranchRenameDialog } from "@/components/branch-rename-dialog";
-import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";
 
 export default async function BranchesPage() {
   const user = await requireBossPage();
   const branches = await listBranches(user);
+  const candidates = await listBranchManagerCandidates(user);
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6">
+    <main className="flex flex-1 flex-col gap-6">
       <header className="flex items-center justify-between">
         <div className="flex items-baseline gap-4">
           <Link
@@ -24,10 +26,6 @@ export default async function BranchesPage() {
             ← 返回工作台
           </Link>
           <h1 className="text-2xl font-semibold">分公司管理</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">{user.name}</span>
-          <LogoutButton />
         </div>
       </header>
 
@@ -46,14 +44,22 @@ export default async function BranchesPage() {
                 {formatDateTime(branch.createdAt)}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <BranchRenameDialog branchId={branch.id} currentName={branch.name} />
-              <form action={toggleBranchAction}>
-                <input type="hidden" name="branchId" value={branch.id} />
-                <Button variant="outline" size="sm" type="submit">
-                  {branch.status === BranchStatus.ACTIVE ? "停用" : "启用"}
-                </Button>
-              </form>
+            <div className="flex flex-col gap-3">
+              <BranchManagerForm
+                key={branch.managerId ?? "none"}
+                branchId={branch.id}
+                managerId={branch.managerId}
+                people={candidates.filter((p) => isAccountBoss(p) || p.branchId === branch.id)}
+              />
+              <div className="flex items-center gap-2">
+                <BranchRenameDialog branchId={branch.id} currentName={branch.name} />
+                <form action={toggleBranchAction}>
+                  <input type="hidden" name="branchId" value={branch.id} />
+                  <Button variant="outline" size="sm" type="submit">
+                    {branch.status === BranchStatus.ACTIVE ? "停用" : "启用"}
+                  </Button>
+                </form>
+              </div>
             </div>
           </div>
         ))}

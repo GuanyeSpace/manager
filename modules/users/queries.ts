@@ -1,3 +1,4 @@
+import { roleWhere } from "@/lib/auth/roles";
 import "server-only";
 import { prisma } from "@/lib/db";
 import { assertCanManageUsers } from "@/lib/auth/permissions";
@@ -22,7 +23,7 @@ export async function listUsers(actor: CurrentUser, filters: UserListFilters) {
       filters.status === "ACTIVE" ? EmploymentStatus.ACTIVE : EmploymentStatus.RESIGNED;
   }
   if (filters.role !== "ALL") {
-    where.role = filters.role;
+    where.AND = [roleWhere(filters.role)];
   }
   if (filters.branchId !== "ALL") {
     where.branchId = filters.branchId;

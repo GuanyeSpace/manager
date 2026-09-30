@@ -1,9 +1,10 @@
 "use client";
+import { NavigationFields } from "@/components/context-link";
 
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import { useActionState } from "react";
 import { updateUserAction, type UserFormState } from "@/modules/users/actions";
-import { ROLE_LABELS } from "@/lib/auth/role-labels";
+import { UserRoleFields } from "@/components/user-role-fields";
 import { Role } from "@/app/generated/prisma/enums";
 import type { BranchOption } from "@/components/create-user-form";
 import { Button } from "@/components/ui/button";
@@ -17,23 +18,26 @@ export function EditUserForm({
   userId,
   initialName,
   initialRole,
+  initialRoles = [],
   initialBranchId,
   branches,
 }: {
   userId: string;
   initialName: string;
   initialRole: Role;
+  initialRoles?: Role[];
   initialBranchId: string | null;
   branches: BranchOption[];
 }) {
-  const [role, setRole] = useState<Role>(initialRole);
+  const [expectedRoles] = useState([...new Set([initialRole, ...initialRoles])].sort().join(","));
   const [state, formAction, pending] = useActionState<UserFormState, FormData>(
     updateUserAction,
     undefined
   );
 
   return (
-    <form action={formAction} className="flex max-w-md flex-col gap-4">
+    <form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); startTransition(() => formAction(form)); }} className="flex max-w-md flex-col gap-4">
+      <NavigationFields /><input type="hidden" name="expectedRoles" value={expectedRoles} />
       <input type="hidden" name="userId" value={userId} />
 
       <div className="flex flex-col gap-2">
@@ -44,29 +48,10 @@ export function EditUserForm({
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="edit-role">岗位</Label>
-        <select
-          id="edit-role"
-          name="role"
-          value={role}
-          onChange={(e) => setRole(e.target.value as Role)}
-          className={selectClass}
-        >
-          {Object.values(Role).map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS[r]}
-            </option>
-          ))}
-        </select>
-        {state?.fieldErrors?.role && (
-          <p className="text-sm text-destructive">{state.fieldErrors.role[0]}</p>
-        )}
-      </div>
+      <UserRoleFields initial={[initialRole, ...initialRoles]} error={state?.fieldErrors?.roles?.[0]} />
 
-      {role !== Role.BOSS && (
         <div className="flex flex-col gap-2">
-          <Label htmlFor="edit-branch">所属分公司</Label>
+          <Label htmlFor="edit-branch">所属分公司（勾选老板可不选）</Label>
           <select
             id="edit-branch"
             name="branchId"
@@ -84,10 +69,7 @@ export function EditUserForm({
             <p className="text-sm text-destructive">{state.fieldErrors.branchId[0]}</p>
           )}
         </div>
-      )}
-      {role === Role.BOSS && (
-        <p className="text-sm text-muted-foreground">老板跨分公司，无需选择所属分公司</p>
-      )}
+
 
       {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
       <Button type="submit" disabled={pending} className="w-full">

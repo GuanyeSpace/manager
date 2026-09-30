@@ -1,4 +1,5 @@
 "use client";
+import { NavigationFields } from "@/components/context-link";
 
 import { useActionState } from "react";
 import {
@@ -26,7 +27,7 @@ export function EmploymentStatusForm({
     <div className="flex flex-col gap-2">
       {currentStatus === "ACTIVE" ? (
         <form action={resignAction}>
-          <input type="hidden" name="userId" value={userId} />
+          <NavigationFields /><input type="hidden" name="userId" value={userId} />
           <Button type="submit" variant="destructive" disabled={resignPending}>
             {resignPending ? "处理中…" : "设为离职（立即失效其所有会话）"}
           </Button>
@@ -36,6 +37,7 @@ export function EmploymentStatusForm({
         </form>
       ) : (
         <form action={reactivateAction}>
+          <NavigationFields />
           <input type="hidden" name="userId" value={userId} />
           <Button type="submit" disabled={reactivatePending}>
             {reactivatePending ? "处理中…" : "设为在职（复职）"}

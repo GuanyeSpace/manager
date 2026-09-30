@@ -1,3 +1,4 @@
+import { hasRole, roleWhere } from "@/lib/auth/roles";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { Role, EmploymentStatus } from "@/app/generated/prisma/enums";
 
@@ -28,11 +29,11 @@ export async function acquireUserMutationLock(tx: Prisma.TransactionClient): Pro
 
 // 重读操作者当前状态，确认仍是「在职老板」。调用前必须先持有 mutation 锁。
 export function assertActorCanManage(
-  actor: { role: Role; employmentStatus: EmploymentStatus; mustChangePassword: boolean } | null
+  actor: { role: Role; roles?: Role[]; employmentStatus: EmploymentStatus; mustChangePassword: boolean } | null
 ): void {
   if (
     !actor ||
-    actor.role !== Role.BOSS ||
+    !hasRole(actor, Role.BOSS) ||
     actor.employmentStatus !== EmploymentStatus.ACTIVE ||
     actor.mustChangePassword
   ) {
@@ -43,17 +44,18 @@ export function assertActorCanManage(
 // target 必须是锁内重读到的最新状态。只有「在职老板将被移除」时才检查数量。
 export async function assertActiveBossInvariant(
   tx: Prisma.TransactionClient,
-  target: { role: Role; employmentStatus: EmploymentStatus },
+  target: { role: Role; roles?: Role[]; employmentStatus: EmploymentStatus },
   nextRole: Role,
-  nextStatus: EmploymentStatus
+  nextStatus: EmploymentStatus,
+  nextRoles: Role[] = []
 ): Promise<void> {
   const isActiveBoss =
-    target.role === Role.BOSS && target.employmentStatus === EmploymentStatus.ACTIVE;
-  const remainsActiveBoss = nextRole === Role.BOSS && nextStatus === EmploymentStatus.ACTIVE;
+    hasRole(target, Role.BOSS) && target.employmentStatus === EmploymentStatus.ACTIVE;
+  const remainsActiveBoss = hasRole({ role: nextRole, roles: nextRoles }, Role.BOSS) && nextStatus === EmploymentStatus.ACTIVE;
   if (!isActiveBoss || remainsActiveBoss) return;
 
   const activeBosses = await tx.user.count({
-    where: { role: Role.BOSS, employmentStatus: EmploymentStatus.ACTIVE },
+    where: { ...roleWhere(Role.BOSS), employmentStatus: EmploymentStatus.ACTIVE },
   });
   if (activeBosses <= 1) {
     throw new ActiveBossConstraintError();

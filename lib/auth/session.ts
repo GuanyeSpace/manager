@@ -13,6 +13,7 @@ export type CurrentUser = {
   username: string;
   name: string;
   role: Role;
+  roles?: Role[];
   branchId: string | null;
   employmentStatus: EmploymentStatus;
   mustChangePassword: boolean;
@@ -72,6 +73,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     username: user.username,
     name: user.name,
     role: user.role,
+    roles: user.roles,
     branchId: user.branchId,
     employmentStatus: user.employmentStatus,
     mustChangePassword: user.mustChangePassword,

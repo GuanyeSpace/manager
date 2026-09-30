@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: /etc/manager/database.env
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - manager_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manager -d manager"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  manager_data:

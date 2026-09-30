@@ -1,0 +1,5 @@
+[Unit]
+Description=Renew Manager HTTPS certificate
+[Service]
+Type=oneshot
+ExecStart=/opt/certbot/bin/certbot renew --quiet --deploy-hook "systemctl reload nginx"

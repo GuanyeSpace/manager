@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily Manager database backup
+[Timer]
+OnCalendar=*-*-* 19:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

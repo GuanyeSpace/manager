@@ -1,0 +1,6 @@
+[Unit]
+Description=Back up Manager database
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/manager/backup.sh

@@ -1,0 +1,197 @@
+import { recycleLiveReport } from "../modules/live-reports/recycle-service";
+import { signSessionToken } from "../lib/auth/session-token";
+import assert from "node:assert/strict";
+import { validateTestEnv, resolveTestClient, assertTestDatabase, newRunId, cleanupRun } from "./lib/test-db";
+import { saveAccount, setBranchManager } from "../modules/accounts/service";
+import { saveMonetization } from "../modules/live-reports/monetization-service";
+import { monetizationSchema, conversion } from "../modules/live-reports/monetization-schema";
+import { saveLiveReport } from "../modules/live-reports/service";
+import { readLiveReports, readLiveReport, readReportAccountOptions } from "../modules/live-reports/data";
+import { percentage, reportSchema, shanghaiInput, shanghaiDate, type ReportInput } from "../modules/live-reports/schema";
+
+async function main() {
+  const { dbName } = validateTestEnv();
+  const db = resolveTestClient();
+  const marker = newRunId();
+  let verified = false;
+  try {
+    await assertTestDatabase(db, dbName); verified = true;
+    const branch = await db.branch.create({ data: { name: `${marker}-a` } });
+    const otherBranch = await db.branch.create({ data: { name: `${marker}-b` } });
+    async function user(name: string, role: "BOSS" | "CONTROLLER" | "OPERATOR", branchId: string | null) {
+      const u = await db.user.create({ data: { username: `${marker}-${name}`, name, role, branchId, passwordHash: "not-a-real-hash", mustChangePassword: false } });
+      const token = `${marker}-${name}`;
+      await db.session.create({ data: { id: token, userId: u.id, expiresAt: new Date(Date.now() + 3600000) } });
+      return { ...u, token };
+    }
+    const boss = await user("boss", "BOSS", null), controller = await user("controller", "CONTROLLER", branch.id);
+    const operator = await user("operator", "OPERATOR", branch.id), manager = await user("manager", "OPERATOR", branch.id);
+    const next = await user("next", "CONTROLLER", otherBranch.id), outsider = await user("outsider", "CONTROLLER", branch.id);
+    await db.$transaction((tx) => setBranchManager(tx, boss.token, { branchId: branch.id, managerId: manager.id, previousManagerId: "" }, "test"));
+    const a = { id: "", version: 0, douyinId: `${marker}-account`, name: "原账号", homepageUrl: "", realName: "", phone: "", purpose: "", notes: "", branchId: branch.id, operatorId: operator.id, controllerId: controller.id, anchorId: "", active: "true" as const };
+    const accountId = await db.$transaction((tx) => saveAccount(tx, boss.token, a, "test"));
+    // 将本轮独立测试账号的首个版本设为两天前，验证按开播时间归属。
+    const oldStart = new Date(Date.now() - 2 * 86400000);
+    await db.accountRecord.updateMany({ where: { accountId }, data: { startedAt: oldStart } });
+    const input: ReportInput = { id: "", version: "0", accountId, startedAt: shanghaiInput(new Date(Date.now() - 86400000)), durationHours: "1", durationMinutes: "5", durationSeconds: "51", sessionLabel: "晚上场", exposureCount: "43000", entryCount: "4647", averageOnline: "249", peakOnline: "471", averageStayMinutes: "2.9", commenterCount: "162", likeCount: "4980", newFollowers: "290", shareCount: "13", newFanClubMembers: "27", confirmBackfill: "false" };
+    const save = (token: string, data: ReportInput) => db.$transaction((tx) => saveLiveReport(tx, token, data, "test"));
+    const read = (token: string, id: string) => db.$transaction((tx) => readLiveReport(tx, token, id), { isolationLevel: "RepeatableRead" });
+    const list = (token: string, extra = {}) => db.$transaction((tx) => readLiveReports(tx, token, { accountId: "", from: "", to: "", page: 1, ...extra }), { isolationLevel: "RepeatableRead" });
+    assert.equal(percentage(4647, 43000), "10.81%"); assert.equal(percentage(290,4647),"6.24%"); assert.equal(percentage(0,0),"—");
+    assert.equal(shanghaiDate("2026-08-25T20:00")!.toISOString(), "2026-08-25T12:00:00.000Z");
+    assert.equal(shanghaiDate("2026-02-30T20:00"),null);
+    assert.equal(reportSchema.safeParse({ ...input, exposureCount: "" }).success,false);
+    assert.equal(reportSchema.safeParse({ ...input, newFanClubMembers: "-1" }).success,false);
+    assert.equal(reportSchema.safeParse({ ...input, averageStayMinutes: "2.999" }).success,false);
+    assert.equal(reportSchema.safeParse({ ...input, averageOnline: "500" }).success,false);
+    assert.equal(reportSchema.safeParse({ ...input, durationMinutes: "60" }).success,false);
+    assert.equal(reportSchema.safeParse({ ...input, durationHours: "0", durationMinutes: "0", durationSeconds: "0" }).success,false);
+    await assert.rejects(save(outsider.token,input),/负责人可维护/);
+    await assert.rejects(save(operator.token,input),/负责人可维护/);
+    await assert.rejects(save(boss.token,{...input,startedAt:shanghaiInput(new Date(Date.now()+86400000))}),/结束后/);
+    const id = await save(manager.token,input);
+    // 模拟上线前由中控填写的旧记录，角色职责调整不改写历史。
+    await db.liveReport.update({ where: { id }, data: { createdById: controller.id, createdByName: controller.name } });
+    await assert.rejects(save(controller.token, input), /负责人可维护/);
+    await assert.rejects(save(controller.token, { ...input, id, version: "1" }), /修改权限/);
+    assert.equal(await read(controller.token, id), null);
+    assert.equal((await list(controller.token)).count, 0);
+    assert.equal((await list(controller.token)).accounts.length, 0);
+    assert.equal((await list(controller.token)).canCreate, false);
+    assert.equal((await db.$transaction(tx => readReportAccountOptions(tx, controller.token))).length, 0);
+    const detail = await read(boss.token,id);
+    assert.equal(detail?.report.averageStayHundredths,290); assert.equal(detail?.report.durationSeconds,3951);
+    assert.equal((await list(boss.token)).canCreate,true);
+    assert.equal(detail?.report.newFanClubMembers,27); assert.equal(detail?.canEdit,true);
+    assert.equal((await list(boss.token)).count,1); assert.equal((await list(manager.token)).count,1);
+    assert.equal((await list(operator.token)).count,1); assert.equal((await read(operator.token,id))?.canEdit,false);
+    assert.equal((await list(outsider.token)).count,0); assert.equal(await read(outsider.token,id),null);
+    assert.equal((await list(outsider.token,{accountId})).count,0);
+    await assert.rejects(save(boss.token,input),(e: unknown) => (e as {code?:string}).code === 'P2002');
+    const day = input.startedAt.slice(0,10);
+    assert.equal((await list(boss.token,{from:day,to:day})).count,1);
+    assert.equal((await list(boss.token,{from:'2000-01-01',to:'2000-01-02'})).count,0);
+    await assert.rejects(list(boss.token,{from:'2026-09-09',to:'2026-09-01'}));
+    const updated = {...input,id,version:'1',newFollowers:'300',reason:'核对更正'};
+    const race = await Promise.allSettled([save(boss.token,updated),save(boss.token,updated)]);
+    assert.equal(race.filter(v=>v.status==='fulfilled').length,1); assert.equal(race.filter(v=>v.status==='rejected').length,1);
+    assert.equal((await read(boss.token,id))?.report.version,2);
+    assert.equal(await db.auditLog.count({where:{targetId:id}}),2);
+    await assert.rejects(save(boss.token,{...updated,version:'2',startedAt:shanghaiInput(new Date(Date.now()-2*3600000))}),/不可修改/);
+    await assert.rejects(db.$transaction(async tx=>{await saveLiveReport(tx,boss.token,{...updated,version:'2',newFollowers:'400'},'test');throw new Error('rollback')}),/rollback/);
+    assert.equal((await read(boss.token,id))?.report.newFollowers,300);
+    assert.equal(await db.auditLog.count({where:{targetId:id}}),2);
+    await db.liveReport.update({ where: { id }, data: { hasSales: true, salesGmv: '432.10' } });
+    const monetization = { reason: '核对更正', id, version: '2', fanGroupCount: '25', linkClickCount: '0', longPressCount: '0', backendJoinCount: '6', effectiveCount: '6', salesStatus: 'REPORTED' as const, salesGmv: '432.10' };
+    const saveRevenue = (token: string, data = monetization) => db.$transaction(tx => saveMonetization(tx, token, data, 'test'));
+    assert.equal(conversion(25,4647),'0.54%'); assert.equal(conversion(6,25),'24.00%'); assert.equal(conversion(6,4647),'0.13%');
+    assert.equal(conversion(6,6),'100.00%'); assert.equal(conversion(null,6),'—'); assert.equal(conversion(6,0),'—');
+    assert.equal(monetizationSchema.safeParse({...monetization,effectiveCount:'7'}).success,false);
+    assert.equal(monetizationSchema.safeParse({...monetization,linkClickCount:'-1'}).success,false);
+    assert.equal(monetizationSchema.safeParse({...monetization,salesGmv:'432.123'}).success,false);
+    assert.equal(monetizationSchema.safeParse({...monetization,salesGmv:''}).success,false);
+    assert.equal(monetizationSchema.safeParse({...monetization,salesStatus:'NONE'}).success,false);
+    await assert.rejects(saveRevenue(outsider.token),/填写权限/);
+    await assert.rejects(saveRevenue(operator.token),/填写权限/);
+    await assert.rejects(saveRevenue(controller.token), /填写权限/);
+    await saveRevenue(manager.token);
+    const revenue = (await read(boss.token,id))!.report;
+    assert.equal(revenue.salesGmv?.toFixed(2),'432.10'); assert.equal(revenue.effectiveCount,6);
+    assert.equal(revenue.newFollowers,300); assert.equal(revenue.version,3);
+    await assert.rejects(saveRevenue(boss.token),/已被修改/);
+    await assert.rejects(db.$transaction(async tx=>{await saveMonetization(tx,boss.token,{...monetization,version:'3',salesGmv:'500'},'test');throw new Error('rollback')}),/rollback/);
+    assert.equal((await read(boss.token,id))!.report.salesGmv?.toFixed(2),'432.10');
+    await db.$transaction(tx=>saveMonetization(tx,boss.token,{...monetization,version:'3',fanGroupCount:'',salesStatus:'NONE',salesGmv:''},'test'));
+    const noSales=(await read(boss.token,id))!.report;
+    assert.equal(noSales.hasSales,true); assert.equal(noSales.salesGmv?.toFixed(2),'432.10'); assert.equal(noSales.fanGroupCount,null);
+    await save(boss.token,{...updated,version:'4'});
+    assert.equal((await read(boss.token,id))!.report.effectiveCount,6);
+    await saveRevenue(boss.token,{...monetization,version:'5',salesGmv:'0'});
+    assert.equal((await read(boss.token,id))!.report.salesGmv?.toFixed(2),'432.10');
+    const moneyAudit=await db.auditLog.findFirstOrThrow({where:{targetId:id},orderBy:{createdAt:'desc'}});
+    assert.equal((moneyAudit.detail as {section:string}).section,'monetization');
+    const recycle = async (token: string, section: "report" | "monetization", operation: "delete" | "restore", version?: number) => db.$transaction(tx => recycleLiveReport(tx, token, { id, section, operation, version: version ?? 6, confirmed: "yes", reason: "核对误录" }, "test"));
+    await assert.rejects(recycle(outsider.token, "report", "delete"), /操作权限/);
+    await assert.rejects(recycle(operator.token, "monetization", "delete"), /操作权限/);
+    await assert.rejects(recycle(controller.token, "report", "delete"), /操作权限/);
+    await assert.rejects(recycle(controller.token, "monetization", "delete"), /操作权限/);
+    await assert.rejects(recycle(controller.token, "report", "restore"), /操作权限/);
+    await assert.rejects(recycle(controller.token, "monetization", "restore"), /操作权限/);
+    const intact = (await read(boss.token, id))!.report;
+    await recycle(manager.token, "monetization", "delete", intact.version);
+    assert.equal((await list(boss.token, { view: "monetization" })).count, 0);
+    assert.equal((await list(boss.token)).count, 1);
+    assert.equal((await list(boss.token, { view: "monetization", trash: "true" })).count, 1);
+    assert.equal((await list(outsider.token, { trash: "true", view: "monetization" })).count, 0);
+    const moneyDeleted = (await read(boss.token, id))!.report;
+    assert.equal(moneyDeleted.effectiveCount, intact.effectiveCount); assert.equal(moneyDeleted.salesGmv?.toFixed(2), intact.salesGmv?.toFixed(2));
+    await assert.rejects(saveRevenue(boss.token, { ...monetization, version: String(moneyDeleted.version) }), /已删除/);
+    await recycle(boss.token, "report", "delete", moneyDeleted.version);
+    const bothDeleted = (await read(boss.token, id))!.report;
+    assert.equal((await list(boss.token)).count, 0); assert.equal((await list(boss.token, { trash: "true" })).count, 1);
+    await assert.rejects(save(boss.token, { ...updated, version: String(bothDeleted.version) }), /已删除/);
+    await assert.rejects(save(boss.token, input), /回收站/);
+    await assert.rejects(recycle(boss.token, "monetization", "restore", bothDeleted.version), /先恢复/);
+    assert.equal((await list(controller.token, { trash: "true", view: "monetization" })).count, 0);
+    const httpBase = process.env.LIVE_REPORT_HTTP_BASE;
+    if (httpBase) {
+      const headers = { Cookie: `session=${signSessionToken(boss.token)}` };
+      const normal = await fetch(`${httpBase}/live-reports`, { headers }); assert.equal(normal.status, 200); assert(!(await normal.text()).includes(`/live-reports/${id}`));
+      const trash = await fetch(`${httpBase}/live-reports?trash=true`, { headers }); assert.equal(trash.status, 200); const html = await trash.text(); assert(html.includes("恢复直播数据")); assert(html.includes(`/live-reports/${id}`));
+      const detail = await fetch(`${httpBase}/live-reports/${id}`, { headers }); assert.equal(detail.status, 200); assert((await detail.text()).includes("本场直播数据已删除"));
+    }
+    await recycle(boss.token, "report", "restore", bothDeleted.version);
+    const partialRestored = (await read(boss.token, id))!.report;
+    assert(partialRestored.monetizationDeletedAt); assert.equal((await list(boss.token, { view: "monetization" })).count, 0);
+    await recycle(boss.token, "monetization", "restore", partialRestored.version);
+    const restored = (await read(boss.token, id))!.report;
+    assert.equal(restored.entryCount, intact.entryCount); assert.equal(restored.effectiveCount, intact.effectiveCount); assert.equal(restored.salesGmv?.toFixed(2), intact.salesGmv?.toFixed(2));
+    await assert.rejects(db.$transaction(async tx => { await recycleLiveReport(tx, boss.token, { id, version: restored.version, section: "report", operation: "delete", confirmed: "yes", reason: "核对误录" }, "test"); throw new Error("rollback recycle"); }), /rollback recycle/);
+    assert.equal((await read(boss.token, id))!.report.deletedAt, null);
+    const raceDelete = await Promise.allSettled([recycle(boss.token, "report", "delete", restored.version), recycle(boss.token, "report", "delete", restored.version)]);
+    assert.equal(raceDelete.filter(r => r.status === "fulfilled").length, 1);
+    await recycle(boss.token, "report", "restore", restored.version + 1);
+    const recycleAudit = await db.auditLog.findFirstOrThrow({ where: { targetId: id }, orderBy: { createdAt: "desc" } }); assert.equal((recycleAudit.detail as { operation: string }).operation, "restore");
+    console.log("PASS: separate soft deletion, scoped recycle bins, unchanged metrics, edit/recreate guards, nested restoration, concurrency and audit rollback");
+    // 交接后仍由老板维护；新旧中控均不能读取统计数据，历史归属保留。
+    await db.$transaction(tx=>saveAccount(tx,boss.token,{...a,id:accountId,version:1,name:'新账号名称',branchId:otherBranch.id,operatorId:'',controllerId:next.id},'test'));
+    assert.equal((await read(boss.token,id))?.report.accountName,'原账号');
+    assert.equal(await read(controller.token,id),null);
+    assert.equal((await list(controller.token)).count,0);
+    await assert.rejects(saveRevenue(controller.token,{...monetization,version:'6'}),/填写权限/);
+    await assert.rejects(saveRevenue(next.token,{...monetization,version:'6'}),/填写权限/);
+    assert.equal(await read(next.token,id),null); assert.equal((await list(next.token)).count,0);
+    assert.equal((await list(manager.token)).count,1);
+    await assert.rejects(save(controller.token,{...updated,version:'2'}),/修改权限/);
+    await assert.rejects(save(next.token,{...input,startedAt:shanghaiInput(new Date(Date.now()-12*3600000))}),/负责人可维护/);
+    const oldOptions = (await list(controller.token)).accounts;
+    assert.equal(oldOptions.length,0);
+    // 补录建档以前的记录必须由老板显式确认。
+    const backfill = {...input,startedAt:shanghaiInput(new Date(Date.now()-3*86400000))};
+    await assert.rejects(save(boss.token,backfill),/老板确认/);
+    const oldId = await save(boss.token,{...backfill,confirmBackfill:'true'});
+    assert.equal((await read(boss.token,oldId))?.report.historicalBackfill,true);
+    assert.equal((await read(boss.token,oldId))?.report.branchId,branch.id);
+    await db.douyinAccount.update({where:{id:accountId},data:{active:false}});
+    assert.equal((await db.$transaction(tx=>readReportAccountOptions(tx,next.token))).length,0);
+    await assert.rejects(save(boss.token,{...input,startedAt:shanghaiInput(new Date(Date.now()-4*3600000))}),/停用/);
+    await db.session.delete({where:{id:boss.token}});
+    await assert.rejects(read(boss.token,id),/登录或权限/);
+    console.log('PASS: 截图数值与比例、时区、必填校验、零分母、重复防护、查询过滤、越权、并发纠错、审计回滚、交接历史隔离、旧数据补录、打粉数据权限及金额精度、留空与零和没带货区分、打粉审计回滚');
+  } finally {
+    try {
+      if (verified) {
+        const accounts = await db.douyinAccount.findMany({where:{douyinId:{startsWith:marker}},select:{id:true}});
+        const accountIds=accounts.map(v=>v.id);
+        const reports=await db.liveReport.findMany({where:{accountId:{in:accountIds}},select:{id:true}});
+        await db.auditLog.deleteMany({where:{targetId:{in:[...accountIds,...reports.map(r=>r.id)]}}});
+        await db.liveReport.deleteMany({where:{accountId:{in:accountIds}}});
+        await db.accountRecord.deleteMany({where:{accountId:{in:accountIds}}});
+        await db.douyinAccount.deleteMany({where:{id:{in:accountIds}}});
+        await db.branch.updateMany({where:{name:{startsWith:marker}},data:{managerId:null}});
+        await cleanupRun(db,marker);
+      }
+    } finally {await db.$disconnect()}
+  }
+}
+main().then(()=>console.log('ALL PASS (including cleanup)')).catch(e=>{console.error(e);process.exitCode=1});

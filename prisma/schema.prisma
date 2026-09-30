@@ -12,7 +12,8 @@ datasource db {
 enum Role {
   BOSS // 老板
   OPERATOR // 运营
-  CONTROLLER // 中控
+  CONTROLLER // 直播中控
+  LEAD_SPECIALIST // 导粉专员
   ASSISTANT // 小助理
   ANCHOR // 主播
   FINANCE // 财务
@@ -42,15 +43,38 @@ enum AuditAction {
   PASSWORD_CHANGE // 本人修改自己的密码
   BRANCH_CREATE
   BRANCH_UPDATE
+  ACCOUNT_CREATE
+  ACCOUNT_UPDATE
+  LIVE_REPORT_CREATE
+  LIVE_REPORT_UPDATE
+  WORKFLOW_UPDATE
+  WORK_SESSION_UPDATE
+  DAILY_WORK_UPDATE
+  RESOURCE_CREATE
+  RESOURCE_UPDATE
 }
 
 // 分公司
 model Branch {
-  id        String       @id @default(cuid())
-  name      String       @unique
-  status    BranchStatus @default(ACTIVE)
-  createdAt DateTime     @default(now())
-  users     User[]
+  phoneLogins PhoneAccountLogin[]
+  id             String          @id @default(cuid())
+  name           String          @unique
+  status         BranchStatus    @default(ACTIVE)
+  createdAt      DateTime        @default(now())
+  users          User[]
+  managerId      String?
+  manager        User?           @relation("BranchManager", fields: [managerId], references: [id], onDelete: Restrict)
+  accounts       DouyinAccount[]
+  leadTasks      LeadTask[]
+  liveReports    LiveReport[]
+  accountRecords AccountRecord[]
+  liveRooms LiveRoom[]
+  phoneNumbers PhoneNumber[]
+  devices AssetDevice[]
+  roomAnchors RoomAnchor[]
+  deviceSlots DeviceSlot[]
+
+  @@index([managerId])
 }
 
 // 用户
@@ -60,6 +84,7 @@ model User {
   name               String
   passwordHash       String
   role               Role
+  roles              Role[]           @default([]) // 兼任岗位，原岗位保留
   // 所属分公司；老板为 null 表示跨分公司
   branchId           String?
   branch             Branch?          @relation(fields: [branchId], references: [id], onDelete: Restrict)
@@ -68,6 +93,20 @@ model User {
   lastLoginAt        DateTime?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
+  managedBranches    Branch[]         @relation("BranchManager")
+  operatedAccounts   DouyinAccount[]  @relation("AccountOperator")
+  controlledAccounts DouyinAccount[]  @relation("AccountController")
+  anchoredAccounts   DouyinAccount[]  @relation("AccountAnchor")
+  operatedRooms LiveRoom[] @relation("RoomOperator")
+  controlledRooms LiveRoom[] @relation("RoomController")
+  roomAnchors RoomAnchor[]
+  operatedNumbers PhoneNumber[] @relation("NumberOperator")
+  controlledNumbers PhoneNumber[] @relation("NumberController")
+  usedNumbers PhoneNumber[] @relation("NumberUser")
+  operatedDevices AssetDevice[] @relation("DeviceOperator")
+  controlledDevices AssetDevice[] @relation("DeviceController")
+  usedDevices AssetDevice[] @relation("DeviceUser")
+  leadTasks          LeadTask[]
   sessions           Session[]
   auditLogs          AuditLog[]       @relation("ActorLogs")
 
@@ -101,4 +140,437 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([actorId])
+}
+
+// 当前资料与历史分开存储；历史不保存实名人、手机号和登录凭证。
+model DouyinAccount {
+  phoneLogins PhoneAccountLogin[]
+  id           String          @id @default(cuid())
+  douyinId     String          @unique
+  name         String
+  homepageUrl  String
+  realName     String
+  phone        String
+  phoneNumberId String? @unique
+  phoneNumber PhoneNumber? @relation(fields: [phoneNumberId], references: [id], onDelete: Restrict)
+  roomId String?
+  room LiveRoom? @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  purpose      String
+  notes        String
+  active       Boolean         @default(true)
+  banned       Boolean         @default(false)
+  unbanDate    String? // 预计解封日期 YYYY-MM-DD；未知为 null，不自动恢复
+  branchId     String
+  branch       Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  operatorId   String?
+  operator     User?           @relation("AccountOperator", fields: [operatorId], references: [id], onDelete: Restrict)
+  controllerId String
+  controller   User            @relation("AccountController", fields: [controllerId], references: [id], onDelete: Restrict)
+  anchorId     String?
+  anchor       User?           @relation("AccountAnchor", fields: [anchorId], references: [id], onDelete: Restrict)
+  version      Int             @default(1)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  liveReports  LiveReport[]
+  records      AccountRecord[]
+  workflow     AccountWorkflow?
+  workSessions WorkSession[]
+
+  @@index([branchId])
+  @@index([operatorId])
+  @@index([controllerId])
+  @@index([anchorId])
+}
+
+// 每次变更结束旧版本、创建新版本，保留当时归属及姓名快照。
+model AccountRecord {
+  id             String        @id @default(cuid())
+  accountId      String
+  account        DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  branchId       String
+  branch         Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  branchName     String
+  douyinId       String
+  name           String
+  active         Boolean
+  banned         Boolean       @default(false)
+  unbanDate      String?
+  operatorId     String?
+  operatorName   String?
+  controllerId   String
+  controllerName String
+  anchorId       String?
+  anchorName     String?
+  actorName      String
+  version        Int
+  startedAt      DateTime      @default(now())
+  endedAt        DateTime?
+  liveReports    LiveReport[]
+  workSessions   WorkSession[]
+
+  @@unique([accountId, version])
+  @@index([branchId])
+  @@index([operatorId])
+  @@index([controllerId])
+  @@index([anchorId])
+}
+
+// 每场人工录入数据；归属来自开播时的账号版本，后续调拨不修改历史。
+model LiveReport {
+  id                    String        @id @default(cuid())
+  accountId             String
+  account               DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  sourceRecordId        String
+  sourceRecord          AccountRecord @relation(fields: [sourceRecordId], references: [id], onDelete: Restrict)
+  branchId              String
+  branch                Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  branchName            String
+  accountName           String
+  douyinId              String
+  controllerId          String
+  controllerName        String
+  operatorId            String?
+  anchorId              String?
+  createdById           String
+  createdByName         String
+  updatedByName         String
+  startedAt             DateTime
+  durationSeconds       Int
+  sessionLabel          String
+  exposureCount         Int
+  entryCount            Int
+  averageOnline         Int
+  peakOnline            Int
+  // 以百分之一分钟为单位保存，避免浮点存储误差。
+  averageStayHundredths Int
+  commenterCount        Int
+  likeCount             Int
+  newFollowers          Int
+  shareCount            Int
+  newFanClubMembers     Int
+  // 变现数据允许晚于直播间数据补填；null 表示尚未填写。
+  fanGroupCount         Int?
+  linkClickCount        Int?
+  longPressCount        Int?
+  backendJoinCount      Int?
+  effectiveCount        Int?
+  hasSales              Boolean?
+  salesGmv              Decimal?      @db.Decimal(14, 2)
+  deletedAt             DateTime?
+  monetizationDeletedAt DateTime?
+  monetizationUpdatedAt DateTime?
+  monetizationUpdatedBy String?
+  workSessionId         String?       @unique
+  workSession           WorkSession?  @relation(fields: [workSessionId], references: [id], onDelete: Restrict)
+  historicalBackfill    Boolean       @default(false)
+  version               Int           @default(1)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@unique([accountId, startedAt])
+  @@index([branchId, startedAt])
+  @@index([controllerId])
+  @@index([operatorId])
+  @@index([anchorId])
+}
+
+// 账号独立配置；开场后使用快照，编辑只影响之后的场次。
+model AccountWorkflow {
+  accountId String @id
+  account DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  content Json
+  version Int @default(1)
+  updatedByName String
+  updatedAt DateTime @updatedAt
+}
+
+enum WorkPhase {
+  PREPARING
+  LIVE
+  WRAP
+  COMPLETE
+  CANCELLED
+}
+
+model WorkSession {
+  id String @id @default(cuid())
+  accountId String
+  account DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  sourceRecordId String
+  sourceRecord AccountRecord @relation(fields: [sourceRecordId], references: [id], onDelete: Restrict)
+  controllerId String
+  shiftId String?
+  shift WorkShift? @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+  loginUserId String?
+  loginUserName String?
+  actualControllerId String?
+  actualControllerName String?
+  label String
+  phase WorkPhase @default(PREPARING)
+  workflow Json
+  workflowVersion Int
+  progress Json @default("{}")
+  hasViolation Boolean?
+  violationDetail String @default("")
+  outcome String?
+  hasIncident Boolean?
+  wrapNote String?
+  startedAt DateTime?
+  endedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version Int @default(1)
+  events WorkEvent[]
+  report LiveReport?
+  screenshots WorkScreenshot[]
+  leadEligible Boolean @default(true)
+  leadTask LeadTask?
+
+  @@index([accountId, createdAt])
+  @@index([controllerId, phase])
+  @@index([shiftId])
+  @@index([loginUserId, phase])
+  @@index([actualControllerId, phase])
+}
+
+model WorkEvent {
+  id String @id @default(cuid())
+  sessionId String
+  session WorkSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  kind String
+  body String
+  actorId String
+  actorName String
+  screenshots WorkScreenshot[]
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+}
+
+// 共享设备检查按中控和北京时间日期保存，不随切换账号重复生成。
+model DailyWork {
+  id String @id @default(cuid())
+  userId String
+  day String
+  checks Json @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, day])
+}
+
+
+model LiveRoom {
+  id String @id @default(cuid())
+  name String
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  operatorId String?
+  operator User? @relation("RoomOperator", fields: [operatorId], references: [id], onDelete: Restrict)
+  controllerId String?
+  controller User? @relation("RoomController", fields: [controllerId], references: [id], onDelete: Restrict)
+  location String @default("")
+  notes String @default("")
+  active Boolean @default(true)
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  anchors RoomAnchor[]
+  accounts DouyinAccount[]
+  numbers PhoneNumber[]
+  devices AssetDevice[]
+
+  @@unique([branchId, name])
+  @@index([operatorId])
+  @@index([controllerId])
+}
+
+model RoomAnchor {
+  roomId String
+  room LiveRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@id([roomId, userId])
+  @@index([userId])
+  @@index([branchId])
+}
+
+model PhoneNumber {
+  id String @id @default(cuid())
+  number String @unique
+  openedBy String @default("")
+  wechat String @default("")
+  xiaohongshu String @default("")
+  kuaishou String @default("")
+  monthlyFeeCents Int?
+  dataGb Decimal? @db.Decimal(10, 2)
+  cardType String?
+  mainCardId String?
+  mainCard PhoneNumber? @relation("NumberPlan", fields: [mainCardId], references: [id], onDelete: Restrict)
+  secondaryCards PhoneNumber[] @relation("NumberPlan")
+  status String?
+  otherPhone String @default("")
+  carrier String @default("")
+  plan String @default("")
+  purpose String @default("")
+  notes String @default("")
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  roomId String?
+  room LiveRoom? @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  operatorId String?
+  operator User? @relation("NumberOperator", fields: [operatorId], references: [id], onDelete: Restrict)
+  controllerId String?
+  controller User? @relation("NumberController", fields: [controllerId], references: [id], onDelete: Restrict)
+  userId String?
+  user User? @relation("NumberUser", fields: [userId], references: [id], onDelete: Restrict)
+  active Boolean @default(true)
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  account DouyinAccount?
+  slot DeviceSlot?
+
+  @@index([mainCardId])
+  @@index([branchId, status])
+  @@index([branchId])
+  @@index([roomId])
+  @@index([operatorId])
+  @@index([controllerId])
+  @@index([userId])
+}
+
+enum DeviceKind {
+  PHONE
+  EQUIPMENT
+  MATERIAL
+}
+
+model PhoneAccountLogin {
+  deviceId String
+  device AssetDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  accountId String
+  account DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@id([deviceId, accountId])
+  @@index([accountId])
+  @@index([branchId])
+}
+
+model AssetDevice {
+  loginWechats String @default("")
+  phoneLogins PhoneAccountLogin[]
+  id String @id @default(cuid())
+  kind DeviceKind
+  individual Boolean @default(false)
+  splitAt DateTime?
+  sourceAssetId String?
+  sourceAsset AssetDevice? @relation("AssetSplit", fields: [sourceAssetId], references: [id], onDelete: Restrict)
+  splitItems AssetDevice[] @relation("AssetSplit")
+  code String @unique
+  model String
+  category String @default("")
+  serialNumber String @default("")
+  quantity Int?
+  unit String @default("件")
+  purchaseDate String @default("")
+  purchaseUnitPriceCents Int?
+  currentUnitValueCents Int?
+  purpose String @default("")
+  notes String @default("")
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  roomId String?
+  room LiveRoom? @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  operatorId String?
+  operator User? @relation("DeviceOperator", fields: [operatorId], references: [id], onDelete: Restrict)
+  controllerId String?
+  controller User? @relation("DeviceController", fields: [controllerId], references: [id], onDelete: Restrict)
+  userId String?
+  user User? @relation("DeviceUser", fields: [userId], references: [id], onDelete: Restrict)
+  active Boolean @default(true)
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  slots DeviceSlot[]
+
+  @@index([sourceAssetId])
+  @@index([branchId, kind])
+  @@index([roomId])
+  @@index([operatorId])
+  @@index([controllerId])
+  @@index([userId])
+}
+
+model DeviceSlot {
+  deviceId String
+  device AssetDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  slot Int
+  phoneNumberId String @unique
+  phoneNumber PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Restrict)
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@id([deviceId, slot])
+  @@index([branchId])
+}
+
+// 上班按登录账号归属，跨零点不自动结束；老板可跨分公司执行。
+model WorkShift {
+  id String @id @default(cuid())
+  userId String
+  userName String
+  branchId String?
+  startedAt DateTime @default(now())
+  endedAt DateTime?
+  checks Json @default("{}")
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions WorkSession[]
+
+  @@index([userId, startedAt])
+  @@index([branchId])
+}
+
+// 文件保存在非公开持久目录，仅经场次权限校验读取。
+model WorkScreenshot {
+  id String @id
+  branchId String
+  sessionId String
+  session WorkSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  eventId String
+  event WorkEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  contentType String
+  size Int
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+  @@index([eventId])
+  @@index([branchId])
+}
+
+// 一场一人，账号调拨不改变场次数据归属；草稿空白与零分别保存。
+model LeadTask {
+  id String @id @default(cuid())
+  sessionId String @unique
+  session WorkSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userName String
+  data Json @default("{}")
+  completedAt DateTime?
+  deletedAt DateTime?
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId, createdAt])
+  @@index([userId, completedAt])
 }

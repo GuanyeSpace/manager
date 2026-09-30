@@ -1,15 +1,14 @@
-import Link from "next/link";
+import { rolesLabel } from "@/lib/auth/roles";
+import { ReturnLink } from "@/components/context-link";
 import { notFound } from "next/navigation";
 import { requireBossPage } from "@/lib/auth/permissions";
 import { getUserById } from "@/modules/users/queries";
 import { listBranches } from "@/modules/branches/queries";
-import { ROLE_LABELS } from "@/lib/auth/role-labels";
 import { formatDateTime } from "@/lib/datetime";
 import { EmploymentStatus, BranchStatus } from "@/app/generated/prisma/enums";
 import { EditUserForm } from "@/components/edit-user-form";
 import { ResetPasswordForm } from "@/components/reset-password-form";
 import { EmploymentStatusForm } from "@/components/employment-status-form";
-import { LogoutButton } from "@/components/logout-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function UserDetailPage({ params }: PageProps<"/boss/users/[id]">) {
@@ -29,20 +28,11 @@ export default async function UserDetailPage({ params }: PageProps<"/boss/users/
     }));
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6">
+    <main className="flex flex-1 flex-col gap-6">
       <header className="flex items-center justify-between">
         <div className="flex items-baseline gap-4">
-          <Link
-            href="/boss/users"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            ← 返回用户列表
-          </Link>
+          <ReturnLink fallback="/boss/users" label="返回员工列表" />
           <h1 className="text-2xl font-semibold">{target.name}</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">{actor.name}</span>
-          <LogoutButton />
         </div>
       </header>
 
@@ -58,7 +48,7 @@ export default async function UserDetailPage({ params }: PageProps<"/boss/users/
             用户名：<span className="font-medium">{target.username}</span>
           </p>
           <p>
-            岗位：{ROLE_LABELS[target.role]} · 所属分公司：{target.branch?.name ?? "—"}
+            岗位：{rolesLabel(target)} · 所属分公司：{target.branch?.name ?? "—"}
           </p>
           <p>
             在职状态：
@@ -78,9 +68,11 @@ export default async function UserDetailPage({ params }: PageProps<"/boss/users/
         </CardHeader>
         <CardContent>
           <EditUserForm
+            key={target.updatedAt.toISOString()}
             userId={target.id}
             initialName={target.name}
             initialRole={target.role}
+            initialRoles={target.roles}
             initialBranchId={target.branchId}
             branches={branchOptions}
           />

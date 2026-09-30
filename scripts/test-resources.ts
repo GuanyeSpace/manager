@@ -1,0 +1,211 @@
+import assert from "node:assert/strict";
+import { readFileSync, writeFileSync } from "node:fs";
+import { validateTestEnv, resolveTestClient, assertTestDatabase, newRunId, cleanupRun } from "./lib/test-db";
+import { saveAccount, setBranchManager } from "../modules/accounts/service";
+import { createIndividualMaterials, splitMaterial, saveResource } from "../modules/resources/service";
+import { readResourceDetail, readResourceList, readResourceOptions, readAnchors } from "../modules/resources/data";
+import { resignUserMutation } from "../modules/users/user-mutations";
+import { signSessionToken } from "../lib/auth/session-token";
+import type { ResourceKind } from "../modules/resources/schema";
+async function main() {
+  const { dbName } = validateTestEnv(), db = resolveTestClient(), marker = newRunId(); let verified = false;
+  try {
+    await assertTestDatabase(db, dbName); verified = true;
+    const branch = await db.branch.create({ data: { name: `${marker}-a` } }), other = await db.branch.create({ data: { name: `${marker}-b` } });
+    async function user(name: string, role: "BOSS" | "CONTROLLER" | "OPERATOR" | "ANCHOR", branchId: string | null) {
+      const u = await db.user.create({ data: { username: `${marker}-${name}`, name, role, branchId, passwordHash: "not-a-real-hash", mustChangePassword: false } });
+      const token = `${marker}-${name}`; await db.session.create({ data: { id: token, userId: u.id, expiresAt: new Date(Date.now() + 3600000) } }); return { ...u, token };
+    }
+    const boss = await user("boss", "BOSS", null), controller = await user("controller", "CONTROLLER", branch.id), operator = await user("operator", "OPERATOR", branch.id), manager = await user("manager", "OPERATOR", branch.id), outsider = await user("outsider", "CONTROLLER", branch.id), otherManager = await user("otherManager", "OPERATOR", other.id), anchor1 = await user("anchor1", "ANCHOR", branch.id), anchor2 = await user("anchor2", "ANCHOR", branch.id);
+    await db.$transaction(tx => setBranchManager(tx, boss.token, { branchId: branch.id, managerId: manager.id, previousManagerId: "" }, "test"));
+    await db.$transaction(tx => setBranchManager(tx, boss.token, { branchId: other.id, managerId: otherManager.id, previousManagerId: "" }, "test"));
+    const base = { id: "", version: 0, branchId: branch.id, active: "true", quantity: "1" };
+    const save = (token: string, kind: ResourceKind, data: object) => db.$transaction(tx => saveResource(tx, token, kind, { ...base, ...data }, "test"));
+    const read = (token: string, kind: ResourceKind, id: string) => db.$transaction(tx => readResourceDetail(tx, token, kind, id), { isolationLevel: "RepeatableRead" });
+    const roomInput = { name: `${marker}-直播间`, operatorId: operator.id, controllerId: controller.id, anchorIds: [anchor1.id, anchor2.id] };
+    await assert.rejects(save(operator.token, "rooms", roomInput), /仅老板/);
+    await assert.rejects(save(otherManager.token, "rooms", roomInput), /仅老板/);
+    const roomId = await save(manager.token, "rooms", roomInput);
+    const room2 = await save(manager.token, "rooms", { ...roomInput, name: `${marker}-第二直播间`, anchorIds: [anchor1.id] });
+    assert.equal((await read(controller.token, "rooms", roomId))!.related.filter(r => r.label === "主播").length, 2);
+    assert.equal((await db.$transaction(tx => readAnchors(tx, operator.token))).anchors.find(a => a.id === anchor1.id)!.roomAnchors.length, 2);
+    assert.equal(await read(outsider.token, "rooms", roomId), null);
+    assert.equal((await db.$transaction(tx => readResourceOptions(tx, outsider.token))).branches.length, 0);
+    const a = { id: "", version: 0, douyinId: `${marker}-account`, name: "直播主号", homepageUrl: "", realName: "", phone: "", purpose: "", notes: "", branchId: branch.id, operatorId: operator.id, controllerId: controller.id, anchorId: anchor1.id, active: "true" as const, roomId };
+    const accountId = await db.$transaction(tx => saveAccount(tx, manager.token, a, "test"));
+    const managerAnchor = (await db.$transaction(tx => readAnchors(tx, manager.token, anchor1.id))).anchors[0];
+    assert.equal(managerAnchor.anchoredAccounts[0].operator?.name, "operator");
+    assert.equal(managerAnchor.anchoredAccounts[0].controller.name, "controller");
+    assert.equal(managerAnchor.anchoredAccounts[0].canEdit, true);
+    assert.equal((await db.$transaction(tx => readAnchors(tx, controller.token, anchor1.id))).anchors[0].anchoredAccounts[0].canEdit, false);
+    const phoneDigits = String(Date.now()).slice(-10);
+    const numberInput = { number: `1${phoneDigits}`, openedBy: "开户人", carrier: "中国电信", plan: "月套餐", wechat: "wechat-example", purpose: "直播使用", accountId, roomId, operatorId: operator.id, controllerId: controller.id, userId: controller.id };
+    const numberId = await save(manager.token, "numbers", numberInput);
+    const secondNumber = await save(manager.token, "numbers", { number: `2${phoneDigits}` });
+    const thirdNumber = await save(manager.token, "numbers", { number: `3${phoneDigits}` });
+    const account = await db.douyinAccount.findUniqueOrThrow({ where: { id: accountId } });
+    assert.equal(account.phoneNumberId, numberId); assert.equal(account.phone, numberInput.number);
+    const staleNumber = (await read(manager.token, "numbers", numberId))!.initial;
+    const deviceInput = { code: `${marker}-手机1`, model: "双卡手机", roomId, operatorId: operator.id, controllerId: controller.id, userId: controller.id, sim1: numberId, sim2: secondNumber };
+    const phoneId = await save(manager.token, "phones", deviceInput);
+    const phone = await read(controller.token, "phones", phoneId);
+    assert.equal(phone?.initial.sim1, numberId); assert.equal(phone?.initial.sim2, "");
+    assert.equal(phone?.related.filter(r => r.label.startsWith("卡槽")).length, 1);
+    assert.equal(phone?.editable, false);
+    assert.equal(await read(controller.token, "numbers", secondNumber), null);
+    await assert.rejects(save(controller.token, "phones", { ...deviceInput, id: phoneId, version: 1 }), /仅老板/);
+    await assert.rejects(save(controller.token, "numbers", { number: `9${phoneDigits}` }), /仅老板/);
+    const number = await read(controller.token, "numbers", numberId);
+    assert(number?.related.some(r => r.href === `/accounts/${accountId}`)); assert(number?.related.some(r => r.href === `/resources/phones/${phoneId}`));
+    assert.equal(await read(outsider.token, "numbers", numberId), null); assert.equal(await read(otherManager.token, "phones", phoneId), null);
+    await assert.rejects(save(manager.token, "phones", { ...deviceInput, code: `${marker}-重复`, sim2: numberId }), /两个卡槽/);
+    await assert.rejects(save(manager.token, "phones", { ...deviceInput, code: `${marker}-占用`, sim2: "" }), /已装在其他手机/);
+    const race = await Promise.allSettled([save(manager.token, "phones", { code: `${marker}-竞争1`, model: "测试", sim1: thirdNumber }), save(manager.token, "phones", { code: `${marker}-竞争2`, model: "测试", sim1: thirdNumber })]);
+    assert.equal(race.filter(v => v.status === "fulfilled").length, 1);
+    await assert.rejects(save(otherManager.token, "phones", { branchId: other.id, code: `${marker}-越界`, model: "测试", sim1: numberId }), /本公司/);
+    await assert.rejects(save(manager.token, "rooms", { ...roomInput, id: roomId, version: 1, active: "false" }), /先移出/);
+    const equipmentId = await save(manager.token, "equipment", { code: `${marker}-电脑`, model: "台式机", category: "电脑", roomId, userId: outsider.id, controllerId: controller.id });
+    await assert.rejects(db.$transaction(tx => resignUserMutation(tx, boss.id, boss.token, outsider.id)), /设备/);
+    assert.equal((await read(outsider.token, "equipment", equipmentId))?.initial.model, "台式机");
+    assert.equal(await read(outsider.token, "rooms", roomId), null);
+    const freeNumber = (await read(manager.token, "numbers", thirdNumber))!.initial;
+    await save(manager.token, "numbers", { ...freeNumber, userId: outsider.id });
+    assert(!(await read(outsider.token, "numbers", thirdNumber))?.related.some(r => r.label.startsWith("所在手机")));
+    await assert.rejects(save(manager.token, "equipment", { code: `${marker}-电脑2`, model: "台式机", category: "电脑", sim1: thirdNumber }), /只有手机/);
+    const materialInput = { code: `${marker}-办公椅`, model: "办公椅 / 黑色", category: "家具", quantity: "6", unit: "把", purchaseDate: "2026-09-01", purchaseUnitPrice: "199.99", currentUnitValue: "100.05", roomId, controllerId: controller.id, userId: controller.id };
+    const materialId = await save(manager.token, "materials", materialInput);
+    const material = await db.assetDevice.findUniqueOrThrow({ where: { id: materialId } });
+    assert.equal(material.kind, "MATERIAL"); assert.equal(material.quantity, 6); assert.equal(material.purchaseUnitPriceCents, 19999); assert.equal(material.currentUnitValueCents, 10005);
+    assert.equal((await read(controller.token, "materials", materialId))?.editable, false);
+    assert.equal(await read(outsider.token, "materials", materialId), null);
+    assert.equal(await read(otherManager.token, "materials", materialId), null);
+    assert.equal(await read(manager.token, "equipment", materialId), null);
+    assert((await read(controller.token, "rooms", roomId))!.related.some(r => r.href === `/resources/materials/${materialId}`));
+    const list = await db.$transaction(tx => readResourceList(tx, manager.token, "materials", "办公椅", 1));
+    assert.equal(list.rows[0].asset?.quantity, 6);
+    await assert.rejects(save(controller.token, "materials", materialInput), /仅老板/);
+    await assert.rejects(save(manager.token, "materials", { ...materialInput, code: `${marker}-非法`, quantity: "0" }), /数量/);
+    await assert.rejects(save(manager.token, "materials", { ...materialInput, quantity: "1.5" }), /数量/);
+    await assert.rejects(save(manager.token, "materials", { ...materialInput, purchaseUnitPrice: "1.001" }), /金额/);
+    await assert.rejects(save(manager.token, "materials", { ...materialInput, currentUnitValue: "-1" }), /金额/);
+    await assert.rejects(save(manager.token, "materials", { ...materialInput, purchaseDate: "2026-02-30" }), /日期/);
+    await assert.rejects(save(manager.token, "materials", { ...materialInput, sim1: numberId }), /只有手机/);
+    await assert.rejects(save(manager.token, "phones", { ...deviceInput, sim1: "", sim2: "", quantity: "2" }), /数量/);
+    const materialBefore = (await read(manager.token, "materials", materialId))!.initial;
+    await save(manager.token, "materials", { ...materialBefore, currentUnitValue: "0" });
+    await assert.rejects(save(manager.token, "materials", materialBefore), /已被修改/);
+    assert.equal((await db.assetDevice.findUniqueOrThrow({ where: { id: materialId } })).currentUnitValueCents, 0);
+    const legacyDevice = await db.assetDevice.create({ data: { code: `${marker}-旧设备`, kind: "EQUIPMENT", model: "旧电脑", category: "电脑", branchId: branch.id } });
+    assert.equal(legacyDevice.quantity, null); assert.equal(legacyDevice.purchaseUnitPriceCents, null);
+    const legacyInitial = (await read(manager.token, "equipment", legacyDevice.id))!.initial;
+    await save(manager.token, "equipment", { ...legacyInitial, notes: "只改备注" });
+    const preserved = await db.assetDevice.findUniqueOrThrow({ where: { id: legacyDevice.id } });
+    assert.equal(preserved.quantity, null); assert.equal(preserved.purchaseUnitPriceCents, null);
+    console.log("PASS: 物资数量与整数金额、未知和零值区分、日期校验、手机单机限制、物资关联与权限、旧资产兼容、版本保护");
+    const split = (token: string, id: string, version: number) => db.$transaction(tx => splitMaterial(tx, token, id, version, "test"));
+    const splitId = await save(manager.token, "materials", { ...materialInput, code: `${marker}-待拆分`, quantity: "5" });
+    await assert.rejects(split(controller.token, splitId, 1), /仅老板/);
+    await assert.rejects(split(otherManager.token, splitId, 1), /仅老板/);
+    await assert.rejects(split(manager.token, splitId, 2), /已被修改/);
+    await assert.rejects(db.$transaction(async tx => { await splitMaterial(tx, manager.token, splitId, 1, "test"); throw new Error("rollback split"); }), /rollback split/);
+    assert.equal(await db.assetDevice.count({ where: { sourceAssetId: splitId } }), 0);
+    assert.equal((await db.assetDevice.findUniqueOrThrow({ where: { id: splitId } })).splitAt, null);
+    const splitRace = await Promise.allSettled([split(manager.token, splitId, 1), split(manager.token, splitId, 1)]);
+    assert.equal(splitRace.filter(r => r.status === "fulfilled").length, 1);
+    const items = await db.assetDevice.findMany({ where: { sourceAssetId: splitId }, orderBy: { code: "asc" } });
+    assert.equal(items.length, 5); assert.equal(new Set(items.map(i => i.code)).size, 5);
+    assert.equal(items.reduce((sum, item) => sum + item.quantity!, 0), 5);
+    assert.equal(items.reduce((sum, item) => sum + item.purchaseUnitPriceCents!, 0), 19999 * 5);
+    assert.equal(items.reduce((sum, item) => sum + item.currentUnitValueCents!, 0), 10005 * 5);
+    const archived = (await read(manager.token, "materials", splitId))!;
+    assert(archived.splitAt); assert.equal(archived.editable, false); assert.equal(archived.related.filter(r => r.label === "拆分单件").length, 5);
+    await assert.rejects(save(manager.token, "materials", { ...archived.initial, active: "true" }), /拆分归档/);
+    assert(!(await db.$transaction(tx => readResourceList(tx, manager.token, "materials", "待拆分", 1))).rows.some(r => r.id === splitId));
+    assert((await db.$transaction(tx => readResourceList(tx, manager.token, "materials", "待拆分", 1, true))).rows.some(r => r.id === splitId));
+    const itemBefore = (await read(manager.token, "materials", items[0].id))!.initial;
+    await assert.rejects(save(manager.token, "materials", { ...itemBefore, quantity: "2" }), /编号固定/);
+    await assert.rejects(save(manager.token, "materials", { ...itemBefore, code: `${marker}-换号` }), /编号固定/);
+    await save(manager.token, "materials", { ...itemBefore, roomId: room2, userId: outsider.id, controllerId: outsider.id });
+    assert.equal((await read(outsider.token, "materials", items[0].id))?.initial.roomId, room2);
+    assert.equal(await read(controller.token, "materials", items[0].id), null);
+    assert.equal(await read(outsider.token, "materials", items[1].id), null);
+    const newGroup = await db.$transaction(tx => createIndividualMaterials(tx, manager.token, { ...base, ...materialInput, code: `${marker}-批量建档`, quantity: "3" }, "test"));
+    assert.equal(await db.assetDevice.count({ where: { sourceAssetId: newGroup, individual: true, quantity: 1 } }), 3);
+    const single = await db.$transaction(tx => createIndividualMaterials(tx, manager.token, { ...base, ...materialInput, code: `${marker}-单件`, quantity: "1" }, "test"));
+    assert.equal((await db.assetDevice.findUniqueOrThrow({ where: { id: single } })).individual, true);
+    const conflictCode = `${marker}-冲突`;
+    await save(manager.token, "materials", { ...materialInput, code: `${conflictCode}-002`, quantity: "1" });
+    await assert.rejects(db.$transaction(tx => createIndividualMaterials(tx, manager.token, { ...base, ...materialInput, code: conflictCode, quantity: "3" }, "test")), /占用/);
+    assert.equal(await db.assetDevice.count({ where: { code: conflictCode } }), 0);
+    assert.equal(await db.assetDevice.count({ where: { code: `${conflictCode}-001` } }), 0);
+    console.log("PASS: 逐件建档、拆分守恒、唯一编号、整批回滚、并发重复拦截、来源归档、独立分配与越权隔离");
+    const oldVersion = account.version;
+    await db.$transaction(tx => saveAccount(tx, manager.token, { ...a, id: accountId, version: oldVersion, phoneNumberId: secondNumber }, "test"));
+    assert.equal((await read(manager.token, "numbers", numberId))?.initial.accountId, "");
+    assert.equal((await read(manager.token, "numbers", secondNumber))?.initial.accountId, accountId);
+    await assert.rejects(save(manager.token, "numbers", staleNumber), /已被修改/);
+    const currentNumber = (await read(manager.token, "numbers", secondNumber))!.initial;
+    await save(manager.token, "numbers", { ...currentNumber, number: `4${phoneDigits}` });
+    assert.equal((await db.douyinAccount.findUniqueOrThrow({ where: { id: accountId } })).phone, `4${phoneDigits}`);
+    // 同账号同步关联，另一个账号不能抢占已绑定号码。
+    await assert.rejects(db.$transaction(tx => saveAccount(tx, manager.token, { ...a, douyinId: `${marker}-第二账号`, phoneNumberId: secondNumber }, "test")), /已经绑定/);
+    const currentDevice = (await read(manager.token, "phones", phoneId))!.initial;
+    await assert.rejects(db.$transaction(async tx => { await saveResource(tx, manager.token, "phones", { ...currentDevice, sim1: "", sim2: "" }, "test"); throw new Error("rollback"); }), /rollback/);
+    assert.equal(await db.deviceSlot.count({ where: { deviceId: phoneId } }), 2);
+    await assert.rejects(db.deviceSlot.create({ data: { deviceId: phoneId, slot: 3, phoneNumberId: numberId, branchId: branch.id } }));
+    if (process.env.RESOURCES_HTTP_BASE) {
+      const baseUrl = new URL(process.env.RESOURCES_HTTP_BASE); assert.equal(baseUrl.hostname, "127.0.0.1");
+      for (const path of ["/controller", "/resources/anchors", `/resources/anchors/${anchor1.id}`, "/resources/rooms", `/resources/rooms/${roomId}`, `/resources/numbers/${numberId}`, `/resources/phones/${phoneId}`, `/resources/equipment/${equipmentId}`, "/resources/phones/new", "/resources/materials", "/resources/materials/new", "/resources/materials?archived=true", `/resources/materials/${splitId}`, `/resources/materials/${items[0].id}`, `/resources/materials/${materialId}`, `/accounts/${accountId}`, "/accounts"]) {
+        const response = await fetch(new URL(path, baseUrl), { headers: { cookie: `session=${signSessionToken(boss.token)}` }, redirect: "manual" });
+        // 老板按现有角色守卫不能直接进入中控专属首页。
+        assert.equal(response.status, path === "/controller" ? 307 : 200, path);
+        const html = await response.text();
+        if (path === `/resources/anchors/${anchor1.id}`) assert(html.includes(`/accounts/${accountId}#edit-duties`));
+        if (path === `/resources/materials/${materialId}`) { assert(html.includes("1,199.94")); assert(html.includes("当前估值总额")); }
+        if (path === `/resources/materials/${splitId}`) { assert(html.includes("不再计入")); assert(!html.includes("编辑物资资料")); writeFileSync("/tmp/manager-split-preview.html", html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")); }
+        if (path === "/resources/materials/new") writeFileSync("/tmp/manager-assets-preview.html", html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, ""));
+        if (path === "/accounts") assert(html.includes(`/resources/numbers/${secondNumber}`));
+      }
+      const controllerPage = await fetch(new URL("/controller", baseUrl), { headers: { cookie: `session=${signSessionToken(controller.token)}` } }); assert.equal(controllerPage.status, 200); assert((await controllerPage.text()).includes("选择直播账号"));
+      const denied = await fetch(new URL(`/resources/numbers/${numberId}`, baseUrl), { headers: { cookie: `session=${signSessionToken(otherManager.token)}` } }); assert.equal(denied.status, 404);
+      console.log("PASS: 资源、主播、账号链接和中控页面 HTTP 渲染及越权 404");
+    }
+    // 使用本轮独立分公司验证迁移的号码去重和保留规则，不触碰其他测试数据。
+    const migrationBranch = await db.branch.create({ data: { name: `${marker}-migration` } });
+    const legacyIds: string[] = [];
+    for (const [index, legacyPhone] of [`5${phoneDigits}`, `6${phoneDigits}`, `6 ${phoneDigits}`].entries()) {
+      legacyIds.push(await db.$transaction(tx => saveAccount(tx, boss.token, { ...a, douyinId: `${marker}-legacy-${index}`, phone: legacyPhone, realName: "不可推断开户人", roomId: "", branchId: migrationBranch.id, controllerId: boss.id, operatorId: "", anchorId: "" }, "test")));
+    }
+    const migration = readFileSync(new URL("../prisma/migrations/20260910090000_rooms_and_resources/migration.sql", import.meta.url), "utf8");
+    const backfill = migration.slice(migration.indexOf("WITH candidates AS"));
+    const statements = backfill.split(";").map(s => s.trim()).filter(Boolean);
+    statements[0] = statements[0].replace(`a."phone" <> ''`, `a."phone" <> '' AND a."branchId" = $1`);
+    statements[1] += ' AND a."branchId" = $1';
+    for (const statement of statements) await db.$executeRawUnsafe(statement, migrationBranch.id);
+    const legacy = await db.douyinAccount.findUniqueOrThrow({ where: { id: legacyIds[0] }, include: { phoneNumber: true } });
+    assert.equal(legacy.phoneNumber?.number, `5${phoneDigits}`); assert.equal(legacy.phoneNumber?.openedBy, "");
+    assert.equal(await db.phoneNumber.count({ where: { branchId: migrationBranch.id } }), 1);
+    const duplicate = await db.douyinAccount.findUniqueOrThrow({ where: { id: legacyIds[2] } });
+    assert.equal(duplicate.phoneNumberId, null); assert.equal(duplicate.phone, `6 ${phoneDigits}`);
+    console.log("PASS: 旧手机号唯一时建档、重复时保留原文本、开户人不作推断");
+    assert.equal((await db.$transaction(tx => readResourceList(tx, otherManager.token, "numbers", "", 1))).rows.length, 0);
+    await db.session.delete({ where: { id: manager.token } }); await assert.rejects(read(manager.token, "rooms", room2), /登录或权限/);
+    console.log("PASS: 主播与直播间多对多、分公司隔离、管理权限、号码与账号双向关联、双卡槽唯一占用和并发、关联跳转、版本冲突、停用调拨保护、使用人交接、事务回滚");
+  } finally {
+    try { if (verified) {
+      const branches = await db.branch.findMany({ where: { name: { startsWith: marker } }, select: { id: true } }), branchIds = branches.map(b => b.id);
+      await db.deviceSlot.deleteMany({ where: { branchId: { in: branchIds } } });
+      await db.assetDevice.deleteMany({ where: { sourceAssetId: { not: null }, branchId: { in: branchIds } } });
+      await db.assetDevice.deleteMany({ where: { branchId: { in: branchIds } } });
+      const accounts = await db.douyinAccount.findMany({ where: { douyinId: { startsWith: marker } }, select: { id: true } });
+      await db.accountRecord.deleteMany({ where: { accountId: { in: accounts.map(a => a.id) } } });
+      await db.douyinAccount.deleteMany({ where: { id: { in: accounts.map(a => a.id) } } });
+      await db.phoneNumber.deleteMany({ where: { branchId: { in: branchIds } } });
+      await db.roomAnchor.deleteMany({ where: { branchId: { in: branchIds } } });
+      await db.liveRoom.deleteMany({ where: { branchId: { in: branchIds } } });
+      await db.branch.updateMany({ where: { id: { in: branchIds } }, data: { managerId: null } });
+      await cleanupRun(db, marker);
+    } } finally { await db.$disconnect(); }
+  }
+}
+main().then(() => console.log("ALL PASS (including cleanup)")).catch(e => { console.error(e); process.exitCode = 1; });

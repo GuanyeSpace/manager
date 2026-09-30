@@ -8,14 +8,16 @@ import {
   assertCanManageBranches,
 } from "@/lib/auth/permissions";
 import type { CurrentUser } from "@/lib/auth/session";
-import { writeAudit } from "@/lib/audit";
+import { mutateBranch } from "./service";
+import { getCurrentSessionToken } from "@/lib/auth/session";
+import { UserActionError } from "@/modules/users/boss-guard";
 import { getClientIp } from "@/lib/request-ip";
 import {
   createBranchSchema,
   renameBranchSchema,
   toggleBranchSchema,
 } from "@/modules/branches/schema";
-import { AuditAction, BranchStatus } from "@/app/generated/prisma/enums";
+
 
 export type BranchFormState =
   | {
@@ -41,7 +43,9 @@ export async function createBranchAction(
   _prevState: BranchFormState,
   formData: FormData
 ): Promise<BranchFormState> {
-  const user = await guard();
+  await guard();
+  const token = await getCurrentSessionToken();
+  if (!token) redirect("/login");
 
   const parsed = createBranchSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) {
@@ -49,19 +53,10 @@ export async function createBranchAction(
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const branch = await tx.branch.create({ data: { name: parsed.data.name } });
-      await writeAudit({
-        db: tx,
-        actorId: user.id,
-        action: AuditAction.BRANCH_CREATE,
-        targetType: "Branch",
-        targetId: branch.id,
-        detail: { name: branch.name },
-        ip: await getClientIp(),
-      });
-    });
+    const ip = await getClientIp();
+    await prisma.$transaction(tx => mutateBranch(tx, token, "create", parsed.data, ip));
   } catch (e) {
+    if (e instanceof UserActionError) return { error: e.message };
     if (isUniqueConflict(e)) return { error: "分公司名称已存在" };
     console.error("创建分公司失败:", e);
     return { error: "创建失败，请稍后重试" };
@@ -74,7 +69,9 @@ export async function renameBranchAction(
   _prevState: BranchFormState,
   formData: FormData
 ): Promise<BranchFormState> {
-  const user = await guard();
+  await guard();
+  const token = await getCurrentSessionToken();
+  if (!token) redirect("/login");
 
   const parsed = renameBranchSchema.safeParse({
     branchId: formData.get("branchId"),
@@ -85,24 +82,10 @@ export async function renameBranchAction(
   }
 
   try {
-    const branch = await prisma.branch.findUnique({ where: { id: parsed.data.branchId } });
-    if (!branch) return { error: "分公司不存在" };
-    await prisma.$transaction(async (tx) => {
-      const updated = await tx.branch.update({
-        where: { id: branch.id },
-        data: { name: parsed.data.name },
-      });
-      await writeAudit({
-        db: tx,
-        actorId: user.id,
-        action: AuditAction.BRANCH_UPDATE,
-        targetType: "Branch",
-        targetId: branch.id,
-        detail: { name: { from: branch.name, to: updated.name } },
-        ip: await getClientIp(),
-      });
-    });
+    const ip = await getClientIp();
+    await prisma.$transaction(tx => mutateBranch(tx, token, "rename", parsed.data, ip));
   } catch (e) {
+    if (e instanceof UserActionError) return { error: e.message };
     if (isUniqueConflict(e)) return { error: "分公司名称已存在" };
     console.error("重命名分公司失败:", e);
     return { error: "重命名失败，请稍后重试" };
@@ -113,32 +96,22 @@ export async function renameBranchAction(
 
 // 启停动作：作为普通表单动作使用（签名只有 formData），成功即刷新列表页
 export async function toggleBranchAction(formData: FormData): Promise<void> {
-  const user = await guard();
+  await guard();
+  const token = await getCurrentSessionToken();
+  if (!token) redirect("/login");
 
   const parsed = toggleBranchSchema.safeParse({ branchId: formData.get("branchId") });
   if (!parsed.success) {
     redirect("/boss/branches");
   }
 
-  const branch = await prisma.branch.findUnique({ where: { id: parsed.data.branchId } });
-  if (!branch) {
+  const ip = await getClientIp();
+  try {
+    await prisma.$transaction(tx => mutateBranch(tx, token, "toggle", parsed.data, ip));
+  } catch (error) {
+    if (!(error instanceof UserActionError)) throw error;
     redirect("/boss/branches");
   }
-
-  const next =
-    branch.status === BranchStatus.ACTIVE ? BranchStatus.INACTIVE : BranchStatus.ACTIVE;
-  await prisma.$transaction(async (tx) => {
-    await tx.branch.update({ where: { id: branch.id }, data: { status: next } });
-    await writeAudit({
-      db: tx,
-      actorId: user.id,
-      action: AuditAction.BRANCH_UPDATE,
-      targetType: "Branch",
-      targetId: branch.id,
-      detail: { status: { from: branch.status, to: next } },
-      ip: await getClientIp(),
-    });
-  });
 
   redirect("/boss/branches");
 }

@@ -1,0 +1,27 @@
+[Unit]
+Description=Manager application
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=manager-app
+Group=manager-app
+WorkingDirectory=/opt/manager/app
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+Environment=WORK_SCREENSHOT_DIR=/opt/manager/uploads/work-screenshots
+EnvironmentFile=/etc/manager/app.env
+ExecStart=/usr/bin/node .next/standalone/server.js
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

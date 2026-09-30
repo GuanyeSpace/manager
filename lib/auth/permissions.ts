@@ -1,3 +1,4 @@
+import { hasRole } from "./roles";
 import "server-only";
 import { redirect } from "next/navigation";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/session";
@@ -25,25 +26,26 @@ export async function requirePasswordChanged(user: CurrentUser): Promise<void> {
 export function getWorkbenchPath(user: CurrentUser): string {
   if (canAccessBossWorkspace(user)) return "/boss";
   if (canAccessControllerWorkspace(user)) return "/controller";
+  if (hasRole(user, Role.LEAD_SPECIALIST)) return "/leads";
   return "/wip";
 }
 
 export function canAccessBossWorkspace(user: CurrentUser): boolean {
-  return user.role === Role.BOSS;
+  return hasRole(user, Role.BOSS);
 }
 
 export function canAccessControllerWorkspace(user: CurrentUser): boolean {
-  return user.role === Role.CONTROLLER;
+  return hasRole(user, Role.CONTROLLER);
 }
 
 // 能力：管理分公司（本版只有老板有）
 export function canManageBranches(user: CurrentUser): boolean {
-  return user.role === Role.BOSS;
+  return hasRole(user, Role.BOSS);
 }
 
 // 能力：管理用户（本版只有老板有）
 export function canManageUsers(user: CurrentUser): boolean {
-  return user.role === Role.BOSS;
+  return hasRole(user, Role.BOSS);
 }
 
 // 能力断言：server action 与数据查询内部调用，岗位不符立刻送回自己的工作台。
