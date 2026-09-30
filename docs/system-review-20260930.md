@@ -8,6 +8,7 @@
 | --- | --- |
 | 隔离测试 | 24 个入口全部通过（23 个脚本 + 1 个组件测试）；其中 `test-work-evidence` 首次失败为复查环境变量配置问题，修正后重跑通过，非应用缺陷 |
 | 静态检查 | `npm run typecheck` 退出 0；`eslint app components lib modules scripts` 退出 0；`git diff --check` 无输出 |
+| 本地构建 | `npm run build`（`DATABASE_URL` 指向隔离库）退出 0，本机耗时 27 秒；未做生产受限构建，也未发布 |
 | 浏览器验收 | headless Chrome 隔离夹具验证 `/accounts`、`/resources/numbers`、`/boss`、`/live-reports?view=monetization` 四页渲染与列结构通过 |
 | 权限/安全只读审计 | 未发现未鉴权写入口、只比较 `actor.role` 的授权、凭证泄漏；确认 1 条已有中等级组合边界（K004）与 4 条低等级加固项 |
 | 依赖审计 | `npm audit --omit=dev` 报 7 项（5 high / 2 moderate），比 09-29 记录多 3 个包；未自动修复（会跨主版本降级 Prisma） |
@@ -63,6 +64,7 @@
 - `npm run typecheck`（tsc --noEmit）退出 0，无输出。
 - `./node_modules/.bin/eslint app components lib modules scripts` 退出 0，无输出。
 - `git diff --check` 无输出；工作区仅有用户明确排除的 `.claude/launch.json` 删除。
+- `npm run build`（Next 16 production build，`DATABASE_URL` 指向隔离库）退出 0，本机耗时 27 秒；构建后无 tracked 文件被改写（含 Next 自动生成的 AGENTS 规则块）。这是本地构建，不等于生产受限构建（生产实测约 120–134 秒），本轮未发布。
 
 ## 6. 浏览器验收（本轮实际执行）
 
@@ -140,7 +142,7 @@
 - 未做全部页面、全部角色、窄屏、真实鼠标拖动排序（K007）的浏览器目视；本轮只覆盖 4 个页面。
 - 未验证证书真实续签、未做异机备份与完整恢复演练（K001/K002）。
 - 未做依赖漏洞的代码级可达性分析，也未执行依赖升级（K012）。
-- 本轮不含生产构建与发布；构建耗时与内存数据沿用 09-30 发布记录，未重新测量。
+- 本轮只做本机生产构建（27 秒，未测量内存峰值，未在生产受限环境构建），不含发布；生产构建的耗时与内存数据沿用 09-30 发布记录。
 - 未逐条复核历史专题文档（douyin-accounts、controller-workbench-design、lead-specialist、live-reports、resources 等）的业务描述，只做了链接与路径校验。
 - 本地日常开发库 `manager` 仍停留在 5 次迁移（8 张表，2026-09-08 状态），落后 14 次迁移；本轮未迁移它，下一次本地开发前需按本机确认的连接执行 `migrate deploy`（禁止 reset/seed）。
 

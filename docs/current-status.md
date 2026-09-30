@@ -57,7 +57,7 @@
 
 ## 2026-09-30 全系统复查（只读）
 
-- 范围：隔离库运行24个测试入口（23个脚本+1个组件测试）全部通过；typecheck、`eslint app components lib modules scripts`、git diff --check通过；headless Chrome覆盖`/accounts`、`/resources/numbers`、`/boss`、`/live-reports?view=monetization`；权限与安全只读审计；npm audit；生产只读核验。未改业务代码、无新迁移、未发布。
+- 范围：隔离库运行24个测试入口（23个脚本+1个组件测试）全部通过；typecheck、`eslint app components lib modules scripts`、git diff --check通过；本地`npm run build`（指向隔离库）退出0、耗时27秒；headless Chrome覆盖`/accounts`、`/resources/numbers`、`/boss`、`/live-reports?view=monetization`；权限与安全只读审计；npm audit；生产只读核验。未改业务代码、无新迁移、未发布。
 - 首次`test-work-evidence`因复查环境`WORK_SCREENSHOT_DIR`与`WORKBENCH_HTTP_SCREENSHOT_DIR`不一致报404，改为同一临时目录后重跑通过；属测试环境配置问题，不是应用缺陷，未放宽断言。
 - 隔离库`manager_accounts_test`为19次迁移；运行后`test-%`数据与浏览器夹具残留均为0。正式库未写入、未迁移。
 - 权限审计：写服务的锁、锁内会话/岗位复核、version保护与同事务审计落实；未发现只按`actor.role`授权、未鉴权Server Action/Route Handler或凭证泄漏；登记K017–K020四条低风险加固，K004仍待产品确认。
