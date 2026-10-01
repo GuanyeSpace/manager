@@ -1,3 +1,5 @@
+import { audienceFields, audienceHundredths, parseDuration, powderFields } from "@/modules/live-reports/input-metrics";
+import { metricFields } from "@/modules/live-reports/schema";
 import { roleWhere } from "@/lib/auth/roles";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { requireAccountActor } from "@/modules/accounts/service";
@@ -5,7 +7,7 @@ import { acquireUserMutationLock, UserActionError } from "@/modules/users/boss-g
 import { canManageLiveReports, isLeadSpecialist, isReportOperator, reportManagementScope } from "@/lib/auth/live-report-permissions";
 import { isAccountBoss, type AccountActor } from "@/lib/auth/account-permissions";
 import { writeAudit } from "@/lib/audit";
-import { leadCommandSchema, leadFields, leadValues } from "./schema";
+import { leadCommandSchema, activeLeadFields, leadValues } from "./schema";
 
 export function leadScope(actor: AccountActor): Prisma.LeadTaskWhereInput {
   if (isAccountBoss(actor)) return {};
@@ -29,7 +31,7 @@ export async function readLeadList(tx: Prisma.TransactionClient, token: string, 
 }
 export async function readLeadTask(tx: Prisma.TransactionClient, token: string, id: string) {
   const actor = await requireAccountActor(tx, token);
-  const task = await tx.leadTask.findFirst({ where: { AND: [leadScope(actor), { id }] }, include: { branch: true, session: { include: { sourceRecord: true } } } });
+  const task = await tx.leadTask.findFirst({ where: { AND: [leadScope(actor), { id }] }, include: { branch: true, session: { include: { sourceRecord: true, report: { select: { longPressCount: true, hasSales: true, salesGmv: true } } } } } });
   if (!task) return null;
   const manager = canManageLiveReports(actor, task.branch);
   const editable = manager || isLeadSpecialist(actor) && actor.id === task.userId;
@@ -80,22 +82,24 @@ export async function runLeadCommand(tx: Prisma.TransactionClient, token: string
     if (!input.data) throw new UserActionError("请填写数据");
     if (task.completedAt && !input.reason) throw new UserActionError("请填写更正原因");
     const values = input.data, old = leadValues(task.data);
-    for (const [key, label] of leadFields) if (values[key] !== old[key]) changes.push({ field: label, before: old[key] || "未填写", after: values[key] || "未填写" });
+    const previousData = task.data as Record<string, Prisma.InputJsonValue>;
+    for (const [key, label] of audienceFields) if (old[key] !== "" && values[key] === "") throw new UserActionError(`${label}已有记录，不能清空`);
+    for (const [key, label] of activeLeadFields) if (values[key] !== old[key]) changes.push({ field: label, before: old[key] || "未填写", after: values[key] || "未填写" });
     const complete = input.command === "complete" || !!task.completedAt;
     if (complete) {
-      const missing = leadFields.filter(([key]) => values[key] === "");
+      const missing = activeLeadFields.filter(([key]) => values[key] === "" && !(task.completedAt && previousData.formVersion !== 2 && audienceFields.some(([field]) => field === key)));
       if (missing.length) throw new UserActionError(`请补齐：${missing.map(([, label]) => label).join("、")}`);
       const s = task.session, source = s.sourceRecord;
       if (!s.startedAt || !s.endedAt || !["WRAP", "COMPLETE"].includes(s.phase)) throw new UserActionError("请在本场实际下播后提交完成");
-      const durationSeconds = Number(values.durationHours) * 3600 + Number(values.durationMinutes) * 60 + Number(values.durationSeconds);
+      const durationSeconds = parseDuration(values.durationText) ?? 0;
       if (!durationSeconds || s.startedAt.getTime() + durationSeconds * 1000 > Date.now()) throw new UserActionError("请核对直播时长：须大于0，且结束时间不能晚于现在");
-      const metrics = Object.fromEntries(leadFields.filter(([key]) => !["durationHours", "durationMinutes", "durationSeconds", "averageStayMinutes"].includes(key)).map(([key]) => [key, Number(values[key])])) as { exposureCount: number; entryCount: number; averageOnline: number; peakOnline: number; commenterCount: number; likeCount: number; newFollowers: number; shareCount: number; newFanClubMembers: number; fanGroupCount: number; linkClickCount: number; longPressCount: number; backendJoinCount: number; effectiveCount: number };
-      const fields = { ...metrics, durationSeconds, averageStayHundredths: Math.round(Number(values.averageStayMinutes) * 100), updatedByName: actor.name, monetizationUpdatedAt: new Date(), monetizationUpdatedBy: actor.name };
+      const metrics = Object.fromEntries([...metricFields, ...powderFields].map(([key]) => [key, Number(values[key])])) as Record<typeof metricFields[number][0] | typeof powderFields[number][0], number>;
+      const fields = { ...metrics, femaleHundredths: audienceHundredths(values.femalePercent), age31To40Hundredths: audienceHundredths(values.age31To40Percent), durationSeconds, averageStayHundredths: Math.round(Number(values.averageStayMinutes) * 100), updatedByName: actor.name, monetizationUpdatedAt: new Date(), monetizationUpdatedBy: actor.name };
       await tx.liveReport.upsert({ where: { workSessionId: task.sessionId }, update: { ...fields, version: { increment: 1 } }, create: { ...fields, workSessionId: task.sessionId, accountId: s.accountId, sourceRecordId: s.sourceRecordId, branchId: task.branchId, branchName: source.branchName, accountName: source.name, douyinId: source.douyinId, controllerId: source.controllerId, controllerName: source.controllerName, operatorId: source.operatorId, anchorId: source.anchorId, startedAt: s.startedAt, sessionLabel: s.label, createdById: actor.id, createdByName: actor.name } });
       if (!task.completedAt) { data.completedAt = new Date(); changes.push({ field: "填报状态", before: "待补数据", after: "已完成" }); }
     }
     if (!changes.length) throw new UserActionError("数据没有变化，无需保存");
-    data.data = values;
+    data.data = { ...previousData, ...Object.fromEntries(activeLeadFields.map(([key]) => [key, values[key]])), ...(!task.completedAt && complete ? { formVersion: 2 } : {}) };
   }
   const after = await tx.leadTask.update({ where: { id: task.id }, data });
   await writeAudit({ db: tx, actorId: actor.id, action: "LIVE_REPORT_UPDATE", targetType: "LeadTask", targetId: task.id, ip, detail: { command: input.command, actorName: actor.name, reason: input.reason, version: after.version, before: { data: task.data, userId: task.userId, completedAt: task.completedAt?.toISOString() ?? null, deletedAt: task.deletedAt?.toISOString() ?? null }, after: { data: after.data, userId: after.userId, completedAt: after.completedAt?.toISOString() ?? null, deletedAt: after.deletedAt?.toISOString() ?? null }, changes } });

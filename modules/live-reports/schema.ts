@@ -1,3 +1,4 @@
+import { audienceInput, parseDuration } from "./input-metrics";
 import { z } from "zod";
 
 // datetime-local 始终按上海时间解释，不依赖浏览器或服务器时区。
@@ -13,28 +14,29 @@ export function shanghaiInput(date: Date): string {
 const integer = (max = 2_000_000_000) => z.string().regex(/^\d+$/, "请输入非负整数").refine((v) => Number(v) <= max, "数值超出范围");
 export const metricFields = [
   ["exposureCount", "曝光人数"], ["entryCount", "进房人数"],
-  ["averageOnline", "平均在线"], ["peakOnline", "最高在线"],
+  ["averageOnline", "平均在线人数"], ["peakOnline", "最高在线人数"],
   ["commenterCount", "评论人数"], ["likeCount", "点赞次数"],
   ["newFollowers", "新增粉丝"], ["shareCount", "分享次数"],
-  ["newFanClubMembers", "本场新增粉丝团人数"],
+  ["newFanClubMembers", "加粉丝团人数"],
 ] as const;
 export const reportSchema = z.object({
+  durationText: z.string().trim().optional(), femalePercent: audienceInput, age31To40Percent: audienceInput,
   reason: z.string().trim().max(2000).default(""),
   workSessionId: z.string().max(100).optional(),
   id: z.string(), version: integer(), accountId: z.string().min(1, "请选择账号"),
   startedAt: z.string().refine((v) => shanghaiDate(v) !== null, "请输入有效的开播时间"),
-  durationHours: integer(999), durationMinutes: integer(59), durationSeconds: integer(59),
+  durationHours: integer(999).default("0"), durationMinutes: integer(59).default("0"), durationSeconds: integer(59).default("0"),
   sessionLabel: z.string().trim().min(1, "请输入场次，例如晚上场").max(30, "场次名称最多 30 字"),
   exposureCount: integer(), entryCount: integer(), averageOnline: integer(), peakOnline: integer(),
   averageStayMinutes: z.string().regex(/^\d+(\.\d{1,2})?$/, "请输入分钟数，最多两位小数").refine((v) => Number(v) <= 59940, "停留时长超出范围"),
   commenterCount: integer(), likeCount: integer(), newFollowers: integer(), shareCount: integer(), newFanClubMembers: integer(),
   confirmBackfill: z.enum(["true", "false"]).default("false"),
 }).superRefine((v, ctx) => {
-  const seconds = Number(v.durationHours) * 3600 + Number(v.durationMinutes) * 60 + Number(v.durationSeconds);
-  if (!seconds) ctx.addIssue({ code: "custom", path: ["durationSeconds"], message: "直播时长必须大于 0" });
+  const seconds = v.durationText !== undefined ? parseDuration(v.durationText) : Number(v.durationHours) * 3600 + Number(v.durationMinutes) * 60 + Number(v.durationSeconds);
+  if (!seconds) ctx.addIssue({ code: "custom", path: ["durationText"], message: "直播时长请填写如1小时1分钟18秒，须大于0，分钟和秒须为0至59" });
   if (Number(v.averageOnline) > Number(v.peakOnline)) ctx.addIssue({ code: "custom", path: ["averageOnline"], message: "平均在线不能大于最高在线" });
 });
-export type ReportInput = Omit<z.infer<typeof reportSchema>, "reason"> & { reason?: string };
+export type ReportInput = Omit<z.infer<typeof reportSchema>, "reason" | "femalePercent" | "age31To40Percent"> & { reason?: string; femalePercent?: string; age31To40Percent?: string };
 export type ReportFormState = { success?: string; error?: string; fieldErrors?: Record<string, string[] | undefined> } | undefined;
 
 const dateFilter = z.string().refine((v) => !v || shanghaiDate(`${v}T00:00`) !== null, "日期无效");

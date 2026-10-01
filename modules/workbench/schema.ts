@@ -37,8 +37,8 @@ export const defaultWorkflow: Workflow = {
   ], materials: "", scripts: [],
 };
 export const dailyTasks = ["电脑重启周期检查（每 3 天）", "设备与物料盘点（每周）", "工作区域清洁（周六）", "异常复盘与资料更新"];
-export function moneyPending(report: { deletedAt?: Date | null; monetizationDeletedAt?: Date | null; fanGroupCount: number | null; linkClickCount: number | null; longPressCount: number | null; backendJoinCount: number | null; effectiveCount: number | null; hasSales: boolean | null; salesGmv: unknown | null } | null, leadEligible = false) {
-  return !report || !!report.deletedAt || !!report.monetizationDeletedAt || [report.fanGroupCount, report.linkClickCount, report.longPressCount, report.backendJoinCount, report.effectiveCount].some(v => v === null) || (!leadEligible && (report.hasSales === null || (report.hasSales === true && report.salesGmv === null)));
+export function moneyPending(report: { deletedAt?: Date | null; monetizationDeletedAt?: Date | null; fanGroupCount: number | null; linkClickCount: number | null; longPressCount: number | null; backendJoinCount: number | null; effectiveCount: number | null; hasSales: boolean | null; salesGmv: unknown | null } | null) {
+  return !report || !!report.deletedAt || !!report.monetizationDeletedAt || [report.fanGroupCount, report.linkClickCount, report.backendJoinCount, report.effectiveCount].some(v => v === null);
 }
 export const commandSchema = z.object({
   id: z.string().max(100), version: z.coerce.number().int().min(0),

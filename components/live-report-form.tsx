@@ -3,7 +3,9 @@ import { NavigationFields } from "@/components/context-link";
 
 import { startTransition, useActionState, useState } from "react";
 import { saveLiveReportAction } from "@/modules/live-reports/actions";
-import { metricFields, reportSchema, percentage, type ReportInput, type ReportFormState } from "@/modules/live-reports/schema";
+import { reportSchema, type ReportInput, type ReportFormState } from "@/modules/live-reports/schema";
+import { ReportMetricSections } from "./report-metric-sections";
+import { durationFromParts } from "@/modules/live-reports/input-metrics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +17,7 @@ export function LiveReportForm({ accounts, initial, defaultAccountId = "", boss 
 }) {
   const [state, action, pending] = useActionState<ReportFormState, FormData>(saveLiveReportAction, undefined);
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
-  const [ratios, setRatios] = useState({ exposure: initial?.exposureCount ?? "", entries: initial?.entryCount ?? "", followers: initial?.newFollowers ?? "" });
+  const [values, setValues] = useState<Record<string,string>>(() => ({ ...initial, durationText: initial?.durationText ?? durationFromParts((initial ?? workDefaults ?? {}) as Record<string,unknown>) } as Record<string,string>));
   const fieldErrors = { ...state?.fieldErrors, ...errors };
   const errorFor = (key: string) => fieldErrors[key]?.[0] ? <p className="text-sm text-destructive">{fieldErrors[key]?.[0]}</p> : null;
   return <form className="flex max-w-4xl flex-col gap-6" onSubmit={(event) => {
@@ -43,29 +45,12 @@ export function LiveReportForm({ accounts, initial, defaultAccountId = "", boss 
         <div className="flex flex-col gap-2"><Label htmlFor="sessionLabel">场次</Label><Input id="sessionLabel" name="sessionLabel" list="session-labels" required maxLength={30} placeholder="例如：晚上场" defaultValue={initial?.sessionLabel ?? workDefaults?.sessionLabel} />
           <datalist id="session-labels"><option value="早上场" /><option value="下午场" /><option value="晚上场" /></datalist>{errorFor("sessionLabel")}
         </div>
-        <fieldset><legend className="mb-2 text-sm font-medium">直播时长</legend><div className="grid grid-cols-3 gap-2">
-          {([['durationHours','小时',999],['durationMinutes','分钟',59],['durationSeconds','秒',59]] as const).map(([key,label,max]) => <div key={key}>
-            <Input aria-label={`直播时长${label}`} name={key} type="number" min="0" max={max} step="1" required defaultValue={initial?.[key] ?? workDefaults?.[key] ?? "0"} /><span className="text-xs text-muted-foreground">{label}</span>{errorFor(key)}
-          </div>)}
-        </div></fieldset>
+
       </div>
       <p className="mt-3 text-xs text-muted-foreground">同一账号、同一开播时间只记录一次。保存前请核对账号与开播时间，保存后这两项不可修改。</p>
     </section>
-    <section className="rounded-lg border p-5"><h2 className="mb-4 text-lg font-semibold">直播数据</h2><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {metricFields.map(([key,label]) => <div key={key} className="flex flex-col gap-2"><Label htmlFor={key}>{label}</Label>
-        <Input id={key} name={key} type="number" min="0" max="2000000000" step="1" required defaultValue={initial?.[key] ?? ""} placeholder="请输入，确为零时填 0" onChange={(e) => {
-          const value = e.target.value;
-          if (key === "exposureCount") setRatios((v) => ({ ...v, exposure: value }));
-          if (key === "entryCount") setRatios((v) => ({ ...v, entries: value }));
-          if (key === "newFollowers") setRatios((v) => ({ ...v, followers: value }));
-        }} />{errorFor(key)}
-      </div>)}
-      <div className="flex flex-col gap-2"><Label htmlFor="averageStayMinutes">人均停留（分钟）</Label><Input id="averageStayMinutes" name="averageStayMinutes" type="number" required min="0" max="59940" step="0.01" defaultValue={initial?.averageStayMinutes ?? ""} placeholder="例如 2.9" />{errorFor("averageStayMinutes")}</div>
-    </div>
-    <div className="mt-5 grid gap-3 rounded-lg bg-muted p-4 text-sm sm:grid-cols-2" aria-live="polite">
-      <p>进房率：<strong>{ratios.exposure && ratios.entries ? percentage(Number(ratios.entries), Number(ratios.exposure)) : "—"}</strong><span className="ml-2 text-xs text-muted-foreground">进房人数 ÷ 曝光人数</span></p>
-      <p>新增率：<strong>{ratios.entries && ratios.followers ? percentage(Number(ratios.followers), Number(ratios.entries)) : "—"}</strong><span className="ml-2 text-xs text-muted-foreground">新增粉丝 ÷ 进房人数</span></p>
-    </div><p className="mt-3 text-xs text-muted-foreground">所有指标手工录入；未填写不等于 0。分母为 0 时比例显示“—”。</p></section>
+    <ReportMetricSections values={values} onChange={(key,value) => setValues(v => ({ ...v, [key]: value }))} disabled={pending} completed={!!initial} />
+    {Object.entries(fieldErrors).map(([key,messages]) => messages?.[0] ? <p key={key} role="alert" className="text-sm text-destructive">{messages[0]}</p> : null)}
     {boss && !initial && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="confirmBackfill" value="true" className="mt-1" /><span>补录账号建档前的数据时，我已核对并同意按账号建档时的分公司和人员归属记录。</span></label>}
     {initial?.id && <label className="text-sm">更正原因<textarea name="reason" required maxLength={2000} className="mt-1 w-full rounded border p-2" /></label>}
     {state?.success && <p role="status" className="text-sm text-emerald-700">{state.success}</p>}

@@ -220,6 +220,8 @@ model AccountRecord {
 
 // 每场人工录入数据；归属来自开播时的账号版本，后续调拨不修改历史。
 model LiveReport {
+  femaleHundredths Int?
+  age31To40Hundredths Int?
   id                    String        @id @default(cuid())
   accountId             String
   account               DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)

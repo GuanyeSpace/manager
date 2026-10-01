@@ -155,3 +155,7 @@ D049：WorkSession.outcome复用可空String，新值VIOLATION_STOP、VIOLATION_
 
 ## D050 场次补录与回收站
 WorkSession新增7个可空字段：supplementedAt、supplementedById、supplementedByName记录老板补录来源；occurredAt记录补录发生时间（未开播也有），不覆盖createdAt；deletedAt、deletedById、deleteReason记录当前回收站信息。操作者ID/名称为审计快照，不增加级联外键。迁移20261001190000_session_management只加列，旧行全部NULL，无数据回填。恢复清空删除字段，历史操作保留WorkEvent/AuditLog。空流程补录以workflowVersion=0标记未知，不推断历史配置。
+
+## D051 导粉精简数据契约（2026-10-02）
+迁移20261002010000_report_audience新增LiveReport.femaleHundredths、age31To40Hundredths两个可空Int，单位百分之一百分点（65.32%存6532），数据库CHECK 0–10000。所有旧记录保持NULL，不回填或推断。
+LeadTask.data新增durationText、femalePercent、age31To40Percent字符串；提交完成首次标记formVersion=2。旧三段时长只用于回显合并，不覆盖旧键。合并JSON保留未知/历史字段；已完成旧版无formVersion可缺画像，已有画像不能清空。总秒数及其他原始人数存储不变，旧长按/带货列与审计保留。

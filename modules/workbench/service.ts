@@ -171,7 +171,7 @@ export async function readWorkbench(tx: Prisma.TransactionClient, token: string)
   }
   const include = { sourceRecord: true, report: { select: { id: true, deletedAt: true, monetizationDeletedAt: true, fanGroupCount: true, linkClickCount: true, longPressCount: true, backendJoinCount: true, effectiveCount: true, hasSales: true, salesGmv: true } } } as const;
   const active = await tx.workSession.findMany({ where: { ...scope, phase: { in: ["PREPARING", "LIVE"] } }, include, orderBy: { createdAt: "desc" } });
-  const pending = await tx.workSession.findMany({ where: { ...scope, phase: { in: ["WRAP", "COMPLETE"] }, OR: [{ phase: "WRAP" }, { report: { is: null } }, { report: { OR: [{ deletedAt: { not: null } }, { monetizationDeletedAt: { not: null } }, { fanGroupCount: null }, { linkClickCount: null }, { longPressCount: null }, { backendJoinCount: null }, { effectiveCount: null }] } }, { leadEligible: false, report: { OR: [{ hasSales: null }, { hasSales: true, salesGmv: null }] } }] }, include, orderBy: { createdAt: "desc" }, take: 50 });
+  const pending = await tx.workSession.findMany({ where: { ...scope, phase: { in: ["WRAP", "COMPLETE"] }, OR: [{ phase: "WRAP" }, { report: { is: null } }, { report: { OR: [{ deletedAt: { not: null } }, { monetizationDeletedAt: { not: null } }, { fanGroupCount: null }, { linkClickCount: null }, { backendJoinCount: null }, { effectiveCount: null }] } }] }, include, orderBy: { createdAt: "desc" }, take: 50 });
   const sessions = [...active, ...pending];
   const daily = await tx.dailyWork.findUnique({ where: { userId_day: { userId: actor.id, day: shanghaiInput(new Date()).slice(0, 10) } } });
   return { accounts, sessions, daily, executionOnly: false };

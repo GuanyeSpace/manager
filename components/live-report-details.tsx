@@ -1,3 +1,4 @@
+import { HistoricalReportFields } from "./report-metric-sections";
 import { CorrectionHistory } from "@/components/work-corrections";
 import { monetizationFields } from "@/modules/live-reports/monetization-schema";
 import { ReportRecycleForm } from "@/components/report-recycle-form";
@@ -20,7 +21,7 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
   if (!data) notFound();
   if (data.leadTaskId) redirect(withTrail(`/leads/${data.leadTaskId}`, parseTrail(via)));
   const { report: r } = data;
-  const labels: Record<string, string> = Object.fromEntries([...metricFields, ...monetizationFields, ["durationSeconds", "直播时长（秒）"], ["sessionLabel", "场次"], ["averageStayHundredths", "人均停留（百分之一分钟）"], ["updatedByName", "修改人"], ["hasSales", "历史带货情况"], ["salesGmv", "历史带货GMV"]]);
+  const labels: Record<string, string> = Object.fromEntries([...metricFields, ...monetizationFields, ["femaleHundredths", "女性比例（百分之一百分点）"], ["age31To40Hundredths", "31–40岁比例（百分之一百分点）"], ["durationSeconds", "直播时长（秒）"], ["sessionLabel", "场次"], ["averageStayHundredths", "人均停留（百分之一分钟）"], ["updatedByName", "修改人"], ["hasSales", "历史带货情况"], ["salesGmv", "历史带货GMV"]]);
   const history = <details className="space-y-3 rounded-xl border p-4"><summary className="cursor-pointer">数据修改记录</summary><CorrectionHistory rows={data.history.map(row => {
     const d = row.detail as { actorName?: string; reason?: string; operation?: string; before?: unknown; after?: unknown };
     const before = d.before && typeof d.before === "object" ? d.before as Record<string, unknown> : {};
@@ -41,9 +42,9 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
     {r.historicalBackfill && <p className="rounded-lg bg-muted p-3 text-sm">此场早于账号建档时间，已由老板确认按建档时的分公司和人员归属补录。</p>}
     <section id="monetization" className="flex scroll-mt-6 flex-col gap-4">
       <h2 className="text-lg font-semibold">本场打粉数据</h2>
-      <p className="text-sm text-muted-foreground">场观人数沿用本场进房人数。有效人数用于打粉结算，GMV 为带货成交额。</p>
+      <p className="text-sm text-muted-foreground">场观人数沿用本场进房人数。后端有效人数用于打粉结算。</p>
       {!r.monetizationDeletedAt && !embedded && <MonetizationTable reports={[r]} />}
-      {r.monetizationDeletedAt ? <div className="space-y-3 rounded-lg border p-4"><p className="text-sm">本场打粉数据已删除，可恢复后更正。</p>{canEditMoney && <ReportRecycleForm key={r.version} id={r.id} version={r.version} section="monetization" restore />}</div> : canEditMoney ? <MonetizationForm embedded={embedded} initial={{
+      {r.monetizationDeletedAt ? <div className="space-y-3 rounded-lg border p-4"><p className="text-sm">本场打粉数据已删除，可恢复后更正。</p>{canEditMoney && <ReportRecycleForm key={r.version} id={r.id} version={r.version} section="monetization" restore />}</div> : canEditMoney ? <MonetizationForm entryCount={r.entryCount} embedded={embedded} initial={{
         reason: "", id: r.id, version: String(r.version), fanGroupCount: r.fanGroupCount?.toString() ?? "",
         linkClickCount: r.linkClickCount?.toString() ?? "", longPressCount: r.longPressCount?.toString() ?? "",
         backendJoinCount: r.backendJoinCount?.toString() ?? "", effectiveCount: r.effectiveCount?.toString() ?? "",
@@ -52,10 +53,11 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
       {!r.monetizationDeletedAt && r.monetizationUpdatedAt && canEditMoney && <ReportRecycleForm key={`money-${r.version}`} id={r.id} version={r.version} section="monetization" />}
     </section>
     {canEdit ? <><h2 className="text-lg font-semibold">更正数据</h2><LiveReportForm embedded={embedded} accounts={[{ id: r.accountId, name: r.accountName, douyinId: r.douyinId }]} initial={{
-      ...metrics, reason: "", id: r.id, version: String(r.version), accountId: r.accountId, startedAt: shanghaiInput(r.startedAt),
+      ...metrics, femalePercent: r.femaleHundredths === null ? "" : String(r.femaleHundredths / 100), age31To40Percent: r.age31To40Hundredths === null ? "" : String(r.age31To40Hundredths / 100), reason: "", id: r.id, version: String(r.version), accountId: r.accountId, startedAt: shanghaiInput(r.startedAt),
       durationHours: String(Math.floor(r.durationSeconds / 3600)), durationMinutes: String(Math.floor(r.durationSeconds % 3600 / 60)), durationSeconds: String(r.durationSeconds % 60),
       sessionLabel: r.sessionLabel, averageStayMinutes: String(r.averageStayHundredths / 100), confirmBackfill: "false",
     }} /></> : <p className="text-sm text-muted-foreground">此记录仅可查看。如需纠错，请联系老板。</p>}
+    <HistoricalReportFields data={{ longPressCount: r.longPressCount, hasSales: r.hasSales, salesGmv: r.salesGmv?.toString() }} />
     {history}
     {canEdit && <ReportRecycleForm key={`report-${r.version}`} id={r.id} version={r.version} section="report" />}
   </>;

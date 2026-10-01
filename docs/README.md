@@ -51,6 +51,8 @@
 
 - [D050老板场次管理验收](tasks/session-management-verification.md)：补录、回收站、关联保护、上班简表及迁移证据。
 
+- [D051导粉填报精简验收](tasks/report-metrics-verification.md)：中文时长、画像、统一公式、历史兼容及发布验证。
+
 ## 旧专题文档
 
 - [账号与调拨](douyin-accounts.md)：历史规则、早期自动采集设想。

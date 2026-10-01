@@ -4,14 +4,14 @@ import { getCurrentSessionToken } from "@/lib/auth/session";
 import { getClientIp } from "@/lib/request-ip";
 import { prisma } from "@/lib/db";
 import { UserActionError } from "@/modules/users/boss-guard";
-import { leadCommandSchema, leadFields } from "./schema";
+import { leadCommandSchema, activeLeadFields } from "./schema";
 import { runLeadCommand } from "./service";
 export type LeadActionState = { error?: string; success?: string; id?: string; savedVersion?: number };
 export async function leadAction(previous: LeadActionState, form: FormData): Promise<LeadActionState> {
   const token = await getCurrentSessionToken();
   if (!token) return { ...previous, success: undefined, error: "登录已失效，请重新登录" };
   const values = Object.fromEntries(form);
-  const parsed = leadCommandSchema.safeParse({ ...values, ...(["save", "complete"].includes(String(values.command)) ? { data: Object.fromEntries(leadFields.map(([key]) => [key, form.get(key) ?? ""])) } : {}) });
+  const parsed = leadCommandSchema.safeParse({ ...values, ...(["save", "complete"].includes(String(values.command)) ? { data: Object.fromEntries(activeLeadFields.map(([key]) => [key, form.get(key) ?? ""])) } : {}) });
   if (!parsed.success) return { ...previous, success: undefined, error: parsed.error.issues.map(i => i.message).join("；") };
   try {
     const ip = await getClientIp();

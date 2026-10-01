@@ -1,16 +1,20 @@
 import { z } from "zod";
 import { metricFields } from "@/modules/live-reports/schema";
-import { monetizationFields } from "@/modules/live-reports/monetization-schema";
+import { audienceFields, audienceInput, durationFromParts, parseDuration, powderFields } from "@/modules/live-reports/input-metrics";
 
-export const leadFields = [["durationHours", "直播时长（小时）"], ["durationMinutes", "直播时长（分钟）"], ["durationSeconds", "直播时长（秒）"], ...metricFields, ["averageStayMinutes", "人均停留（分钟）"], ...monetizationFields] as const;
+export const leadFields = [["durationHours", "直播时长（小时）"], ["durationMinutes", "直播时长（分钟）"], ["durationSeconds", "直播时长（秒）"], ...metricFields, ["averageStayMinutes", "人均停留（分钟）"], ...powderFields, ...audienceFields, ["durationText", "直播时长"]] as const;
+export const activeLeadFields = leadFields.filter(([key]) => !["durationHours", "durationMinutes", "durationSeconds"].includes(key));
 export type LeadValues = Record<typeof leadFields[number][0], string>;
 export function leadValues(data: unknown): LeadValues {
-  const value = data && typeof data === "object" ? data as Record<string, unknown> : {};
+  const original = data && typeof data === "object" ? data as Record<string, unknown> : {};
+  const value: Record<string, unknown> = { ...original, durationText: typeof original.durationText === "string" ? original.durationText : durationFromParts(original) };
   return Object.fromEntries(leadFields.map(([key]) => [key, typeof value[key] === "string" ? value[key] : ""])) as LeadValues;
 }
 const count = z.string().regex(/^\d*$/, "请输入非负整数").refine(v => Number(v) <= 2_000_000_000, "数值超出范围");
 const fields = Object.fromEntries(leadFields.map(([key]) => [key, count.default("")])) as unknown as Record<keyof LeadValues, z.ZodType<string>>;
 export const leadDataSchema = z.object({ ...fields,
+  durationText: z.string().trim().refine(v => !v || parseDuration(v) !== null, "直播时长请填写如1小时1分钟18秒，分钟和秒须为0至59").default(""),
+  femalePercent: audienceInput, age31To40Percent: audienceInput,
   durationHours: count.refine(v => Number(v) <= 999, "小时数不能超过999").default(""),
   durationMinutes: count.refine(v => Number(v) <= 59, "分钟须为0至59").default(""),
   durationSeconds: count.refine(v => Number(v) <= 59, "秒数须为0至59").default(""),

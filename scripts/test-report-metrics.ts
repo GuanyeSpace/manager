@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import { parseDuration, audienceInput, audienceHundredths, audienceText, trafficRatios, interactionRatios, powderRatios } from "../modules/live-reports/input-metrics";
+import { percentage } from "../modules/live-reports/schema";
+import { leadValues } from "../modules/leads/schema";
+for (const [text, seconds] of [["1小时1分钟18秒",3678],["59分钟24秒",3564],["1小时",3600],["18秒",18],[" 1小时 2秒 ",3602]] as const) assert.equal(parseDuration(text),seconds);
+for (const text of ["", "0秒", "1:02", "1.5小时", "-1秒", "1分钟60秒", "1000小时", "秒1", "1小时垃圾"]) assert.equal(parseDuration(text),null,text);
+assert.equal(leadValues({durationHours:"1",durationMinutes:"1",durationSeconds:"18"}).durationText,"1小时1分钟18秒");
+for (const [value, expected] of [["65.32%",6532],["65.32",6532],["0",0],["100%",10000],["",null]] as const) assert.equal(audienceHundredths(audienceInput.parse(value)),expected);
+for (const value of ["-1", "100.01", "1.234", "NaN", "1%%"]) assert.equal(audienceInput.safeParse(value).success,false,value);
+assert.equal(audienceText(null),"历史未记录");
+const values: Record<string,number> = { exposureCount:50000,entryCount:7953,newFollowers:350,fanGroupCount:100,linkClickCount:30,backendJoinCount:20,effectiveCount:15 };
+assert.deepEqual([...trafficRatios,...interactionRatios,...powderRatios].map(([,n,d])=>percentage(values[n],values[d])),["15.91%","4.40%","1.26%","30.00%","20.00%","75.00%","0.25%","66.67%"]);
+assert.equal(percentage(0,10),"0.00%"); assert.equal(percentage(0,0),"—");
+console.log("PASS: 中文时长、旧时长回显、画像边界与精度、八项统一比例和零值");

@@ -33,7 +33,7 @@ async function main() {
     // 将本轮独立测试账号的首个版本设为两天前，验证按开播时间归属。
     const oldStart = new Date(Date.now() - 2 * 86400000);
     await db.accountRecord.updateMany({ where: { accountId }, data: { startedAt: oldStart } });
-    const input: ReportInput = { id: "", version: "0", accountId, startedAt: shanghaiInput(new Date(Date.now() - 86400000)), durationHours: "1", durationMinutes: "5", durationSeconds: "51", sessionLabel: "晚上场", exposureCount: "43000", entryCount: "4647", averageOnline: "249", peakOnline: "471", averageStayMinutes: "2.9", commenterCount: "162", likeCount: "4980", newFollowers: "290", shareCount: "13", newFanClubMembers: "27", confirmBackfill: "false" };
+    const input: ReportInput = { id: "", version: "0", accountId, startedAt: shanghaiInput(new Date(Date.now() - 86400000)), durationHours: "1", durationMinutes: "5", durationSeconds: "51", sessionLabel: "晚上场", femalePercent: "65.32", age31To40Percent: "42.15", exposureCount: "43000", entryCount: "4647", averageOnline: "249", peakOnline: "471", averageStayMinutes: "2.9", commenterCount: "162", likeCount: "4980", newFollowers: "290", shareCount: "13", newFanClubMembers: "27", confirmBackfill: "false" };
     const save = (token: string, data: ReportInput) => db.$transaction((tx) => saveLiveReport(tx, token, data, "test"));
     const read = (token: string, id: string) => db.$transaction((tx) => readLiveReport(tx, token, id), { isolationLevel: "RepeatableRead" });
     const list = (token: string, extra = {}) => db.$transaction((tx) => readLiveReports(tx, token, { accountId: "", from: "", to: "", page: 1, ...extra }), { isolationLevel: "RepeatableRead" });

@@ -346,3 +346,13 @@
 - 桌面与隔离验收见[tasks/session-management-verification.md](tasks/session-management-verification.md)。源代码与文档本次同步GitHub；Git提交与生产发布分别核验。
 
 D050对应源码提交：744c6db4c2969e750c71ee88b657db02e93539f0，已同步origin/main且远程一致；后续纯文档交接提交不触发再次部署。
+
+## 2026-10-02 D051 导粉填报精简与画像
+
+- 发布：北京时间02:03左右；中文时长、画像、统一八比例、旧字段只读保留、旧完成兼容及待补口径同步上线。
+- staging：`/opt/manager/build-audience-20261002`；依赖锁与上版SHA256一致，复用锁定依赖；manager-audience-build成功退出0，134.431秒、837.2MiB峰值，原资源限制不变。
+- 暂停写入后备份：`/var/backups/manager/manager-20261001T180251Z.dump` 与同名`.screenshots.tar.gz`（文件名UTC）；pg_restore列表、截图tar列表均可读。
+- 数据摘要：`/opt/manager/data-before-audience-20261002.json`；增量迁移`20261002010000_report_audience`后24迁移无待执行，20张业务表全部原列摘要一致。
+- 旧程序：`/opt/manager/standalone-before-audience-20261002`；旧源码：`/opt/manager/source-before-audience-20261002.tar.gz`。不删除旧字段及截图，不回填画像。
+- 应用用户截图读写探针通过；221个部署源文件SHA256一致（`/opt/manager/manager-audience-hash.py`）；standalone不含.env。manager/nginx/备份/续期timer active；HTTPS登录200、未登录/leads307。timer检查不代表本次执行续期。
+- 本轮桌面功能在隔离库完成，生产未创建测试业务记录。隔离测试及范围见[tasks/report-metrics-verification.md](tasks/report-metrics-verification.md)。

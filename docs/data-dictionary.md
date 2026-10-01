@@ -257,7 +257,9 @@
 | `createdByName` | `String` | 存储字段 | — | — |
 | `updatedByName` | `String` | 存储字段 | — | — |
 | `startedAt` | `DateTime` | 存储字段 | — | — |
-| `durationSeconds` | `Int` | 存储字段 | — | — |
+| `durationSeconds` | `Int` | 中文时长转换为总秒数 | — | — |
+| `femaleHundredths` | `Int?` | 女性比例，百分之一百分点，0–10000 | — | 历史NULL |
+| `age31To40Hundredths` | `Int?` | 31–40岁比例，百分之一百分点，0–10000 | — | 历史NULL |
 | `sessionLabel` | `String` | 存储字段 | — | — |
 | `exposureCount` | `Int` | 存储字段 | — | — |
 | `entryCount` | `Int` | 存储字段 | — | — |

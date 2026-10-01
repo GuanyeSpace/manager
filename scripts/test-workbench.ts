@@ -179,7 +179,7 @@ async function main() {
     await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "check", phase: "after", index: 1, status: "skip", note: "legacy" }), /仅支持/);
     await cmd(control.token, { id: live.id, version: v, command: "complete", incident: "no" });
     assert.equal((await db.$transaction(tx => readWorkspace(tx, control.token, live.accountId)))!.wrapping.length, 0);
-    const reportInput = { id: "", version: "0", accountId: live.accountId, workSessionId: live.id, startedAt: time, durationHours: "0", durationMinutes: "5", durationSeconds: "0", sessionLabel: "晚上场", exposureCount: "100", entryCount: "10", averageOnline: "5", peakOnline: "10", averageStayMinutes: "2.9", commenterCount: "2", likeCount: "8", newFollowers: "1", shareCount: "1", newFanClubMembers: "1", confirmBackfill: "false" };
+    const reportInput = { id: "", version: "0", accountId: live.accountId, workSessionId: live.id, startedAt: time, durationHours: "0", durationMinutes: "5", durationSeconds: "0", sessionLabel: "晚上场", femalePercent: "65.32", age31To40Percent: "42.15", exposureCount: "100", entryCount: "10", averageOnline: "5", peakOnline: "10", averageStayMinutes: "2.9", commenterCount: "2", likeCount: "8", newFollowers: "1", shareCount: "1", newFanClubMembers: "1", confirmBackfill: "false" };
     await assert.rejects(db.$transaction(tx => saveLiveReport(tx, boss.token, { ...reportInput, workSessionId: waiting }, "test")), /不符/);
     if (process.env.WORKBENCH_HTTP_BASE) {
       const base = new URL(process.env.WORKBENCH_HTTP_BASE);
@@ -238,7 +238,7 @@ async function main() {
       assert.equal(bossReport.status, 200); assert((await bossReport.text()).includes("保存打粉数据"));
     }
     assert.equal(moneyPending((await home(boss.token)).sessions.find(s => s.id === live.id)!.report), true);
-    // 新导粉不填带货：完整数据不应因为 hasSales=null 永久待补；旧报表仍保留原规则。
+    // 新导粉不填带货：完整数据不应因为 hasSales=null 永久待补；旧报表同样不再要求隐藏指标。
     const originalReport = await db.liveReport.findUniqueOrThrow({ where: { id: reportId } });
     const originalSession = await db.workSession.findUniqueOrThrow({ where: { id: live.id } });
     const isPending = async () => (await home(boss.token)).sessions.some(s => s.id === live.id);
@@ -254,17 +254,17 @@ async function main() {
     }
     await db.liveReport.update({ where: { id: reportId }, data: { effectiveCount: 0, deletedAt: null, monetizationDeletedAt: null } });
     await db.workSession.update({ where: { id: live.id }, data: { leadEligible: false } });
-    assert.equal(await isPending(), true, "旧报表未确认带货仍待补");
+    assert.equal(await isPending(), false, "旧报表不再要求确认带货");
     await db.liveReport.update({ where: { id: reportId }, data: { hasSales: true } });
-    assert.equal(await isPending(), true, "旧报表带货但GMV缺失仍待补");
+    assert.equal(await isPending(), false, "旧报表不再要求补GMV");
     await db.liveReport.update({ where: { id: reportId }, data: { salesGmv: 432.10 } });
     assert.equal(await isPending(), false);
     await db.workSession.update({ where: { id: live.id }, data: { leadEligible: true } });
     assert.equal(await isPending(), false);
     assert.equal((await db.liveReport.findUniqueOrThrow({ where: { id: reportId } })).salesGmv!.toString(), "432.1", "查询不改历史GMV");
     const completeReport = await db.liveReport.findUniqueOrThrow({ where: { id: reportId } });
-    assert.equal(moneyPending({ ...completeReport, hasSales: null }, true), false);
-    assert.equal(moneyPending({ ...completeReport, hasSales: null }), true);
+    assert.equal(moneyPending({ ...completeReport, hasSales: null, longPressCount: null }), false);
+    assert.equal(moneyPending({ ...completeReport, hasSales: null }), false);
     await db.liveReport.update({ where: { id: reportId }, data: { fanGroupCount: originalReport.fanGroupCount, linkClickCount: originalReport.linkClickCount, longPressCount: originalReport.longPressCount, backendJoinCount: originalReport.backendJoinCount, effectiveCount: originalReport.effectiveCount, hasSales: originalReport.hasSales, salesGmv: originalReport.salesGmv } });
     await db.workSession.update({ where: { id: live.id }, data: { phase: originalSession.phase, leadEligible: originalSession.leadEligible } });
     await assert.rejects(db.$transaction(tx => saveLiveReport(tx, boss.token, reportInput, "test")), /已有直播/);

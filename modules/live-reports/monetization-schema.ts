@@ -9,9 +9,9 @@ const count = z.string().regex(/^\d*$/, "请输入非负整数，暂未统计可
 export const monetizationSchema = z.object({
   reason: z.string().trim().max(2000).default(""),
   id: z.string().min(1), version: z.string().regex(/^\d+$/),
-  fanGroupCount: count, linkClickCount: count, longPressCount: count, backendJoinCount: count, effectiveCount: count,
-  salesStatus: z.enum(["UNFILLED", "NONE", "REPORTED"]),
-  salesGmv: z.string().regex(/^(\d{1,12}(\.\d{1,2})?)?$/, "请输入非负金额，最多两位小数"),
+  fanGroupCount: count, linkClickCount: count, longPressCount: count.default(""), backendJoinCount: count, effectiveCount: count,
+  salesStatus: z.enum(["UNFILLED", "NONE", "REPORTED"]).default("UNFILLED"),
+  salesGmv: z.string().regex(/^(\d{1,12}(\.\d{1,2})?)?$/, "请输入非负金额，最多两位小数").default(""),
 }).superRefine((v, ctx) => {
   if (v.effectiveCount !== "" && v.backendJoinCount !== "" && Number(v.effectiveCount) > Number(v.backendJoinCount)) {
     ctx.addIssue({ code: "custom", path: ["effectiveCount"], message: "有效人数不能大于后端加入人数" });

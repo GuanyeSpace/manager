@@ -1,3 +1,4 @@
+import { audienceHundredths, parseDuration } from "./input-metrics";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { requireAccountActor } from "@/modules/accounts/service";
 import { acquireUserMutationLock, UserActionError } from "@/modules/users/boss-guard";
@@ -27,7 +28,8 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   const startedAt = shanghaiDate(input.startedAt)!;
   if (!before && await tx.liveReport.findFirst({ where: { accountId: account.id, startedAt, deletedAt: { not: null } }, select: { id: true } })) throw new UserActionError("该场记录已在回收站，请先恢复原记录再修改");
   if (!before && !input.workSessionId && await tx.workSession.findFirst({ where: { deletedAt: null, accountId: account.id, leadEligible: true, startedAt: { gte: startedAt, lt: new Date(startedAt.getTime() + 60000) } }, select: { id: true } })) throw new UserActionError("本场请通过导粉工作台认领和填写，避免重复录入");
-  const durationSeconds = Number(input.durationHours) * 3600 + Number(input.durationMinutes) * 60 + Number(input.durationSeconds);
+  const durationSeconds = input.durationText !== undefined ? parseDuration(input.durationText)! : Number(input.durationHours) * 3600 + Number(input.durationMinutes) * 60 + Number(input.durationSeconds);
+  if ((!before || before.femaleHundredths !== null) && input.femalePercent === "" || (!before || before.age31To40Hundredths !== null) && input.age31To40Percent === "") throw new UserActionError("请填写女性比例和31–40岁比例；已有画像不能清空");
   if (startedAt.getTime() + durationSeconds * 1000 > Date.now()) throw new UserActionError("请在直播结束后录入，开播时间加直播时长不能晚于现在");
   const work = input.workSessionId ? await tx.workSession.findUnique({ where: { id: input.workSessionId }, include: { sourceRecord: true, report: { select: { id: true } } } }) : null;
   if (input.workSessionId && (!work || work.deletedAt || work.accountId !== account.id || !["WRAP", "COMPLETE"].includes(work.phase) || !work.startedAt || work.startedAt.getTime() !== startedAt.getTime())) throw new UserActionError("所选工作场次与账号、开播时间或状态不符");
@@ -49,6 +51,7 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   }
   if (!canManageLiveReports(actor, { id: source.branchId, managerId: (await tx.branch.findUnique({ where: { id: source.branchId } }))?.managerId ?? null })) throw new UserActionError("这场直播不属于你的负责期间，请由老板核对补录");
   const data = {
+    femaleHundredths: audienceHundredths(input.femalePercent), age31To40Hundredths: audienceHundredths(input.age31To40Percent),
     durationSeconds, sessionLabel: input.sessionLabel, exposureCount: Number(input.exposureCount), entryCount: Number(input.entryCount),
     averageOnline: Number(input.averageOnline), peakOnline: Number(input.peakOnline),
     averageStayHundredths: Math.round(Number(input.averageStayMinutes) * 100),

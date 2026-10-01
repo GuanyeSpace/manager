@@ -151,3 +151,6 @@ D049：workbench/schema集中定义五种endKinds和endOutcomes映射，isInterr
 ## D050 老板记录管理
 老板在/workbench/history使用管理列表，其他岗位保留原历史列表；/workbench/history/new补录，/workbench/sessions/[id]?edit=yes直达现有更正入口。管理服务modules/workbench/management.ts统一补录/回收站事务及老板权限；截图沿用私有上传与事务失败清理。WorkSession新增软删除过滤同步执行、更正、话术、截图、导粉、报表和上班查询。
 老板/workbench/shifts显示简表，/workbench/shifts/[id]按需加载详情；原员工明细复用WorkShiftDetail，员工规则未变。ContextLink/ReturnLink保留来路及筛选分页。
+
+## D051 统一填报与比率
+modules/live-reports/input-metrics.ts集中中文时长解析、画像单位转换、四项打粉输入及八项公式定义；components/report-metric-sections.tsx供导粉表单与旧报表更正表单共用，历史字段使用只读折叠区。LeadTask服务端合并JSON、必填/兼容校验及原事务锁；报表表格按新口径计算，workbench查询和moneyPending同步去除隐藏指标待补条件。

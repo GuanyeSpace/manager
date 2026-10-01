@@ -1,6 +1,6 @@
 # 当前开发进度与接手状态
 
-最后更新：2026-10-01。状态依据：本地代码、当前会话测试与发布记录。此文件是可覆盖更新的当前快照，历史进度见 CHANGELOG.md / deployment.md。
+最后更新：2026-10-02。状态依据：本地代码、当前会话测试与发布记录。此文件是可覆盖更新的当前快照，历史进度见 CHANGELOG.md / deployment.md。
 
 ## 一句话现状
 
@@ -11,13 +11,13 @@
 | 项目 | 最近核验值 |
 | --- | --- |
 | 服务地址 | https://8.163.69.11 ，无域名的 IP HTTPS |
-| 最近业务发布 | 2026-10-01：D050老板场次管理与上班检查简表 |
-| 发布前备份 | /var/backups/manager/manager-20261001T142455Z.dump 及同名 .screenshots.tar.gz |
-| 数据校验摘要 | /opt/manager/data-before-sessionmanagement-20261001.json |
-| 保留旧程序 | /opt/manager/standalone-before-sessionmanagement-20261001 |
-| 数据迁移 | 23 个，最新 20261001190000_session_management |
+| 最近业务发布 | 2026-10-02：D051导粉填报精简与报表口径统一 |
+| 发布前备份 | /var/backups/manager/manager-20261001T180251Z.dump 及同名 .screenshots.tar.gz |
+| 数据校验摘要 | /opt/manager/data-before-audience-20261002.json |
+| 保留旧程序 | /opt/manager/standalone-before-audience-20261002 |
+| 数据迁移 | 24 个，最新 20261002010000_report_audience |
 | 最新模型数量 | 20 个 Prisma model；本次发布核对全部20张业务表数据 |
-| 验证证据 | 218 个部署文件 SHA-256 一致；原数据摘要一致；截图应用用户读写探针通过；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
+| 验证证据 | 221 个部署文件 SHA-256 一致；原数据摘要一致；截图应用用户读写探针通过；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
 
 这些是最近一次核验结果，不是永久监控结果。后续上线前重新核对服务、证书、备份与迁移；不要据此推断今日业务数据条数。
 
@@ -153,3 +153,10 @@ D050里程碑：实现及隔离迁移/业务回归通过；1440×900桌面验证
 验证：管理专项、迁移、workbench/shifts/corrections/evidence/leads/live-reports/shift-checklist通过；类型/lint/本地构建/服务器webpack通过。桌面双图补录/刷新查看、错误保留、编辑留痕、来源返回、回收站恢复与上班列表/详情通过，详见tasks/session-management-verification.md。
 
 清理：本轮夹具已清理，测试库test-%员工为0；3103/9334已停止、临时会话JSON和Chrome profile删除。截图与无凭证复现脚本仅保留/tmp/manager-session-ui等仓库外位置。生产未创建测试业务场次。代码与文档提交744c6db已推送origin/main，远程SHA与本地一致；部署218个文件与该版本源码一致。工作区仅既定排除的.claude/launch.json删除。
+
+## D051（2026-10-02）导粉填报精简
+状态：已上线，Git同步收尾中。统一中文时长、流量/互动/画像模块及8项比例；新增画像必填，旧完成记录允许历史缺失；旧字段保留。实现、隔离迁移/回归、浏览器、备份发布已完成；剩余Git同步记录。
+
+D051里程碑：新增画像迁移已在临时隔离库核对20张业务表原列不变，测试库升级24迁移；中文时长/画像/八项公式单测、leads/live-reports/workbench/session-management回归、类型/lint/build通过。1440×900浏览器通过三列、粘贴、必填/错误保留、草稿刷新、完成更正、两类管理报表一致性。尚未上线，下一步最终审查、生产备份/受限构建/迁移、Git同步。
+
+D051发布完成：24迁移，20表原列摘要一致，221部署文件一致；备份manager-20261001T180251Z及截图包可读，旧程序保留，HTTPS200/307。测试夹具已清理（test-%员工0），3103/9334停止，临时会话文件/profile删除，日常本地库仍5迁移未修改。提交推送按本次明确清单，排除既定.claude/launch.json删除。
