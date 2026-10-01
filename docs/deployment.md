@@ -303,3 +303,7 @@
 - 保留旧程序/opt/manager/standalone-before-shiftchecklist-20261001、旧源码/opt/manager/source-before-shiftchecklist-20261001.tar.gz。未触发回退；旧版不执行8小时/四项完成门槛，回退语义限制见operations.md。
 - 207个部署文件SHA-256与本地一致；manager/nginx/docker及备份/续期timer active；HTTPS证书正常，/login 200，未登录/workbench/attendance 307。timer active不代表此次完成证书续期。
 - 隔离库完成专项、关联回归和桌面浏览器交互；测试夹具清理、3103服务停止。截图在本机/tmp/manager-shift-checklist-complete.png、/tmp/manager-shift-checklist-history.png，仓库外。代码与文档同次提交main，不把Git推送当成上线证据。
+
+## 2026-10-01 隐藏已工作时长与下班倒计时
+
+仅删除显示行及其格式化函数，内部计时、8小时校验、提前下班入口不变；无数据库迁移（仍21项）。typecheck、组件eslint、diff检查通过；受限构建129.410秒、峰值831.4MiB。备份/var/backups/manager/manager-20261001T004407Z.dump及同名.screenshots.tar.gz，归档可读但未做完整恢复演练。20表全部旧列摘要核对一致（/opt/manager/data-before-shift-display-20261001.json）；207文件哈希一致，manager/nginx active，HTTPS登录200、未登录上班页307。旧程序/opt/manager/standalone-before-shift-display-20261001及旧源码source-before-shift-display-20261001.tar.gz保留。未重跑业务测试矩阵或浏览器，本次无本地临时服务。代码与文档同次提交推送main。

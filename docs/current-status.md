@@ -12,9 +12,9 @@
 | --- | --- |
 | 服务地址 | https://8.163.69.11 ，无域名的 IP HTTPS |
 | 最近业务发布 | 2026-10-01：D046设备清单、到岗确认与普通/提前下班 |
-| 发布前备份 | /var/backups/manager/manager-20260930T230830Z.dump 及同名 .screenshots.tar.gz |
-| 数据校验摘要 | /opt/manager/data-before-shiftchecklist-20261001.json |
-| 保留旧程序 | /opt/manager/standalone-before-shiftchecklist-20261001 |
+| 发布前备份 | /var/backups/manager/manager-20261001T004407Z.dump 及同名 .screenshots.tar.gz |
+| 数据校验摘要 | /opt/manager/data-before-shift-display-20261001.json |
+| 保留旧程序 | /opt/manager/standalone-before-shift-display-20261001 |
 | 数据迁移 | 21 个，最新 20261001070000_shift_checklist |
 | 最新模型数量 | 20 个 Prisma model；本次发布核对全部20张业务表数据 |
 | 验证证据 | 207 个部署文件 SHA-256 一致；原数据摘要一致；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
@@ -73,7 +73,7 @@
 
 前一任务（10-01）：独立上班/下班入口，精简中控侧栏，新增本人昵称/联系电话和改密入口，账号中控改可选。已完成并上线；现有上班约束、权限和历史保留。
 
-最新发布核验：备份 /var/backups/manager/manager-20260930T230830Z.dump 及同名截图归档；20张表旧列一致，21次迁移到位，207部署文件哈希一致。HTTPS登录200、未登录上班/下班307。旧程序 /opt/manager/standalone-before-shiftchecklist-20261001。下方老板布局记录为此前发布，详情见deployment.md。
+最新发布核验：备份 /var/backups/manager/manager-20261001T004407Z.dump 及同名截图归档；20张表旧列一致，21次迁移到位，207部署文件哈希一致。HTTPS登录200、未登录上班/下班307。旧程序 /opt/manager/standalone-before-shift-display-20261001。下方老板布局记录为此前发布，详情见deployment.md。
 
 本轮验证：类型/相关lint/构建通过；profile、账号、上下班、工作台、更正、直播报表、导粉、资源、手机号、认证并发、多岗位、手机导航回归通过；迁移演练保留20张表原列。HTTP专项与CUA浏览器验证独立上班/下班、资料保存刷新、错误保留输入及侧栏；资料本人写入/岗位不可篡改/并发版本/事务回滚均有服务测试。临时3103服务停止、夹具清理成功。
 
@@ -123,3 +123,5 @@ K016分公司锁内权限修复随本次上线。全系统检查历史范围仍�
 ### D046完成与发布（2026-10-01）
 
 清单、首次到岗、不可改计时和普通/提前下班已实现。typecheck、相关eslint、diff检查及本地生产构建通过；四项规则专项、迁移20张旧表保留、上班、历史更正、截图、workbench、多岗位、controller-workspace隔离测试通过。桌面浏览器已验证正常/异常保存、草稿保留、刷新、修改不重置首次时间、提前下班原因及审计。测试夹具已清理，3103服务停止。服务器独立限额构建129.594秒、峰值834.4MiB，已备份发布并验证20张旧表数据不变。21迁移、207文件哈希、HTTPS健康通过；备份归档可读，未做本次完整恢复演练。全部代码/文档同次提交同步main；工作区排除.claude/launch.json删除。没有残留本地验收服务或夹具。日常本地库仍未迁移（历史核验5次），再次开发需先核对连接并migrate deploy，禁止reset。
+
+当前小改动（2026-10-01）：按用户要求隐藏已工作时长和正常下班倒计时；保留后台计时、8小时校验和提前下班入口。已上线；typecheck、组件eslint、差异检查和服务器生产构建通过；207文件哈希一致，20表数据未变，HTTPS登录200/未登录上班页307。本次未重做浏览器验收或业务全矩阵。
