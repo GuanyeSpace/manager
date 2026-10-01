@@ -356,3 +356,5 @@ D050对应源码提交：744c6db4c2969e750c71ee88b657db02e93539f0，已同步ori
 - 旧程序：`/opt/manager/standalone-before-audience-20261002`；旧源码：`/opt/manager/source-before-audience-20261002.tar.gz`。不删除旧字段及截图，不回填画像。
 - 应用用户截图读写探针通过；221个部署源文件SHA256一致（`/opt/manager/manager-audience-hash.py`）；standalone不含.env。manager/nginx/备份/续期timer active；HTTPS登录200、未登录/leads307。timer检查不代表本次执行续期。
 - 本轮桌面功能在隔离库完成，生产未创建测试业务记录。隔离测试及范围见[tasks/report-metrics-verification.md](tasks/report-metrics-verification.md)。
+
+D051源码提交：97880635db50ab70f428f24ef3019624c3f902b2，已推送origin/main且远程一致。后续交接文档提交不改变部署源码。
