@@ -36,6 +36,7 @@ export const commandSchema = z.object({
   id: z.string().max(100), version: z.coerce.number().int().min(0),
   command: z.enum(["create", "start", "end", "complete", "cancel", "check", "issue", "patrol", "violation", "controller", "unstarted", "correct"]),
   endKind: z.enum(["normal", "interrupted"]).default("normal"),
+  otherIncident: z.enum(["", "yes", "no"]).default(""),
   incident: z.enum(["", "yes", "no"]).default(""),
   failureReason: z.enum(["", "人脸验证未通过", "账号封禁", "设备故障", "主播原因", "其他"]).default(""),
   recoveryDate: z.string().regex(/^$|^\d{4}-\d{2}-\d{2}$/).default(""),

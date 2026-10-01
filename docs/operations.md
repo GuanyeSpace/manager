@@ -106,3 +106,7 @@ Prisma generate在stage生成；应用包需要public和.next/static一同放进
 ### D046上下班版本回退注意
 
 新增WorkShift三列均可空，迁移不更新旧行。旧未结束记录按createdAt计时；缺少历史检查完成时间时明确展示未记录。若回退旧程序，8小时及四项完成限制不再生效、提前结束原因也不能完整展示，所以优先修复向前。不得为回退删除新列、审计或提前下班记录。正式迁移前暂停写入、备份数据库与截图，并比较全部旧表原有列摘要。
+
+### 截图目录发布检查（D048）
+
+每次发布激活前以root执行 `bash deploy/check-screenshot-storage.sh`：父目录/opt/manager/uploads为root:manager-app 750，截图目录manager-app:manager-app 700，现有截图文件权限不递归变动。脚本用应用用户创建、读回并删除独立临时探针，不写业务表。原先父目录root:root 750会导致应用EACCES，即使子目录owner正确也无法上传。不要在后续部署中重新创建为root组；不要chmod -R或放开给所有用户。数据库与截图仍须先备份、旧数据仍须核对。

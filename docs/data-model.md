@@ -146,3 +146,7 @@ DouyinAccount和AccountRecord均新增banned Boolean默认false、unbanDate可�
 ### D046 WorkShift增量（迁移20261001070000_shift_checklist）
 
 clockStartedAt为服务器开始计时点，checkedInAt为首次四项检查完成时间，earlyEndReason为提前结束原因；均可空以兼容旧行。新开始记录写clockStartedAt，员工更正不更新；旧未结束记录使用createdAt。checkedInAt只在活动班次首次完成全部检查时写入，后续重检不改变。旧已结束记录不补写，历史已完成但无确认时间明确显示未记录。现有checks JSON及审计保留。迁移只增加列，不改旧值。
+
+### D048 三阶段与异常类型
+
+WorkSession新增hasOtherIncident Boolean?，迁移20261001160000_work_stages（第22次）仅追加可空列，旧值保持null。hasIncident表示异常总开关，hasViolation/hasOtherIncident区分两类及并存；新收尾无异常写false。异常中断强制other=true。旧progress的note/issue/skip不删除，新执行check只写done/pending，取消后重勾更新时间；变更前后progress进入审计。旧归档不重判。WorkScreenshot复用本场end/violation附件作为收尾证据，新附件关联complete事件。

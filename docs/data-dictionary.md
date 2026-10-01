@@ -340,6 +340,7 @@
 | `hasViolation` | `Boolean?` | 存储字段 | — | — |
 | `violationDetail` | `String` | 存储字段 | `@default("")` | — |
 | `outcome` | `String?` | 存储字段 | — | — |
+| `hasOtherIncident` | `Boolean?` | 存储字段；其他异常，旧记录null不推断 | — | — |
 | `hasIncident` | `Boolean?` | 存储字段 | — | — |
 | `wrapNote` | `String?` | 存储字段 | — | — |
 | `startedAt` | `DateTime?` | 存储字段 | — | — |

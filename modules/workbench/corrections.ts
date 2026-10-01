@@ -19,7 +19,8 @@ const correctionSchema = z.object({
   startedAt: z.string().max(30).default(""), endedAt: z.string().max(30).default(""),
   actualControllerId: z.string().max(100).default(""),
   phase: z.enum(phases).default("before"), index: z.coerce.number().int().min(0).max(39).default(0),
-  status: z.enum(["done", "issue", "skip"]).default("done"),
+  status: z.enum(["done", "pending", "issue", "skip"]).default("done"),
+  otherIncident: z.enum(["", "yes", "no"]).default(""),
   violation: z.enum(["", "yes", "no"]).default(""), incident: z.enum(["", "yes", "no"]).default(""),
   endKind: z.enum(["normal", "interrupted"]).default("normal"), note: z.string().trim().max(2000).default(""),
   failureReason: z.enum(["", "人脸验证未通过", "账号封禁", "设备故障", "主播原因", "其他"]).default(""),
@@ -83,7 +84,7 @@ export async function correctSession(tx: Prisma.TransactionClient, token: string
   } else if (input.kind === "task") {
     const task = workflow[input.phase][input.index], key = `${input.phase}:${input.index}`;
     if (!task || s.phase === "CANCELLED" && input.phase !== "before") throw new UserActionError("该事项不属于此场次已执行的阶段");
-    if (input.status !== "done" && !input.note) throw new UserActionError("异常或不适用需要填写处理说明");
+    if (["issue", "skip"].includes(input.status) && !input.note) throw new UserActionError("异常或不适用需要填写处理说明");
     const previous = progress[key];
     const next = { status: input.status, note: input.note, actor: previous?.status === input.status ? previous.actor : actor.name, at: previous?.status === input.status ? previous.at : new Date().toISOString() };
     data.progress = { ...progress, [key]: next };
@@ -94,6 +95,8 @@ export async function correctSession(tx: Prisma.TransactionClient, token: string
     if (s.phase !== "COMPLETE" || !input.violation) throw new UserActionError("请选择已开播场次是否违规");
     if (input.violation === "yes" && (!input.note || !screenshots.length)) throw new UserActionError("有违规时必须填写具体内容并上传截图");
     if (input.violation === "no" && screenshots.length) throw new UserActionError("无违规更正不需要截图，可通过补充截图入口上传说明图片");
+    data.hasIncident = input.violation === "yes" || s.outcome === "INTERRUPTED" ? true : s.hasOtherIncident === null ? s.hasIncident : s.hasOtherIncident;
+    change("hasIncident", "本场异常", s.hasIncident, data.hasIncident, String(s.hasIncident), String(data.hasIncident));
     data.hasViolation = input.violation === "yes"; data.violationDetail = input.violation === "yes" ? input.note : "";
     change("hasViolation", "违规情况", s.hasViolation, data.hasViolation, s.hasViolation === null ? "历史未记录" : s.hasViolation ? "有违规" : "无违规", data.hasViolation ? "有违规" : "无违规");
     change("violationDetail", "违规内容", s.violationDetail, String(data.violationDetail), s.violationDetail || "—", String(data.violationDetail) || "—");
@@ -101,6 +104,15 @@ export async function correctSession(tx: Prisma.TransactionClient, token: string
     if (s.phase !== "COMPLETE" || !input.incident) throw new UserActionError("请选择已收尾场次有异常或无异常");
     if ((input.incident === "yes" || input.endKind === "interrupted") && !input.note) throw new UserActionError("有异常或异常中断时必须填写具体情况");
     if (input.endKind === "interrupted" && s.outcome !== "INTERRUPTED" && !screenshots.length) throw new UserActionError("更正为异常中断必须上传截图");
+    const violation = input.violation === "yes", other = input.otherIncident === "yes";
+    if (input.incident === "yes" && !violation && !other) throw new UserActionError("请选择异常类型");
+    if (input.incident === "no" && (violation || other || input.endKind === "interrupted")) throw new UserActionError("违规或异常中断不能标记无异常");
+    if (input.endKind === "interrupted" && !other) throw new UserActionError("异常中断须保留其他异常类型");
+    if (violation && !screenshots.length) throw new UserActionError("更正违规必须上传截图");
+    data.hasViolation = violation; data.violationDetail = violation ? input.note : ""; data.hasOtherIncident = other;
+    change("hasViolation", "违规", s.hasViolation, violation, String(s.hasViolation), String(violation));
+    change("hasOtherIncident", "其他异常", s.hasOtherIncident, other, String(s.hasOtherIncident), String(other));
+    change("violationDetail", "违规说明", s.violationDetail, String(data.violationDetail), s.violationDetail, String(data.violationDetail));
     data.hasIncident = input.incident === "yes"; data.wrapNote = input.note; data.outcome = input.endKind === "interrupted" ? "INTERRUPTED" : "NORMAL";
     change("hasIncident", "收尾异常", s.hasIncident, data.hasIncident, s.hasIncident === null ? "历史未记录" : s.hasIncident ? "有异常" : "无异常", data.hasIncident ? "有异常" : "无异常");
     change("wrapNote", "收尾说明", s.wrapNote, input.note, s.wrapNote || "—", input.note || "—");

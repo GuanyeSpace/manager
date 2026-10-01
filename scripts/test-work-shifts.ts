@@ -33,7 +33,7 @@ async function main() {
     const history = (token: string) => db.$transaction(tx => readShiftHistory(tx, token, 1));
     async function account(name: string, controllerId: string) {
       const id = await db.$transaction(tx => saveAccount(tx, boss.token, { id: "", version: 0, douyinId: `${marker}-${name}`, name, homepageUrl: "", realName: "", phone: "", purpose: "", notes: "", branchId: branch.id, controllerId, operatorId: actual.id, anchorId: anchor.id, active: "true" }, "test"));
-      await db.$transaction(tx => saveWorkflow(tx, boss.token, id, 0, defaultWorkflow, "test"));
+      await db.$transaction(tx => saveWorkflow(tx, boss.token, id, 0, { ...defaultWorkflow, before: [] }, "test"));
       return id;
     }
     const accountA = await account("account-a", a.id);

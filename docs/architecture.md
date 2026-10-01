@@ -141,3 +141,7 @@ WorkShiftPanel的ActiveShift保存服务端版本及检查快照；CheckRow保�
 ### D047直播工作首页
 
 WorkbenchHome复用现有getWorkbench查询/作用域；去掉name入参及两处调用传参。账号卡片CSS grid桌面三列+独立滚动，执行岗位的非空待收尾区fixed底部并预留内容间距；其他管理岗位待办保持文档流。无新增客户端状态、查询或数据库字段。
+
+### D048 账号三阶段执行
+
+WorkSessionView按阶段组织所有操作，WorkTaskTable取代WorkTaskRow，以服务端保存快照/version串行互斥提交，失败保留原勾选状态。WorkWrapFields统一异常类型与证据，runWorkCommand在同一事务校验并收尾。截图写入失败仅记录错误码，前端保留输入。deploy/check-screenshot-storage.sh在激活前检查父目录访问权与应用用户读写，不递归改截图权限。

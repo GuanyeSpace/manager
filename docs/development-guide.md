@@ -72,7 +72,7 @@ ALLOW_TEST_DESTRUCTION=true npm run test:accounts
 | 账号职责/交接/调拨 | test:accounts，必要时资源/工作台回归 |
 | 流程配置/执行 | test:workbench；提醒组件 components/work-live-clock.test.ts |
 | 上班、代控、跨日 | test:shifts |
-| 异常/违规/截图 | test:evidence |
+| 异常/违规/截图 | test:evidence；D048迁移 scripts/test-work-stages-migration.ts，证据见 [专项验收](tasks/work-stages-verification.md) |
 | 已归档更正 | test:corrections |
 | 直播和旧打粉报表 | test:live-reports |
 | 导粉认领/填写/软删除 | test:leads |

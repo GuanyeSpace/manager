@@ -2,6 +2,18 @@
 
 # 生产部署
 
+## 2026-10-01 D048 三阶段与截图修复
+
+- 隔离类型/lint/构建、相关业务及HTTP回归、桌面真实图片验收通过，详见[专项验收](tasks/work-stages-verification.md)。
+- staging：/opt/manager/build-workstages-20261001；最终unit manager-workstages-final-build，webpack退出0、峰值795.8M。前一构建因追加历史兼容保护主动停止；正式程序未受影响。
+- 暂停写入后备份：/var/backups/manager/manager-20261001T085232Z.dump及同名.screenshots.tar.gz；pg_restore --list和tar列表均可读。
+- 数据摘要：/opt/manager/data-before-workstages-20261001.json；新增迁移20261001160000_work_stages仅增加可空hasOtherIncident。22迁移全部到位，20张业务表所有原列数据一致，没有回填或删除历史。
+- 旧程序：/opt/manager/standalone-before-workstages-20261001；源码归档/opt/manager/source-before-workstages-20261001.tar.gz。新增可空列兼容旧程序回退，禁止用数据库恢复覆盖合法新写入。
+- 截图父目录root:root 750改为root:manager-app 750，子目录保持manager-app:manager-app 700；未递归调整旧文件。激活前后应用用户临时探针写入、读回、删除成功，未创建正式测试场次。
+- 激活后210个部署文件SHA-256一致；manager/nginx/backup.timer/cert-renew.timer active；HTTPS /login=200，匿名/workbench=307。定时器active不代表本轮执行了续期。
+- 本地测试夹具清理首次遇到AccountWorkflow外键限制，按该夹具范围补清理后成功。3103服务和验收页面关闭，截图证据留在/tmp，不提交。
+- Git与部署分别核对：本任务代码、迁移、测试和文档按明确路径提交并推送origin/main；敏感文件、截图、临时产物排除。
+
 ## 2026-09-15 未完成事项核对与拖动排序发布
 
 - 已核对此前上线的物资独立编号、主播关联账号的运营/中控修改入口、流程秒级时间配置。本次发布将流程排序改为指针拖动，同阶段移动完整事项；保留上移/下移按钮，修改后须保存。

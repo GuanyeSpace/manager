@@ -7,7 +7,7 @@ import { requirePageUser, requirePasswordChanged } from "@/lib/auth/permissions"
 import { getCurrentSessionToken } from "@/lib/auth/session";
 import { getClientIp } from "@/lib/request-ip";
 import { UserActionError } from "@/modules/users/boss-guard";
-import { copyWorkflow, saveDailyWork, saveWorkflow } from "./service";
+import { copyWorkflow, saveDailyWork, saveWorkflow, runWorkCommand } from "./service";
 import { submitWorkCommand } from "./screenshots";
 import { saveSessionScripts } from "./session-scripts";
 import { runShiftCommand } from "./shifts";
@@ -68,6 +68,18 @@ export async function saveShiftCheckAction(form: FormData): Promise<{ error?: st
       const id = await runShiftCommand(tx, token, { ...Object.fromEntries(form), command: "shiftCheck" }, ip);
       const row = await tx.workShift.findUniqueOrThrow({ where: { id } });
       return { version: row.version, checks: row.checks as import("./schema").EquipmentChecks, checkedInAt: row.checkedInAt?.toISOString() ?? null };
+    });
+    refresh(); return { saved };
+  } catch (error) { return { error: errorState(error)?.error ?? "保存失败，请重试" }; }
+}
+
+export async function saveWorkCheckAction(form: FormData) {
+  const token = await guard(), ip = await getClientIp();
+  try {
+    const saved = await prisma.$transaction(async tx => {
+      const id = await runWorkCommand(tx, token, { ...Object.fromEntries(form), command: "check" }, ip);
+      const row = await tx.workSession.findUniqueOrThrow({ where: { id } });
+      return { version: row.version, progress: row.progress as import("./schema").Progress };
     });
     refresh(); return { saved };
   } catch (error) { return { error: errorState(error)?.error ?? "保存失败，请重试" }; }

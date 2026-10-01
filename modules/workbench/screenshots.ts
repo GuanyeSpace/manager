@@ -23,7 +23,7 @@ export async function submitWorkCommand(db: PrismaClient, token: string, form: F
   if (files.length) {
     const command = form.get("command");
     const correction = command === "correct" && ["violation", "wrap", "evidence", "unstarted"].includes(String(form.get("kind")));
-    if (!(correction || command === "unstarted" || command === "end" && form.get("endKind") === "interrupted" || command === "violation" && form.get("violation") === "yes")) throw new UserActionError("此操作不需要上传截图");
+    if (!(correction || command === "complete" && form.get("incident") === "yes" || command === "unstarted" || command === "end" && form.get("endKind") === "interrupted" || command === "violation" && form.get("violation") === "yes")) throw new UserActionError("此操作不需要上传截图");
     const session = await db.$transaction(tx => readWorkSession(tx, token, String(form.get("id"))));
     if (!session?.editable || (correction ? !["COMPLETE", "CANCELLED"].includes(session.session.phase) : ["COMPLETE", "CANCELLED"].includes(session.session.phase))) throw new UserActionError("场次不存在或无执行权限");
   }
@@ -42,6 +42,8 @@ export async function submitWorkCommand(db: PrismaClient, token: string, form: F
     for (const upload of uploads) {
       try { if (!await db.workScreenshot.findUnique({ where: { id: upload.id } })) await unlink(path.join(screenshotDirectory(), upload.id)).catch(() => {}); } catch { /* 数据库不可用时留待核对。 */ }
     }
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (["EACCES", "EPERM", "ENOSPC", "EROFS"].includes(code ?? "")) { console.error("截图存储失败", { code }); throw new UserActionError("截图暂时无法保存，请联系管理员；已填写内容请保留后重试"); }
     throw error;
   }
 }

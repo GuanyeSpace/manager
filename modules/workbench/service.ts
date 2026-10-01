@@ -60,7 +60,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
   const progress = session.progress as Progress;
   const needsScreenshots = input.command === "unstarted" || input.command === "end" && input.endKind === "interrupted" || input.command === "violation" && input.violation === "yes";
   if (needsScreenshots && !screenshots.length) throw new UserActionError("请上传至少一张截图后提交");
-  if (screenshots.length && !needsScreenshots) throw new UserActionError("此操作不需要上传截图");
+  if (screenshots.length && !needsScreenshots && input.command !== "complete") throw new UserActionError("此操作不需要上传截图");
   const data: Prisma.WorkSessionUpdateInput = { version: { increment: 1 } };
   let body = input.note;
   if (input.command === "controller") {
@@ -91,25 +91,31 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
       const people = [...new Set([session.loginUserId ?? session.controllerId, session.actualControllerId ?? session.controllerId])];
       const conflict = await tx.workSession.findFirst({ where: { id: { not: session.id }, AND: [{ OR: [{ loginUserId: { in: people } }, { actualControllerId: { in: people } }, { loginUserId: null, controllerId: { in: people } }, { actualControllerId: null, controllerId: { in: people } }] }, { OR: [{ phase: "LIVE" }, { endedAt: { gt: time } }] }] } });
       if (conflict) throw new UserActionError("该直播中控已有直播中的场次，或填写时间与已有场次重叠");
-      if (workflow.before.some((_, i) => (!progress[`before:${i}`] || progress[`before:${i}`].status === "pending")) && !input.note) throw new UserActionError("准备事项尚未全部处理，请补充说明后确认开播");
+      if (workflow.before.some((_, i) => progress[`before:${i}`]?.status !== "done")) throw new UserActionError("请先勾选完成全部开播前事项");
       data.phase = "LIVE"; data.startedAt = time;
     } else {
       if (session.phase !== "LIVE" || !session.startedAt || time <= session.startedAt) throw new UserActionError("下播时间须晚于开播时间，且场次正在直播中");
-      if (workflow.live.some((_, i) => !progress[`live:${i}`] || progress[`live:${i}`].status === "pending") && !input.note) throw new UserActionError("直播事项尚未全部处理，请补充未完成原因后确认下播");
       if (input.endKind === "interrupted" && !input.note) throw new UserActionError("异常中断必须填写原因");
       data.outcome = input.endKind === "interrupted" ? "INTERRUPTED" : "NORMAL";
       data.phase = "WRAP"; data.endedAt = time;
+      if (input.endKind === "interrupted") { data.hasIncident = true; data.hasOtherIncident = true; data.wrapNote = input.note; }
     }
     body = `${input.time.replace("T", " ")}（北京时间）${input.note ? ` · ${input.note}` : ""}${input.reason ? ` · 补填原因：${input.reason}` : ""}`;
   } else if (input.command === "complete") {
     if (session.phase !== "WRAP") throw new UserActionError("请先确认下播");
-    if (workflow.after.some((_, i) => (!progress[`after:${i}`] || progress[`after:${i}`].status === "pending"))) throw new UserActionError("请先处理全部收尾事项，可标记异常或不适用并注明原因");
-    if (session.hasViolation === null) throw new UserActionError("请先填写本场是否违规");
+    if (workflow.after.some((_, i) => progress[`after:${i}`]?.status !== "done")) throw new UserActionError("请先勾选完成全部下播后事项");
     if (!["yes", "no"].includes(input.incident)) throw new UserActionError("请选择本场有异常或无异常");
-    if (input.incident === "yes" && !input.note) throw new UserActionError("有异常时请填写原因及处理情况");
-    data.hasIncident = input.incident === "yes"; data.wrapNote = input.incident === "yes" ? input.note : "";
+    const violation = input.violation === "yes", other = input.otherIncident === "yes";
+    if (session.outcome === "INTERRUPTED" && (input.incident !== "yes" || !other)) throw new UserActionError("异常下播必须保留其他异常记录；误报请收尾后更正");
+    if (session.hasViolation && !violation) throw new UserActionError("已有违规记录，请保留违规类型；误报请收尾后更正");
+    if (input.incident === "yes" && (!input.note || (!violation && !other))) throw new UserActionError("请选择异常类型并填写具体原因");
+    if (input.incident === "no" && (violation || other || screenshots.length)) throw new UserActionError("无异常不能提交异常类型或截图");
+    const evidence = await tx.workScreenshot.count({ where: { sessionId: session.id, event: { kind: { in: ["end", "violation"] } } } });
+    if (violation && !screenshots.length && !evidence) throw new UserActionError("违规必须上传至少一张截图");
+    data.hasIncident = input.incident === "yes"; data.hasViolation = violation; data.hasOtherIncident = other;
+    data.violationDetail = violation ? input.note : ""; data.wrapNote = input.incident === "yes" ? input.note : "";
     data.phase = "COMPLETE";
-    body = input.incident === "yes" ? `完成收尾 · 异常：${input.note}` : "完成收尾 · 无异常";
+    body = input.incident === "yes" ? `完成收尾 · ${[violation ? "违规" : "", other ? "其他异常" : ""].filter(Boolean).join("、")}：${input.note}` : "完成收尾 · 无异常";
   } else if (input.command === "violation") {
     if (!["LIVE", "WRAP"].includes(session.phase)) throw new UserActionError("请在直播中或下播后填写违规情况");
     if (!["yes", "no"].includes(input.violation)) throw new UserActionError("请选择本场是否违规");
@@ -128,9 +134,9 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
   } else if (input.command === "check") {
     const requiredPhase = { before: "PREPARING", live: "LIVE", after: "WRAP" }[input.phase];
     if (session.phase !== requiredPhase || !workflow[input.phase][input.index]) throw new UserActionError("该事项不属于本场当前阶段");
-    if (["issue", "skip"].includes(input.status) && !input.note) throw new UserActionError("异常或不适用需要填写说明");
+    if (!["done", "pending"].includes(input.status)) throw new UserActionError("事项仅支持勾选完成或取消完成");
     const key = `${input.phase}:${input.index}`;
-    data.progress = { ...progress, [key]: { status: input.status, note: input.note, actor: progress[key]?.status === input.status ? progress[key].actor : actor.name, at: progress[key]?.status === input.status ? progress[key].at : new Date().toISOString() } };
+    data.progress = { ...progress, [key]: { status: input.status, note: progress[key]?.note ?? "", actor: progress[key]?.status === input.status ? progress[key].actor : actor.name, at: progress[key]?.status === input.status ? progress[key].at : new Date().toISOString() } };
     body = `${workflow[input.phase][input.index].title} · ${{ done: "完成", issue: "异常", skip: "不适用", pending: "取消完成" }[input.status]}${input.note ? ` · ${input.note}` : ""}`;
   } else {
     if (!input.note) throw new UserActionError("请填写检查结果或异常内容");
@@ -139,7 +145,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
   await tx.workSession.update({ where: { id: session.id }, data });
   const event = await tx.workEvent.create({ data: { sessionId: session.id, kind: input.command, body: input.command === "end" && input.endKind === "interrupted" ? `异常中断 · ${body}` : body, actorId: actor.id, actorName: actor.name } });
   for (const screenshot of screenshots) await tx.workScreenshot.create({ data: { ...screenshot, branchId: session.sourceRecord.branchId, sessionId: session.id, eventId: event.id } });
-  await writeAudit({ db: tx, actorId: actor.id, action: "WORK_SESSION_UPDATE", targetType: "WorkSession", targetId: session.id, detail: { command: input.command, beforePhase: session.phase, version: session.version + 1, body }, ip });
+  await writeAudit({ db: tx, actorId: actor.id, action: "WORK_SESSION_UPDATE", targetType: "WorkSession", targetId: session.id, detail: { command: input.command, beforePhase: session.phase, version: session.version + 1, body, ...(input.command === "check" ? { beforeProgress: progress, afterProgress: data.progress as Progress } : {}) }, ip });
   return session.id;
 }
 
@@ -181,7 +187,7 @@ export async function readWorkspace(tx: Prisma.TransactionClient, token: string,
 }
 export async function readWorkSession(tx: Prisma.TransactionClient, token: string, id: string) {
   const actor = await requireAccountActor(tx, token);
-  const session = await tx.workSession.findFirst({ where: { id, sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true } } } }, report: { select: { id: true } }, events: { orderBy: { createdAt: "desc" }, take: 200, include: { screenshots: { select: { id: true }, orderBy: { createdAt: "asc" } } } }, account: { select: { controllerId: true, branchId: true, workflow: { select: { version: true } } } } } });
+  const session = await tx.workSession.findFirst({ where: { id, sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } }, events: { orderBy: { createdAt: "desc" }, take: 200, include: { screenshots: { select: { id: true }, orderBy: { createdAt: "asc" } } } }, account: { select: { controllerId: true, branchId: true, workflow: { select: { version: true } } } } } });
   if (!session) return null;
   const editable = canExecute(actor, session.account, session.controllerId) && (!session.loginUserId || session.loginUserId === actor.id || isAccountBoss(actor));
   // 接手后的当前归属不传给旧负责人。
@@ -193,7 +199,7 @@ export async function readWorkSession(tx: Prisma.TransactionClient, token: strin
 }
 export async function readWorkHistory(tx: Prisma.TransactionClient, token: string, page: number) {
   const actor = await requireAccountActor(tx, token);
-  const sessions = await tx.workSession.findMany({ where: { sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true } } } }, report: { select: { id: true } } }, orderBy: { createdAt: "desc" }, take: 30, skip: (page - 1) * 30 });
+  const sessions = await tx.workSession.findMany({ where: { sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } } }, orderBy: { createdAt: "desc" }, take: 30, skip: (page - 1) * 30 });
   return sessions.map(s => ({ ...s, report: isExecutionController(actor) ? null : s.report }));
 }
 

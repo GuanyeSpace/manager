@@ -96,7 +96,7 @@ async function main() {
     await cmd(control.token, { id: first, version: 1, command: "check", phase: "before", index: 0, status: "done" });
     assert.equal(((await read(control.token, first))!.session.progress as Progress)["before:0"].status, "done");
     await assert.rejects(cmd(control.token, { id: first, version: 1, command: "check" }), /已更新/);
-    await assert.rejects(cmd(control.token, { id: first, version: 2, command: "check", status: "skip" }), /需要填写/);
+    await assert.rejects(cmd(control.token, { id: first, version: 2, command: "check", status: "skip" }), /仅支持/);
     await assert.rejects(cmd(outsider.token, { id: first, version: 2, command: "issue", note: "越权" }), /权限/);
     assert.equal(await read(outsider.token, first), null);
     assert.equal(await db.$transaction(tx => readWorkspace(tx, next.token, accountId)), null);
@@ -105,11 +105,36 @@ async function main() {
     await db.workSession.updateMany({ where: { id: { in: [first, second] } }, data: { createdAt: past } });
     await db.workShift.update({ where: { id: shiftId }, data: { startedAt: past } });
     const time = shanghaiInput(new Date(Date.now() - 10 * 60000));
-    await assert.rejects(cmd(control.token, { id: first, version: 2, command: "start", time }), /准备事项/);
+    await assert.rejects(cmd(control.token, { id: first, version: 2, command: "start", time }), /开播前事项/);
     await db.branch.update({ where: { id: branch.id }, data: { status: "INACTIVE" } });
     await assert.rejects(cmd(control.token, { id: first, version: 2, command: "start", time, note: "已核对" }), /停用/);
     await db.branch.update({ where: { id: branch.id }, data: { status: "ACTIVE" } });
-    const races = await Promise.allSettled([cmd(control.token, { id: first, version: 2, command: "start", time, note: "准备余项已人工核对" }), cmd(control.token, { id: second, version: 1, command: "start", time, note: "已核对" })]);
+    for (const id of [first, second]) for (let index = 0; index < workflow.before.length; index++) {
+      const current = await db.workSession.findUniqueOrThrow({ where: { id } });
+      await cmd(control.token, { id, version: current.version, command: "check", phase: "before", index, status: "done" });
+    }
+    const checked = await db.workSession.findUniqueOrThrow({ where: { id: first } });
+    const oldAt = (checked.progress as Progress)["before:0"].at;
+    const concurrent = await Promise.allSettled([0, 1].map(index => cmd(control.token, { id: first, version: checked.version, command: "check", phase: "before", index, status: "pending" })));
+    assert.equal(concurrent.filter(r => r.status === "fulfilled").length, 1);
+    const unchecked = await db.workSession.findUniqueOrThrow({ where: { id: first } });
+    await assert.rejects(cmd(control.token, { id: first, version: unchecked.version, command: "start", time, note: "cannot bypass" }), /开播前事项/);
+    for (let index = 0; index < workflow.before.length; index++) {
+      const row = await db.workSession.findUniqueOrThrow({ where: { id: first } });
+      await cmd(control.token, { id: first, version: row.version, command: "check", phase: "before", index, status: "done" });
+    }
+    const updated = await db.workSession.findUniqueOrThrow({ where: { id: first } });
+    if ((unchecked.progress as Progress)["before:0"].status === "pending") assert.notEqual((updated.progress as Progress)["before:0"].at, oldAt);
+    const legacyProgress = { ...(updated.progress as Progress), "before:0": { status: "issue" as const, note: "legacy note", actor: "old actor", at: "2026-09-01T00:00:00Z" } };
+    await db.workSession.update({ where: { id: first }, data: { progress: legacyProgress } });
+    await assert.rejects(cmd(control.token, { id: first, version: updated.version, command: "start", time, note: "legacy status cannot bypass" }), /开播前事项/);
+    await cmd(control.token, { id: first, version: updated.version, command: "check", phase: "before", index: 0, status: "done" });
+    const reconciled = await db.workSession.findUniqueOrThrow({ where: { id: first } });
+    assert.equal((reconciled.progress as Progress)["before:0"].note, "legacy note");
+    await assert.rejects(cmd(control.token, { id: first, version: reconciled.version, command: "check", phase: "after", index: 0, status: "done" }), /当前阶段/);
+    const firstReady = await db.workSession.findUniqueOrThrow({ where: { id: first } });
+    const secondReady = await db.workSession.findUniqueOrThrow({ where: { id: second } });
+    const races = await Promise.allSettled([cmd(control.token, { id: first, version: firstReady.version, command: "start", time, note: "准备余项已人工核对" }), cmd(control.token, { id: second, version: secondReady.version, command: "start", time, note: "已核对" })]);
     assert.equal(races.filter(r => r.status === "fulfilled").length, 1);
     assert.equal(await db.workSession.count({ where: { controllerId: control.id, phase: "LIVE" } }), 1);
     const live = await db.workSession.findFirstOrThrow({ where: { controllerId: control.id, phase: "LIVE" } });
@@ -120,8 +145,7 @@ async function main() {
     assert.equal((await read(control.token, live.id))!.session.events.filter(e => e.kind === "patrol").length, 2);
     const end = shanghaiInput(new Date(Date.now() - 5 * 60000));
     await assert.rejects(cmd(control.token, { id: live.id, version: live.version + 2, command: "end", time }), /晚于开播/);
-    await assert.rejects(cmd(control.token, { id: live.id, version: live.version + 2, command: "end", time: end }), /未完成原因/);
-    await cmd(control.token, { id: live.id, version: live.version + 2, command: "end", time: end, note: "临时提前结束，未到后续环节" });
+    await cmd(control.token, { id: live.id, version: live.version + 2, command: "end", time: end });
     const waitingSession = await db.workSession.findUniqueOrThrow({ where: { id: waiting } });
     await assert.rejects(cmd(control.token, { id: waiting, version: waitingSession.version, command: "start", time, note: "重叠" }), /重叠/);
     await cmd(control.token, { id: waiting, version: waitingSession.version, command: "start", time: end, note: "上一场已结束" });
@@ -134,12 +158,12 @@ async function main() {
       assert.match(await response.text(), /继续收尾/);
       const page = await fetch(new URL(`/workbench/sessions/${live.id}`, process.env.WORKBENCH_HTTP_BASE), { headers: { cookie: `session=${signSessionToken(control.token)}` } });
       const html = await page.text();
-      for (const label of ["标记异常", "不适用", "还需处理", "请先保存本场是否违规", "直播中未处理事项"]) assert.ok(html.includes(label));
+      for (const label of ["本场是否有异常", "确认完成本场收尾"]) assert.ok(html.includes(label));
+      for (const label of ["标记异常", "请先保存本场是否违规"]) assert.ok(!html.includes(label));
     }
     let v = live.version + 3;
-    await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "complete", incident: "no" }), /收尾事项/);
+    await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "complete", incident: "no" }), /下播后事项/);
     for (let index = 0; index < workflow.after.length; index++) await cmd(control.token, { id: live.id, version: v++, command: "check", phase: "after", index, status: "done" });
-    await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "complete", incident: "no" }), /是否违规/);
     await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "violation", violation: "yes" }), /截图/);
     await cmd(control.token, { id: live.id, version: v++, command: "violation", violation: "yes", note: "测试违规记录" }, [{ id: randomUUID(), contentType: "image/png", size: 68 }]);
     assert.equal((await read(control.token, live.id))!.session.violationDetail, "测试违规记录");
@@ -149,14 +173,10 @@ async function main() {
     await cmd(control.token, { id: live.id, version: v++, command: "check", phase: "after", index: 0, status: "done", note: "补充备注" });
     assert.equal(((await read(control.token, live.id))!.session.progress as Progress)["after:0"].at, beforeNote["after:0"].at);
     await cmd(control.token, { id: live.id, version: v++, command: "check", phase: "after", index: 0, status: "pending", note: "暂未完成" });
-    await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "complete", incident: "no" }), /收尾事项/);
+    await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "complete", incident: "no" }), /下播后事项/);
     await cmd(control.token, { id: live.id, version: v++, command: "check", phase: "after", index: 0, status: "done" });
-    await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "check", phase: "after", index: 0, status: "issue", note: " " }), /需要填写/);
-    await cmd(control.token, { id: live.id, version: v++, command: "check", phase: "after", index: 0, status: "issue", note: "设备故障，已登记待维修" });
-    await cmd(control.token, { id: live.id, version: v++, command: "check", phase: "after", index: 1, status: "skip", note: "本场未使用该设备" });
-    const handled = (await read(control.token, live.id))!.session.progress as Progress;
-    assert.equal(handled["after:0"].status, "issue");
-    assert.equal(handled["after:1"].status, "skip");
+    await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "check", phase: "after", index: 0, status: "issue", note: " " }), /仅支持/);
+    await assert.rejects(cmd(control.token, { id: live.id, version: v, command: "check", phase: "after", index: 1, status: "skip", note: "legacy" }), /仅支持/);
     await cmd(control.token, { id: live.id, version: v, command: "complete", incident: "no" });
     assert.equal((await db.$transaction(tx => readWorkspace(tx, control.token, live.accountId)))!.wrapping.length, 0);
     const reportInput = { id: "", version: "0", accountId: live.accountId, workSessionId: live.id, startedAt: time, durationHours: "0", durationMinutes: "5", durationSeconds: "0", sessionLabel: "晚上场", exposureCount: "100", entryCount: "10", averageOnline: "5", peakOnline: "10", averageStayMinutes: "2.9", commenterCount: "2", likeCount: "8", newFollowers: "1", shareCount: "1", newFanClubMembers: "1", confirmBackfill: "false" };
@@ -206,7 +226,7 @@ async function main() {
       const response = await fetch(new URL(`/workbench/sessions/${live.id}`, process.env.WORKBENCH_HTTP_BASE), { headers: { cookie: `session=${signSessionToken(control.token)}` } });
       assert.equal(response.status, 200); const html = await response.text();
       assert(!html.includes("保存打粉数据")); assert(!html.includes('name="embedded" value="true"'));
-      assert(!html.includes("保存更正")); assert(html.includes("本场违规情况"));
+      assert(!html.includes("保存更正")); assert(html.includes("本场无异常"));
       writeFileSync("/tmp/manager-wrap-preview.html", html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").replace("<head>", `<head><base href="${process.env.WORKBENCH_HTTP_BASE}">`));
       const preview = await fetch(new URL(`/live-reports/${reportId}`, process.env.WORKBENCH_HTTP_BASE), { headers: { cookie: `session=${signSessionToken(control.token)}` } });
       const deniedReport = await preview.text(); assert(!deniedReport.includes("保存打粉数据")); assert(!deniedReport.includes("保存更正"));

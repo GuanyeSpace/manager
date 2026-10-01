@@ -316,6 +316,7 @@ model WorkSession {
   hasViolation Boolean?
   violationDetail String @default("")
   outcome String?
+  hasOtherIncident Boolean?
   hasIncident Boolean?
   wrapNote String?
   startedAt DateTime?
