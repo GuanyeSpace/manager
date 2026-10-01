@@ -307,3 +307,10 @@
 ## 2026-10-01 隐藏已工作时长与下班倒计时
 
 仅删除显示行及其格式化函数，内部计时、8小时校验、提前下班入口不变；无数据库迁移（仍21项）。typecheck、组件eslint、diff检查通过；受限构建129.410秒、峰值831.4MiB。备份/var/backups/manager/manager-20261001T004407Z.dump及同名.screenshots.tar.gz，归档可读但未做完整恢复演练。20表全部旧列摘要核对一致（/opt/manager/data-before-shift-display-20261001.json）；207文件哈希一致，manager/nginx active，HTTPS登录200、未登录上班页307。旧程序/opt/manager/standalone-before-shift-display-20261001及旧源码source-before-shift-display-20261001.tar.gz保留。未重跑业务测试矩阵或浏览器，本次无本地临时服务。代码与文档同次提交推送main。
+## 2026-10-01 D047直播工作页面精简发布
+
+三列精简账号卡片、区域滚动及执行中控底部待收尾上线。无schema、依赖、权限或写服务变更，迁移仍21项。typecheck、相关eslint、本地生产构建、隔离HTTP、桌面1280×720及窄屏390×844验收通过；未重跑完整业务矩阵。
+
+受限构建133.365秒，峰值837.8MiB；备份/var/backups/manager/manager-20261001T071539Z.dump及同名.screenshots.tar.gz，归档目录可读，未做完整恢复演练。20表原数据核对一致，摘要/opt/manager/data-before-homecompact-20261001.json。旧程序/opt/manager/standalone-before-homecompact-20261001、旧源码/opt/manager/source-before-homecompact-20261001.tar.gz保留。
+
+207部署文件哈希一致，manager/nginx/docker及两个timer active；HTTPS登录200、未登录/controller 307。timer active不代表本次续期成功。正式库未造测试资料；隔离夹具已清理、3103停止。截图/tmp/manager-controller-home.png不入库。代码4d4ed29已同步main，发布文档随后同步。
