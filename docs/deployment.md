@@ -344,3 +344,5 @@
 - 218个部署文件哈希一致；截图目录应用用户独立读写探针通过；manager/nginx/backup timer active，HTTPS登录200，未登录管理列表307。生产未写入测试场次。
 - standalone构建复制的.env已从新程序包剔除，服务仍通过/etc/manager/app.env注入配置，未输出凭证、未修改源配置。
 - 桌面与隔离验收见[tasks/session-management-verification.md](tasks/session-management-verification.md)。源代码与文档本次同步GitHub；Git提交与生产发布分别核验。
+
+D050对应源码提交：744c6db4c2969e750c71ee88b657db02e93539f0，已同步origin/main且远程一致；后续纯文档交接提交不触发再次部署。

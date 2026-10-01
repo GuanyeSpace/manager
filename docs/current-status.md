@@ -152,4 +152,4 @@ D050里程碑：实现及隔离迁移/业务回归通过；1440×900桌面验证
 
 验证：管理专项、迁移、workbench/shifts/corrections/evidence/leads/live-reports/shift-checklist通过；类型/lint/本地构建/服务器webpack通过。桌面双图补录/刷新查看、错误保留、编辑留痕、来源返回、回收站恢复与上班列表/详情通过，详见tasks/session-management-verification.md。
 
-清理：本轮夹具已清理，测试库test-%员工为0；3103/9334已停止、临时会话JSON和Chrome profile删除。截图与无凭证复现脚本仅保留/tmp/manager-session-ui等仓库外位置。生产未创建测试业务场次。Git完成审查后按明确文件清单提交并推送main；仅排除既定.claude/launch.json删除。
+清理：本轮夹具已清理，测试库test-%员工为0；3103/9334已停止、临时会话JSON和Chrome profile删除。截图与无凭证复现脚本仅保留/tmp/manager-session-ui等仓库外位置。生产未创建测试业务场次。代码与文档提交744c6db已推送origin/main，远程SHA与本地一致；部署218个文件与该版本源码一致。工作区仅既定排除的.claude/launch.json删除。
