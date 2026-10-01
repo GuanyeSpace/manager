@@ -339,7 +339,7 @@
 | `progress` | `Json` | 存储字段 | `@default("{}")` | — |
 | `hasViolation` | `Boolean?` | 存储字段 | — | — |
 | `violationDetail` | `String` | 存储字段 | `@default("")` | — |
-| `outcome` | `String?` | 存储字段 | — | — |
+| `outcome` | `String?` | 存储字段；NORMAL/UNSTARTED/INTERRUPTED及D049四类断播结果 | — | — |
 | `hasOtherIncident` | `Boolean?` | 存储字段；其他异常，旧记录null不推断 | — | — |
 | `hasIncident` | `Boolean?` | 存储字段 | — | — |
 | `wrapNote` | `String?` | 存储字段 | — | — |

@@ -150,3 +150,5 @@ clockStartedAt为服务器开始计时点，checkedInAt为首次四项检查完�
 ### D048 三阶段与异常类型
 
 WorkSession新增hasOtherIncident Boolean?，迁移20261001160000_work_stages（第22次）仅追加可空列，旧值保持null。hasIncident表示异常总开关，hasViolation/hasOtherIncident区分两类及并存；新收尾无异常写false。异常中断强制other=true。旧progress的note/issue/skip不删除，新执行check只写done/pending，取消后重勾更新时间；变更前后progress进入审计。旧归档不重判。WorkScreenshot复用本场end/violation附件作为收尾证据，新附件关联complete事件。
+
+D049：WorkSession.outcome复用可空String，新值VIOLATION_STOP、VIOLATION_BAN、EQUIPMENT、OTHER_INTERRUPTION；NORMAL/UNSTARTED/INTERRUPTED保留。schema集中映射输入、显示和异常判定，无数据库迁移、不改旧记录。WorkEvent保存具体下播类型及原因；更正审计保留前后类型。

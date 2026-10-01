@@ -7,7 +7,7 @@ import { requireAccountActor } from "@/modules/accounts/service";
 import { shanghaiDate, shanghaiInput } from "@/modules/live-reports/schema";
 import { acquireUserMutationLock, UserActionError } from "@/modules/users/boss-guard";
 import { canExecute } from "./service";
-import { phases, phaseLabels, workflowSchema, type Progress } from "./schema";
+import { endKindSchema, endKinds, endOutcomes, endKindForOutcome, isInterrupted, isViolationEnd, isOtherEnd, phases, phaseLabels, workflowSchema, type Progress } from "./schema";
 import type { Screenshot } from "./screenshots";
 
 export type CorrectionChange = { field: string; before: string; after: string };
@@ -22,7 +22,7 @@ const correctionSchema = z.object({
   status: z.enum(["done", "pending", "issue", "skip"]).default("done"),
   otherIncident: z.enum(["", "yes", "no"]).default(""),
   violation: z.enum(["", "yes", "no"]).default(""), incident: z.enum(["", "yes", "no"]).default(""),
-  endKind: z.enum(["normal", "interrupted"]).default("normal"), note: z.string().trim().max(2000).default(""),
+  endKind: endKindSchema.default("normal"), note: z.string().trim().max(2000).default(""),
   failureReason: z.enum(["", "人脸验证未通过", "账号封禁", "设备故障", "主播原因", "其他"]).default(""),
   recoveryDate: z.string().max(10).default(""),
 });
@@ -95,28 +95,27 @@ export async function correctSession(tx: Prisma.TransactionClient, token: string
     if (s.phase !== "COMPLETE" || !input.violation) throw new UserActionError("请选择已开播场次是否违规");
     if (input.violation === "yes" && (!input.note || !screenshots.length)) throw new UserActionError("有违规时必须填写具体内容并上传截图");
     if (input.violation === "no" && screenshots.length) throw new UserActionError("无违规更正不需要截图，可通过补充截图入口上传说明图片");
-    data.hasIncident = input.violation === "yes" || s.outcome === "INTERRUPTED" ? true : s.hasOtherIncident === null ? s.hasIncident : s.hasOtherIncident;
+    data.hasIncident = input.violation === "yes" || isInterrupted(s.outcome) ? true : s.hasOtherIncident === null ? s.hasIncident : s.hasOtherIncident;
     change("hasIncident", "本场异常", s.hasIncident, data.hasIncident, String(s.hasIncident), String(data.hasIncident));
     data.hasViolation = input.violation === "yes"; data.violationDetail = input.violation === "yes" ? input.note : "";
     change("hasViolation", "违规情况", s.hasViolation, data.hasViolation, s.hasViolation === null ? "历史未记录" : s.hasViolation ? "有违规" : "无违规", data.hasViolation ? "有违规" : "无违规");
     change("violationDetail", "违规内容", s.violationDetail, String(data.violationDetail), s.violationDetail || "—", String(data.violationDetail) || "—");
   } else if (input.kind === "wrap") {
     if (s.phase !== "COMPLETE" || !input.incident) throw new UserActionError("请选择已收尾场次有异常或无异常");
-    if ((input.incident === "yes" || input.endKind === "interrupted") && !input.note) throw new UserActionError("有异常或异常中断时必须填写具体情况");
-    if (input.endKind === "interrupted" && s.outcome !== "INTERRUPTED" && !screenshots.length) throw new UserActionError("更正为异常中断必须上传截图");
-    const violation = input.violation === "yes", other = input.otherIncident === "yes";
+    if ((input.incident === "yes" || input.endKind !== "normal") && !input.note) throw new UserActionError("有异常或异常中断时必须填写具体情况");
+    if (input.endKind !== "normal" && s.outcome !== endOutcomes[input.endKind] && !screenshots.length) throw new UserActionError("更正为异常中断必须上传截图");
+    const violation = input.violation === "yes" || isViolationEnd(endOutcomes[input.endKind]), other = input.otherIncident === "yes" || isOtherEnd(endOutcomes[input.endKind]);
     if (input.incident === "yes" && !violation && !other) throw new UserActionError("请选择异常类型");
-    if (input.incident === "no" && (violation || other || input.endKind === "interrupted")) throw new UserActionError("违规或异常中断不能标记无异常");
-    if (input.endKind === "interrupted" && !other) throw new UserActionError("异常中断须保留其他异常类型");
+    if (input.incident === "no" && (violation || other || input.endKind !== "normal")) throw new UserActionError("违规或异常中断不能标记无异常");
     if (violation && !screenshots.length) throw new UserActionError("更正违规必须上传截图");
     data.hasViolation = violation; data.violationDetail = violation ? input.note : ""; data.hasOtherIncident = other;
     change("hasViolation", "违规", s.hasViolation, violation, String(s.hasViolation), String(violation));
     change("hasOtherIncident", "其他异常", s.hasOtherIncident, other, String(s.hasOtherIncident), String(other));
     change("violationDetail", "违规说明", s.violationDetail, String(data.violationDetail), s.violationDetail, String(data.violationDetail));
-    data.hasIncident = input.incident === "yes"; data.wrapNote = input.note; data.outcome = input.endKind === "interrupted" ? "INTERRUPTED" : "NORMAL";
+    data.hasIncident = input.incident === "yes"; data.wrapNote = input.note; data.outcome = endOutcomes[input.endKind];
     change("hasIncident", "收尾异常", s.hasIncident, data.hasIncident, s.hasIncident === null ? "历史未记录" : s.hasIncident ? "有异常" : "无异常", data.hasIncident ? "有异常" : "无异常");
     change("wrapNote", "收尾说明", s.wrapNote, input.note, s.wrapNote || "—", input.note || "—");
-    change("outcome", "下播方式", s.outcome, String(data.outcome), s.outcome === "INTERRUPTED" ? "异常中断" : "正常下播", input.endKind === "interrupted" ? "异常中断" : "正常下播");
+    change("outcome", "下播方式", s.outcome, String(data.outcome), endKinds[endKindForOutcome(s.outcome)], endKinds[input.endKind]);
   } else if (input.kind === "unstarted") {
     if (s.phase !== "CANCELLED" || !input.failureReason || !input.note) throw new UserActionError("请选择未开播类型并填写具体原因");
     if (input.recoveryDate && !shanghaiDate(`${input.recoveryDate}T00:00`)) throw new UserActionError("预计恢复日期无效");

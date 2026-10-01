@@ -6,7 +6,7 @@ import path from "node:path";
 import { signSessionToken } from "../lib/auth/session-token";
 import { saveAccount } from "../modules/accounts/service";
 import { shanghaiInput } from "../modules/live-reports/schema";
-import { defaultWorkflow, type Workflow } from "../modules/workbench/schema";
+import { endKinds, endOutcomes, workStatusLabel, defaultWorkflow, type Workflow } from "../modules/workbench/schema";
 import { runWorkCommand, saveWorkflow } from "../modules/workbench/service";
 import { readScreenshot, screenshotBytes, screenshotDirectory, submitWorkCommand } from "../modules/workbench/screenshots";
 import { saveSessionScripts } from "../modules/workbench/session-scripts";
@@ -223,6 +223,28 @@ async function main() {
     await work(controller.token, { id: fourth, version: 3, command: "check", phase: "after", index: 0, status: "done" });
     await work(controller.token, { id: fourth, version: 4, command: "complete", incident: "no" });
     assert.equal((await db.workSession.findUniqueOrThrow({ where: { id: fourth } })).hasIncident, false);
+    for (const endKind of ["violation_stop", "violation_ban", "equipment", "other"] as const) {
+      const current = await work(controller.token, { id: accountId, version: 0, command: "create" });
+      await work(controller.token, { id: current, version: 1, command: "start", time: shanghaiInput(new Date()) });
+      await db.workSession.update({ where: { id: current }, data: { startedAt: new Date(Date.now() - 60000) } });
+      const ending = { id: current, version: "2", command: "end", endKind, time: shanghaiInput(new Date()), note: "test interruption" };
+      await assert.rejects(submit(controller.token, ending), /截图/);
+      await assert.rejects(submit(controller.token, { ...ending, note: "" }, [{ bytes: png, name: "end.png" }]), /原因/);
+      assert.equal((await db.workSession.findUniqueOrThrow({ where: { id: current } })).phase, "LIVE");
+      await submit(controller.token, ending, [{ bytes: png, name: "end.png" }]);
+      const ended = await db.workSession.findUniqueOrThrow({ where: { id: current } });
+      const isViolation = endKind.startsWith("violation");
+      assert.equal(ended.outcome, endOutcomes[endKind]);
+      assert.ok(workStatusLabel(ended).includes(endKinds[endKind]));
+      assert.equal(ended.hasViolation === true, isViolation);
+      assert.equal(ended.hasOtherIncident, !isViolation);
+      assert.equal((await db.douyinAccount.findUniqueOrThrow({ where: { id: accountId } })).banned, false);
+      await work(controller.token, { id: current, version: 3, command: "check", phase: "after", index: 0, status: "done" });
+      await assert.rejects(work(controller.token, { id: current, version: 4, command: "complete", incident: "no" }), /对应异常类型/);
+      await work(controller.token, { id: current, version: 4, command: "complete", incident: "yes", violation: isViolation ? "yes" : "no", otherIncident: isViolation ? "no" : "yes", note: "test completed" });
+      assert.equal(await db.workScreenshot.count({ where: { sessionId: current } }), 1);
+    }
+    console.log("PASS: four interruption types require reason and screenshot, preserve category, reuse evidence and do not auto-ban accounts");
     await shift(controller.token, { command: "shiftCheck", id: shiftTwo, version: 4, item: "computer", status: "normal" });
     await shift(controller.token, { command: "shiftEarlyEnd", id: shiftTwo, version: 5, reason: "测试提前结束" });
     console.log("PASS: 截图校验、私有文件与授权读取、失败清理、未开播和异常中断、话术同步及历史隔离");

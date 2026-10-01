@@ -2,6 +2,14 @@
 
 # 生产部署
 
+## 2026-10-01 D049 下播方式细分
+
+- 正常、违规断播、违规封禁、设备问题断播、其他异常中断；非正常原因与截图必填，历史INTERRUPTED保留。无schema变更，22迁移无待执行。
+- 类型、lint、本地及服务器构建通过；证据专项覆盖四类原因/截图缺失拒绝、保存类型、收尾复用、不自动封禁；更正/工作台/导粉回归及截图HTTP权限/原字节通过。浏览器已看到五选项，恢复连接连续超时，未完成后续交互复测；不将前次验收当作本轮完成。
+- stage /opt/manager/build-endtypes-20261001，unit manager-endtypes-build成功。暂停写入后备份/var/backups/manager/manager-20261001T122255Z.dump及同名截图包，二者可读。
+- 摘要/opt/manager/data-before-endtypes-20261001.json，20张旧表所有原列一致。旧程序/opt/manager/standalone-before-endtypes-20261001，源码归档/opt/manager/source-before-endtypes-20261001.tar.gz。
+- 210文件SHA-256一致，manager/nginx active，HTTPS登录200、匿名工作台307，截图存储探针通过。未创建正式测试场次。临时夹具已清理、3103停止，Git按明确清单同步main。
+
 ## 2026-10-01 D048 三阶段与截图修复
 
 - 隔离类型/lint/构建、相关业务及HTTP回归、桌面真实图片验收通过，详见[专项验收](tasks/work-stages-verification.md)。

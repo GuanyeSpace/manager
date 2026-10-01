@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+export const endKinds = { normal: "正常下播", violation_stop: "违规断播", violation_ban: "违规封禁", equipment: "设备问题断播", other: "其他异常中断", interrupted: "异常中断（历史）" };
+export const endKindSchema = z.enum(["normal", "violation_stop", "violation_ban", "equipment", "other", "interrupted"]);
+export const endOutcomes = { normal: "NORMAL", violation_stop: "VIOLATION_STOP", violation_ban: "VIOLATION_BAN", equipment: "EQUIPMENT", other: "OTHER_INTERRUPTION", interrupted: "INTERRUPTED" };
+export function endKindForOutcome(outcome: string | null) { return (Object.keys(endOutcomes) as (keyof typeof endKinds)[]).find(k => endOutcomes[k] === outcome) ?? "normal"; }
+export function isInterrupted(outcome: string | null) { return endKindForOutcome(outcome) !== "normal"; }
+export function isViolationEnd(outcome: string | null) { return ["VIOLATION_STOP", "VIOLATION_BAN"].includes(outcome ?? ""); }
+export function isOtherEnd(outcome: string | null) { return isInterrupted(outcome) && !isViolationEnd(outcome); }
+
 export const phases = ["before", "live", "after"] as const;
 export const phaseLabels = { before: "开播前", live: "开播中", after: "下播后" };
 export const statusLabels = { PREPARING: "准备中", LIVE: "直播中", WRAP: "待收尾", COMPLETE: "已收尾", CANCELLED: "已取消" };
@@ -35,7 +43,7 @@ export function moneyPending(report: { deletedAt?: Date | null; monetizationDele
 export const commandSchema = z.object({
   id: z.string().max(100), version: z.coerce.number().int().min(0),
   command: z.enum(["create", "start", "end", "complete", "cancel", "check", "issue", "patrol", "violation", "controller", "unstarted", "correct"]),
-  endKind: z.enum(["normal", "interrupted"]).default("normal"),
+  endKind: endKindSchema.default("normal"),
   otherIncident: z.enum(["", "yes", "no"]).default(""),
   incident: z.enum(["", "yes", "no"]).default(""),
   failureReason: z.enum(["", "人脸验证未通过", "账号封禁", "设备故障", "主播原因", "其他"]).default(""),
@@ -85,6 +93,6 @@ export const shiftCommandSchema = z.object({
 
 export function workStatusLabel(session: { phase: keyof typeof statusLabels; outcome?: string | null }) {
   if (session.outcome === "UNSTARTED") return "未正常开播";
-  if (session.outcome === "INTERRUPTED") return `${statusLabels[session.phase]} · 异常中断`;
+  if (isInterrupted(session.outcome ?? null)) return `${statusLabels[session.phase]} · ${endKinds[endKindForOutcome(session.outcome ?? null)]}`;
   return statusLabels[session.phase];
 }
