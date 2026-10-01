@@ -647,3 +647,13 @@
 
 - `@@index([branchId, createdAt])`
 - `@@index([userId, completedAt])`
+
+## D050 WorkSession新增字段（迁移23）
+| 字段 | 类型 | 含义 |
+| --- | --- | --- |
+| supplementedAt | DateTime? | 老板补录系统时间，旧记录为空 |
+| supplementedById / supplementedByName | String? | 补录员工ID及姓名快照 |
+| occurredAt | DateTime? | 补录场次实际发生时间，未开播也记录 |
+| deletedAt | DateTime? | 回收站时间，空表示有效 |
+| deletedById | String? | 删除操作员工ID |
+| deleteReason | String? | 当前删除原因，恢复清空，完整历史仍在审计 |

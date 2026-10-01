@@ -53,7 +53,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
     return session.id;
   }
   const session = await tx.workSession.findUnique({ where: { id: input.id }, include: { account: { include: { branch: true } }, sourceRecord: true } });
-  if (!session || (!canExecute(actor, session.account, session.controllerId) || (session.loginUserId && session.loginUserId !== actor.id && !isAccountBoss(actor)))) throw new UserActionError("场次不存在或无执行权限");
+  if (!session || session.deletedAt || (!canExecute(actor, session.account, session.controllerId) || (session.loginUserId && session.loginUserId !== actor.id && !isAccountBoss(actor)))) throw new UserActionError("场次不存在或无执行权限");
   if (session.version !== input.version) throw new UserActionError("本场进度已更新，请刷新后重试");
   if (["COMPLETE", "CANCELLED"].includes(session.phase)) throw new UserActionError("场次已归档，不能继续修改执行记录");
   const workflow = workflowSchema.parse(session.workflow);
@@ -89,7 +89,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
         if (!person || (person.branchId !== session.account.branchId && !(isAccountBoss(person) && person.id === session.loginUserId))) throw new UserActionError("本场直播中控已离职或调离，请重新选择");
       }
       const people = [...new Set([session.loginUserId ?? session.controllerId, session.actualControllerId ?? session.controllerId])];
-      const conflict = await tx.workSession.findFirst({ where: { id: { not: session.id }, AND: [{ OR: [{ loginUserId: { in: people } }, { actualControllerId: { in: people } }, { loginUserId: null, controllerId: { in: people } }, { actualControllerId: null, controllerId: { in: people } }] }, { OR: [{ phase: "LIVE" }, { endedAt: { gt: time } }] }] } });
+      const conflict = await tx.workSession.findFirst({ where: { deletedAt: null, id: { not: session.id }, AND: [{ OR: [{ loginUserId: { in: people } }, { actualControllerId: { in: people } }, { loginUserId: null, controllerId: { in: people } }, { actualControllerId: null, controllerId: { in: people } }] }, { OR: [{ phase: "LIVE" }, { endedAt: { gt: time } }] }] } });
       if (conflict) throw new UserActionError("该直播中控已有直播中的场次，或填写时间与已有场次重叠");
       if (workflow.before.some((_, i) => progress[`before:${i}`]?.status !== "done")) throw new UserActionError("请先勾选完成全部开播前事项");
       data.phase = "LIVE"; data.startedAt = time;
@@ -163,7 +163,7 @@ export async function saveDailyWork(tx: Prisma.TransactionClient, token: string,
 export async function readWorkbench(tx: Prisma.TransactionClient, token: string) {
   const actor = await requireAccountActor(tx, token);
   const accounts = await tx.douyinAccount.findMany({ where: currentAccountScope(actor), select: { id: true, name: true, douyinId: true, active: true, banned: true, unbanDate: true, purpose: true, anchor: { select: { name: true } }, controller: { select: { name: true } }, branch: { select: { name: true } } }, orderBy: { name: "asc" } });
-  const scope = { sourceRecord: historicalAccountScope(actor) };
+  const scope = { deletedAt: null, sourceRecord: historicalAccountScope(actor) };
   if (isExecutionController(actor)) {
     const sessions = await tx.workSession.findMany({ where: { ...scope, phase: { in: ["PREPARING", "LIVE", "WRAP"] } }, include: { sourceRecord: true }, orderBy: { createdAt: "desc" } });
     const daily = await tx.dailyWork.findUnique({ where: { userId_day: { userId: actor.id, day: shanghaiInput(new Date()).slice(0, 10) } } });
@@ -180,16 +180,16 @@ export async function readWorkspace(tx: Prisma.TransactionClient, token: string,
   const actor = await requireAccountActor(tx, token);
   const account = await tx.douyinAccount.findFirst({ where: { id, ...currentAccountScope(actor) }, select: { id: true, name: true, douyinId: true, purpose: true, room: { select: { id: true, name: true } }, phoneNumber: { select: { id: true, number: true } }, active: true, banned: true, unbanDate: true, branchId: true, controllerId: true, operatorId: true, anchorId: true, branch: { select: { id: true, name: true, managerId: true, status: true } }, controller: { select: { name: true } }, operator: { select: { name: true } }, anchor: { select: { name: true } }, workflow: true } });
   if (!account) return null;
-  const current = await tx.workSession.findFirst({ where: { accountId: id, phase: { in: ["PREPARING", "LIVE"] }, sourceRecord: historicalAccountScope(actor) } });
-  const wrapping = await tx.workSession.findMany({ where: { accountId: id, phase: "WRAP", sourceRecord: historicalAccountScope(actor) }, select: { id: true, label: true, endedAt: true }, orderBy: { createdAt: "desc" } });
+  const current = await tx.workSession.findFirst({ where: { deletedAt: null, accountId: id, phase: { in: ["PREPARING", "LIVE"] }, sourceRecord: historicalAccountScope(actor) } });
+  const wrapping = await tx.workSession.findMany({ where: { deletedAt: null, accountId: id, phase: "WRAP", sourceRecord: historicalAccountScope(actor) }, select: { id: true, label: true, endedAt: true }, orderBy: { createdAt: "desc" } });
   const controllers = await tx.user.findMany({ where: { branchId: account.branchId, employmentStatus: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } });
   return { account, current, wrapping, controllers, editable: canEditWorkflow(actor, account), scriptsEditable: canEditScripts(actor, account), executable: canExecute(actor, account) };
 }
 export async function readWorkSession(tx: Prisma.TransactionClient, token: string, id: string) {
   const actor = await requireAccountActor(tx, token);
-  const session = await tx.workSession.findFirst({ where: { id, sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } }, events: { orderBy: { createdAt: "desc" }, take: 200, include: { screenshots: { select: { id: true }, orderBy: { createdAt: "asc" } } } }, account: { select: { controllerId: true, branchId: true, workflow: { select: { version: true } } } } } });
+  const session = await tx.workSession.findFirst({ where: { id, ...(!isAccountBoss(actor) ? { deletedAt: null } : {}), sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } }, events: { orderBy: { createdAt: "desc" }, take: 200, include: { screenshots: { select: { id: true }, orderBy: { createdAt: "asc" } } } }, account: { select: { controllerId: true, branchId: true, workflow: { select: { version: true } } } } } });
   if (!session) return null;
-  const editable = canExecute(actor, session.account, session.controllerId) && (!session.loginUserId || session.loginUserId === actor.id || isAccountBoss(actor));
+  const editable = !session.deletedAt && canExecute(actor, session.account, session.controllerId) && (!session.loginUserId || session.loginUserId === actor.id || isAccountBoss(actor));
   // 接手后的当前归属不传给旧负责人。
   const { account: _account, ...safe } = session;
   void _account;
@@ -199,7 +199,7 @@ export async function readWorkSession(tx: Prisma.TransactionClient, token: strin
 }
 export async function readWorkHistory(tx: Prisma.TransactionClient, token: string, page: number) {
   const actor = await requireAccountActor(tx, token);
-  const sessions = await tx.workSession.findMany({ where: { sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } } }, orderBy: { createdAt: "desc" }, take: 30, skip: (page - 1) * 30 });
+  const sessions = await tx.workSession.findMany({ where: { deletedAt: null, sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } } }, orderBy: { createdAt: "desc" }, take: 30, skip: (page - 1) * 30 });
   return sessions.map(s => ({ ...s, report: isExecutionController(actor) ? null : s.report }));
 }
 

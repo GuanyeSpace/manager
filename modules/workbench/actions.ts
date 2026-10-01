@@ -84,3 +84,17 @@ export async function saveWorkCheckAction(form: FormData) {
     refresh(); return { saved };
   } catch (error) { return { error: errorState(error)?.error ?? "保存失败，请重试" }; }
 }
+
+export async function manageSessionAction(_state: WorkState, form: FormData): Promise<WorkState> {
+  const token = await guard(), ip = await getClientIp(); let id: string;
+  try {
+    if (form.get("command") === "supplement") id = await submitWorkCommand(prisma, token, form, ip);
+    else { const { recycleSession } = await import("./management"); id = await prisma.$transaction(tx => recycleSession(tx, token, Object.fromEntries(form), ip)); }
+  } catch (error) { return errorState(error); }
+  refresh(); revalidatePath("/leads", "layout"); revalidatePath("/live-reports", "layout");
+  if (form.get("command") === "supplement") {
+    const { withTrail, parseTrail } = await import("@/lib/navigation-trail");
+    redirect(withTrail(`/workbench/sessions/${id}`, parseTrail(form.get("via")).filter(path => !path.startsWith("/workbench/history/new"))));
+  }
+  return { success: "已保存" };
+}

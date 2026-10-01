@@ -11,7 +11,7 @@ export function leadScope(actor: AccountActor): Prisma.LeadTaskWhereInput {
   if (isAccountBoss(actor)) return {};
   return { OR: [{ branch: reportManagementScope(actor) }, ...(isLeadSpecialist(actor) ? [{ userId: actor.id, branchId: actor.branchId ?? "" }] : []), ...(isReportOperator(actor) ? [{ branchId: actor.branchId ?? "", session: { account: { operatorId: actor.id } } }] : [])] };
 }
-const eligible = { leadEligible: true, startedAt: { not: null }, phase: { in: ["LIVE", "WRAP", "COMPLETE"] as ("LIVE" | "WRAP" | "COMPLETE")[] } };
+const eligible = { deletedAt: null, leadEligible: true, startedAt: { not: null }, phase: { in: ["LIVE", "WRAP", "COMPLETE"] as ("LIVE" | "WRAP" | "COMPLETE")[] } };
 export async function readLeadList(tx: Prisma.TransactionClient, token: string, view: string, page = 1) {
   const actor = await requireAccountActor(tx, token);
   const specialist = isLeadSpecialist(actor);
@@ -54,6 +54,7 @@ export async function runLeadCommand(tx: Prisma.TransactionClient, token: string
   const result = await readLeadTask(tx, token, input.id);
   if (!result || !result.editable) throw new UserActionError("记录不存在或无修改权限");
   const { task, manager } = result;
+  if (task.session.deletedAt) throw new UserActionError("请先由老板恢复关联场次，再操作导粉数据");
   if (task.version !== input.version) throw new UserActionError("数据已被修改，请保留输入并刷新核对后重试");
   const changes: { field: string; before: string; after: string }[] = [];
   let data: Prisma.LeadTaskUncheckedUpdateInput = { version: { increment: 1 } };

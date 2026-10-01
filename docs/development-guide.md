@@ -171,3 +171,6 @@ ALLOW_TEST_DESTRUCTION=true npm run test:accounts
 - scripts/test-shift-checklist-migration.ts：专用临时数据库先应用前20次迁移，建立旧记录，新增第21次迁移，比较20张旧业务表全部原有列不变，验证新增三列为空，然后清理临时库。
 - 延续test-work-shifts、test-work-corrections、test-work-evidence、test-workbench、test-multi-roles和test-controller-workspace隔离回归；绝不在正式库运行这些夹具。
 - 本次桌面浏览器验收使用隔离库+next生产构建：初始无默认结果、异常备注必填且保留草稿、逐项保存、异常也到岗、修改/刷新不重置首次完成、普通下班禁用、提前原因及审计可见。未做生产真实员工写操作。
+
+### D050老板场次管理专项
+scripts/test-session-management.ts覆盖补录、截图、时间重叠、事务回滚、越权/会话、并发软删除、父子恢复、可见性、筛选与审计；TEST_UI_HOLD=true保留合成夹具供浏览器，回车后清理。scripts/test-session-management-migration.ts独立临时库验证旧20表全部原列不变、新7列为空。均按隔离库保护运行。回归workbench/shifts/corrections/evidence/leads/live-reports与shift-checklist。

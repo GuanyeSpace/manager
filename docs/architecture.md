@@ -147,3 +147,7 @@ WorkbenchHome复用现有getWorkbench查询/作用域；去掉name入参及两�
 WorkSessionView按阶段组织所有操作，WorkTaskTable取代WorkTaskRow，以服务端保存快照/version串行互斥提交，失败保留原勾选状态。WorkWrapFields统一异常类型与证据，runWorkCommand在同一事务校验并收尾。截图写入失败仅记录错误码，前端保留输入。deploy/check-screenshot-storage.sh在激活前检查父目录访问权与应用用户读写，不递归改截图权限。
 
 D049：workbench/schema集中定义五种endKinds和endOutcomes映射，isInterrupted/isViolationEnd/isOtherEnd共同用于保存、收尾、更正和状态展示；上传入口对非正常下播接受图片并由事务检查必填。避免只在前端增加选项。
+
+## D050 老板记录管理
+老板在/workbench/history使用管理列表，其他岗位保留原历史列表；/workbench/history/new补录，/workbench/sessions/[id]?edit=yes直达现有更正入口。管理服务modules/workbench/management.ts统一补录/回收站事务及老板权限；截图沿用私有上传与事务失败清理。WorkSession新增软删除过滤同步执行、更正、话术、截图、导粉、报表和上班查询。
+老板/workbench/shifts显示简表，/workbench/shifts/[id]按需加载详情；原员工明细复用WorkShiftDetail，员工规则未变。ContextLink/ReturnLink保留来路及筛选分页。

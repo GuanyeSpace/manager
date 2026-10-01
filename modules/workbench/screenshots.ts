@@ -1,3 +1,5 @@
+import { isAccountBoss } from "@/lib/auth/account-permissions";
+import { requireSessionBoss, supplementSession } from "./management";
 import { mkdir, writeFile, unlink, readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
@@ -20,7 +22,9 @@ export async function submitWorkCommand(db: PrismaClient, token: string, form: F
   const files = form.getAll("screenshots").filter(v => typeof v !== "string" && v.size > 0) as File[];
   if (files.length > 6 || files.some(f => f.size > 5 * 1024 * 1024) || files.reduce((n, f) => n + f.size, 0) > 20 * 1024 * 1024) throw new UserActionError("每次最多 6 张截图，单张不超过 5MB，合计不超过 20MB");
   const uploads: Screenshot[] = [];
-  if (files.length) {
+  const supplement = form.get("command") === "supplement";
+  if (supplement) await db.$transaction(tx => requireSessionBoss(tx, token));
+  if (files.length && !supplement) {
     const command = form.get("command");
     const correction = command === "correct" && ["violation", "wrap", "evidence", "unstarted"].includes(String(form.get("kind")));
     if (!(correction || command === "complete" && form.get("incident") === "yes" || command === "unstarted" || command === "end" && form.get("endKind") !== "normal" || command === "violation" && form.get("violation") === "yes")) throw new UserActionError("此操作不需要上传截图");
@@ -36,7 +40,7 @@ export async function submitWorkCommand(db: PrismaClient, token: string, form: F
       uploads.push(upload);
       await writeFile(path.join(screenshotDirectory(), upload.id), bytes, { flag: "wx", mode: 0o600 });
     }
-    return await db.$transaction(tx => runWorkCommand(tx, token, Object.fromEntries(form), ip, uploads));
+    return await db.$transaction(tx => supplement ? supplementSession(tx, token, Object.fromEntries(form), ip, uploads) : runWorkCommand(tx, token, Object.fromEntries(form), ip, uploads));
   } catch (error) {
     // 若提交结果不确定，保留可能已被数据库引用的文件，避免误删有效截图。
     for (const upload of uploads) {
@@ -50,7 +54,7 @@ export async function submitWorkCommand(db: PrismaClient, token: string, form: F
 
 export async function readScreenshot(tx: Prisma.TransactionClient, token: string, id: string) {
   const actor = await requireAccountActor(tx, token);
-  return tx.workScreenshot.findFirst({ where: { id, session: { sourceRecord: historicalAccountScope(actor) } }, select: { id: true, contentType: true, size: true } });
+  return tx.workScreenshot.findFirst({ where: { id, session: { ...(!isAccountBoss(actor) ? { deletedAt: null } : {}), sourceRecord: historicalAccountScope(actor) } }, select: { id: true, contentType: true, size: true } });
 }
 export async function screenshotBytes(id: string) {
   if (!/^[a-f0-9-]{36}$/.test(id)) throw new UserActionError("截图不存在");

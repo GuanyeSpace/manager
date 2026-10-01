@@ -10,7 +10,7 @@ export default function ContextLink({ href, ...props }: ComponentProps<typeof Li
   const trail = parseTrail(search.get("via"));
   const destination = typeof href !== "string" ? href : href.startsWith("?") ? withTrail(path + href, trail)
     : href.split(/[?#]/)[0] === path ? withTrail(href, trail)
-    : /^\/(resources\/[^/]+\/|accounts\/[^?]|account-config\/|boss\/users\/|leads\/|live-reports(?:\/|\?accountId)|workbench\/(accounts|sessions|shifts)\/)/.test(href)
+    : /^\/(resources\/[^/]+\/|accounts\/[^?]|account-config\/|boss\/users\/|leads\/|live-reports(?:\/|\?accountId)|workbench\/(accounts|sessions|shifts|history)\/)/.test(href)
       ? followHref(href, `${path}?${search}`) : href;
   return <Link href={destination} {...props} />;
 }

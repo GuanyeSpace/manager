@@ -1,0 +1,1 @@
+ALTER TABLE "WorkSession" ADD COLUMN "supplementedAt" TIMESTAMP(3), ADD COLUMN "supplementedById" TEXT, ADD COLUMN "supplementedByName" TEXT, ADD COLUMN "occurredAt" TIMESTAMP(3), ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT, ADD COLUMN "deleteReason" TEXT;

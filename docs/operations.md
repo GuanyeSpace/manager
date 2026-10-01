@@ -110,3 +110,6 @@ Prisma generate在stage生成；应用包需要public和.next/static一同放进
 ### 截图目录发布检查（D048）
 
 每次发布激活前以root执行 `bash deploy/check-screenshot-storage.sh`：父目录/opt/manager/uploads为root:manager-app 750，截图目录manager-app:manager-app 700，现有截图文件权限不递归变动。脚本用应用用户创建、读回并删除独立临时探针，不写业务表。原先父目录root:root 750会导致应用EACCES，即使子目录owner正确也无法上传。不要在后续部署中重新创建为root组；不要chmod -R或放开给所有用户。数据库与截图仍须先备份、旧数据仍须核对。
+
+### D050场次软删除版本回退注意
+迁移23仅加可空列，原值保留。但旧程序不认识场次deletedAt，启用回收站后直接回退旧程序会重新显示已删除场次并绕过关联保护。优先向前修复；应急回退前评估是否已有删除/补录记录，不得清空新列或删除业务记录以兼容旧程序。

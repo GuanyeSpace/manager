@@ -10,8 +10,9 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   const input = reportSchema.parse(raw);
   await acquireUserMutationLock(tx);
   const actor = await requireAccountActor(tx, token);
-  const before = input.id ? await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { leadTask: { select: { id: true } } } } } }) : null;
+  const before = input.id ? await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { deletedAt: true, leadTask: { select: { id: true } } } } } }) : null;
   if (input.id && (!before || !canManageLiveReports(actor, before.branch))) throw new UserActionError("记录不存在或无修改权限");
+  if (before?.workSession?.deletedAt) throw new UserActionError("请先恢复关联场次");
   if (before?.workSession?.leadTask) throw new UserActionError("请在导粉场次页面更正本场数据");
   if (before && !input.reason) throw new UserActionError("请填写更正原因");
   if (before?.deletedAt) throw new UserActionError("该记录已删除，请先在回收站恢复");
@@ -25,11 +26,11 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   if (!before && (!account.active || account.branch.status !== "ACTIVE")) throw new UserActionError("账号或分公司已停用，不能新增数据");
   const startedAt = shanghaiDate(input.startedAt)!;
   if (!before && await tx.liveReport.findFirst({ where: { accountId: account.id, startedAt, deletedAt: { not: null } }, select: { id: true } })) throw new UserActionError("该场记录已在回收站，请先恢复原记录再修改");
-  if (!before && !input.workSessionId && await tx.workSession.findFirst({ where: { accountId: account.id, leadEligible: true, startedAt: { gte: startedAt, lt: new Date(startedAt.getTime() + 60000) } }, select: { id: true } })) throw new UserActionError("本场请通过导粉工作台认领和填写，避免重复录入");
+  if (!before && !input.workSessionId && await tx.workSession.findFirst({ where: { deletedAt: null, accountId: account.id, leadEligible: true, startedAt: { gte: startedAt, lt: new Date(startedAt.getTime() + 60000) } }, select: { id: true } })) throw new UserActionError("本场请通过导粉工作台认领和填写，避免重复录入");
   const durationSeconds = Number(input.durationHours) * 3600 + Number(input.durationMinutes) * 60 + Number(input.durationSeconds);
   if (startedAt.getTime() + durationSeconds * 1000 > Date.now()) throw new UserActionError("请在直播结束后录入，开播时间加直播时长不能晚于现在");
   const work = input.workSessionId ? await tx.workSession.findUnique({ where: { id: input.workSessionId }, include: { sourceRecord: true, report: { select: { id: true } } } }) : null;
-  if (input.workSessionId && (!work || work.accountId !== account.id || !["WRAP", "COMPLETE"].includes(work.phase) || !work.startedAt || work.startedAt.getTime() !== startedAt.getTime())) throw new UserActionError("所选工作场次与账号、开播时间或状态不符");
+  if (input.workSessionId && (!work || work.deletedAt || work.accountId !== account.id || !["WRAP", "COMPLETE"].includes(work.phase) || !work.startedAt || work.startedAt.getTime() !== startedAt.getTime())) throw new UserActionError("所选工作场次与账号、开播时间或状态不符");
   if (work?.leadEligible) throw new UserActionError("请先由导粉专员认领本场，再在导粉工作台填写");
   if (work?.report && work.report.id !== before?.id) throw new UserActionError("本场已有直播数据，请打开原记录修改");
   if (before && input.workSessionId && before.workSessionId !== input.workSessionId) throw new UserActionError("不能修改记录关联的工作场次");

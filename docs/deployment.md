@@ -334,3 +334,13 @@
 受限构建133.365秒，峰值837.8MiB；备份/var/backups/manager/manager-20261001T071539Z.dump及同名.screenshots.tar.gz，归档目录可读，未做完整恢复演练。20表原数据核对一致，摘要/opt/manager/data-before-homecompact-20261001.json。旧程序/opt/manager/standalone-before-homecompact-20261001、旧源码/opt/manager/source-before-homecompact-20261001.tar.gz保留。
 
 207部署文件哈希一致，manager/nginx/docker及两个timer active；HTTPS登录200、未登录/controller 307。timer active不代表本次续期成功。正式库未造测试资料；隔离夹具已清理、3103停止。截图/tmp/manager-controller-home.png不入库。代码4d4ed29已同步main，发布文档随后同步。
+
+## 2026-10-01 D050老板场次管理与上班检查简表
+
+- stage /opt/manager/build-sessionmanagement-20261001；unit manager-sessionmanagement-build webpack成功退出0，135.920秒，839.1M峰值；资源上限1100M/300M swap/100%CPU/node768M。依赖锁哈希与前版一致，未升级依赖。
+- 暂停写入后备份 /var/backups/manager/manager-20261001T142455Z.dump 及同名.screenshots.tar.gz，pg_restore --list及tar目录可读。
+- 旧数据摘要 /opt/manager/data-before-sessionmanagement-20261001.json，迁移前后20张业务表全部原列一致；迁移23新增WorkSession七个可空字段，无回填。migrate status无待执行项。
+- 旧程序 /opt/manager/standalone-before-sessionmanagement-20261001；源码 /opt/manager/source-before-sessionmanagement-20261001.tar.gz。新增软删除启用后旧程序不具备过滤语义，优先向前修复，禁止为了回退删除新数据。
+- 218个部署文件哈希一致；截图目录应用用户独立读写探针通过；manager/nginx/backup timer active，HTTPS登录200，未登录管理列表307。生产未写入测试场次。
+- standalone构建复制的.env已从新程序包剔除，服务仍通过/etc/manager/app.env注入配置，未输出凭证、未修改源配置。
+- 桌面与隔离验收见[tasks/session-management-verification.md](tasks/session-management-verification.md)。源代码与文档本次同步GitHub；Git提交与生产发布分别核验。

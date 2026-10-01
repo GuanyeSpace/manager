@@ -11,7 +11,7 @@ export async function saveSessionScripts(tx: Prisma.TransactionClient, token: st
   await acquireUserMutationLock(tx);
   const actor = await requireAccountActor(tx, token);
   const session = await tx.workSession.findUnique({ where: { id }, include: { account: { include: { workflow: true } } } });
-  if (!session || !canExecute(actor, session.account, session.controllerId) || (session.loginUserId && session.loginUserId !== actor.id && !isAccountBoss(actor))) throw new UserActionError("场次不存在或无执行权限");
+  if (!session || session.deletedAt || !canExecute(actor, session.account, session.controllerId) || (session.loginUserId && session.loginUserId !== actor.id && !isAccountBoss(actor))) throw new UserActionError("场次不存在或无执行权限");
   if (!["PREPARING", "LIVE", "WRAP"].includes(session.phase)) throw new UserActionError("本场已结束，不能修改话术");
   const accountWorkflow = session.account.workflow;
   if (!accountWorkflow) throw new UserActionError("账号流程不存在，请刷新后重试");

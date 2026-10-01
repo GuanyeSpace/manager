@@ -41,7 +41,7 @@ export function trailLabel(path: string) {
   const url = localUrl(path);
   const pathname = url?.pathname ?? "";
   if (pathname === "/live-reports" && url?.searchParams.get("view") === "monetization") return "打粉数据";
-  const names: [string, string][] = [["/resources/numbers", "手机号管理"], ["/resources/phones", "手机管理"], ["/resources/rooms", "直播间管理"], ["/resources/anchors", "主播管理"], ["/resources/equipment", "设备管理"], ["/resources/materials", "物资管理"], ["/boss/users", "员工管理"], ["/boss/branches", "分公司管理"], ["/account-config", "账号配置"], ["/accounts", "抖音账号管理"], ["/live-reports", "直播数据"], ["/leads", "导粉场次"], ["/workbench", "直播工作台"], ["/boss", "管理概览"]];
+  const names: [string, string][] = [["/resources/numbers", "手机号管理"], ["/resources/phones", "手机管理"], ["/resources/rooms", "直播间管理"], ["/resources/anchors", "主播管理"], ["/resources/equipment", "设备管理"], ["/resources/materials", "物资管理"], ["/boss/users", "员工管理"], ["/boss/branches", "分公司管理"], ["/account-config", "账号配置"], ["/accounts", "抖音账号管理"], ["/live-reports", "直播数据"], ["/leads", "导粉场次"], ["/workbench/history", "场次记录"], ["/workbench/shifts", "上班检查记录"], ["/workbench", "直播工作台"], ["/boss", "管理概览"]];
   const match = names.find(([prefix]) => pathname === prefix || pathname.startsWith(prefix + "/"));
   return match ? match[1] + (pathname !== match[0] ? "详情" : "") : "上一页";
 }

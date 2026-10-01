@@ -9,8 +9,9 @@ export async function saveMonetization(tx: Prisma.TransactionClient, token: stri
   const input = monetizationSchema.parse(raw);
   await acquireUserMutationLock(tx);
   const actor = await requireAccountActor(tx, token);
-  const before = await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { leadTask: { select: { id: true } } } } } });
+  const before = await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { deletedAt: true, leadTask: { select: { id: true } } } } } });
   if (!before || !canManageLiveReports(actor, before.branch)) throw new UserActionError("记录不存在或无打粉数据填写权限");
+  if (before.workSession?.deletedAt) throw new UserActionError("请先恢复关联场次");
   if (before.workSession?.leadTask) throw new UserActionError("请在导粉场次页面更正本场数据");
   if (before.monetizationUpdatedAt && !input.reason) throw new UserActionError("请填写更正原因");
   if (before.deletedAt || before.monetizationDeletedAt) throw new UserActionError("数据已删除，请先恢复后再填写");

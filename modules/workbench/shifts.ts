@@ -10,7 +10,7 @@ import { completedCheckCount, SHIFT_MINIMUM_MS, equipmentLabels, shiftCommandSch
 export async function readShift(tx: Prisma.TransactionClient, token: string) {
   const actor = await requireAccountActor(tx, token);
   const shift = await tx.workShift.findFirst({ where: { userId: actor.id, endedAt: null } });
-  const first = shift ? await tx.workSession.findFirst({ where: { shiftId: shift.id, startedAt: { not: null } }, orderBy: { startedAt: "asc" }, select: { startedAt: true } }) : null;
+  const first = shift ? await tx.workSession.findFirst({ where: { deletedAt: null, shiftId: shift.id, startedAt: { not: null } }, orderBy: { startedAt: "asc" }, select: { startedAt: true } }) : null;
   const unfinished = await tx.workSession.count({ where: { phase: { in: ["PREPARING", "LIVE", "WRAP"] }, OR: [{ loginUserId: actor.id }, { loginUserId: null, controllerId: actor.id }] } });
   return { shift, firstStartedAt: first?.startedAt ?? null, unfinished, serverNow: new Date() };
 }
@@ -44,7 +44,7 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
       if (!shift.endedAt && input.endedAt) throw new UserActionError("尚未结束上班，请先按正常流程处理全部场次后结束上班");
       if (+start === +shift.startedAt && (end?.getTime() ?? null) === (shift.endedAt?.getTime() ?? null)) throw new UserActionError("上班时间未发生变化");
       await assertShiftInterval(tx, shift.userId, shift.id, start, end);
-      const sessions = await tx.workSession.findMany({ where: { shiftId: shift.id }, select: { id: true, createdAt: true, startedAt: true, endedAt: true, phase: true } });
+      const sessions = await tx.workSession.findMany({ where: { deletedAt: null, shiftId: shift.id }, select: { id: true, createdAt: true, startedAt: true, endedAt: true, phase: true } });
       if (sessions.some(s => minuteFloor(start) > Math.min(s.createdAt.getTime(), s.startedAt?.getTime() ?? Infinity))) throw new UserActionError("到岗时间不能晚于本次上班的准备或开播时间");
       if (end) {
         if (sessions.some(s => ["PREPARING", "LIVE", "WRAP"].includes(s.phase))) throw new UserActionError("本次上班仍有未收尾场次");
@@ -88,9 +88,9 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
   return shift.id;
 }
 
-export async function readShiftHistory(tx: Prisma.TransactionClient, token: string, page: number) {
+export async function readShiftHistory(tx: Prisma.TransactionClient, token: string, page: number, id?: string) {
   const actor = await requireAccountActor(tx, token);
-  const rows = await tx.workShift.findMany({ where: isAccountBoss(actor) ? {} : { userId: actor.id }, orderBy: [{ startedAt: "desc" }, { id: "asc" }], take: 30, skip: (page - 1) * 30, include: { sessions: { select: { id: true, label: true, startedAt: true, phase: true, outcome: true, actualControllerName: true }, orderBy: { createdAt: "asc" } } } });
+  const rows = await tx.workShift.findMany({ where: { ...(isAccountBoss(actor) ? {} : { userId: actor.id }), ...(id ? { id } : {}) }, orderBy: [{ startedAt: "desc" }, { id: "asc" }], take: 30, skip: (page - 1) * 30, include: { sessions: { where: { deletedAt: null }, select: { id: true, label: true, startedAt: true, phase: true, outcome: true, actualControllerName: true }, orderBy: { createdAt: "asc" } } } });
   const changes = await tx.auditLog.findMany({ where: { targetType: "WorkShift", targetId: { in: rows.map(s => s.id) } }, orderBy: { createdAt: "asc" }, select: { id: true, targetId: true, createdAt: true, detail: true } });
   return rows.map(s => ({ ...s, changes: changes.filter(c => c.targetId === s.id) }));
 }
