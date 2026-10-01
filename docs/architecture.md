@@ -137,3 +137,7 @@ lib/account-status.ts统一账号列表、详情、历史及工作台的封禁�
 WorkShiftPanel的ActiveShift保存服务端版本及检查快照；CheckRow保留各行本地草稿，完成勾选调用saveShiftCheckAction，busyRef同步阻止并行提交。事务内runShiftCommand沿用共享人员变更锁、会话复核、归属和version校验，保存后返回新版本/检查/首次完成时间，供下一项提交；过期版本拒绝，不能覆盖其他窗口的新结果。
 
 页面用serverNow与performance.now展示时长，服务端以clockStartedAt（旧数据fallback createdAt）独立校验8小时。已保存检查与修改草稿分离；首次四项完成时间只在未结束记录首次由不足四项变为四项时写入。历史更正、原设备检查审计与会话守卫保留。
+
+### D047直播工作首页
+
+WorkbenchHome复用现有getWorkbench查询/作用域；去掉name入参及两处调用传参。账号卡片CSS grid桌面三列+独立滚动，执行岗位的非空待收尾区fixed底部并预留内容间距；其他管理岗位待办保持文档流。无新增客户端状态、查询或数据库字段。
