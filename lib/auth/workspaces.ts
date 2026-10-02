@@ -11,7 +11,8 @@ export function workspaceLinks(user: { role: Role; roles?: Role[] }): WorkspaceL
     ...(hasRole(user, Role.BOSS) ? [{ href: "/boss", label: "老板工作台" }] : []),
     ...(hasRole(user, Role.CONTROLLER) ? [{ href: "/controller", label: "直播中控工作台" }] : []),
     ...(hasRole(user, Role.LEAD_SPECIALIST) ? [{ href: "/leads", label: "导粉工作台" }] : []),
-    ...(userRoles(user).some(role => !([Role.BOSS, Role.CONTROLLER, Role.LEAD_SPECIALIST] as Role[]).includes(role))
+    ...(hasRole(user, Role.ANCHOR) ? [{ href: "/anchor", label: "主播工作台" }] : []),
+    ...(userRoles(user).some(role => !([Role.BOSS, Role.CONTROLLER, Role.LEAD_SPECIALIST, Role.ANCHOR] as Role[]).includes(role))
       ? [{ href: "/wip", label: "其他岗位工作台" }]
       : []),
   ];

@@ -159,3 +159,12 @@ WorkSession新增7个可空字段：supplementedAt、supplementedById、suppleme
 ## D051 导粉精简数据契约（2026-10-02）
 迁移20261002010000_report_audience新增LiveReport.femaleHundredths、age31To40Hundredths两个可空Int，单位百分之一百分点（65.32%存6532），数据库CHECK 0–10000。所有旧记录保持NULL，不回填或推断。
 LeadTask.data新增durationText、femalePercent、age31To40Percent字符串；提交完成首次标记formVersion=2。旧三段时长只用于回显合并，不覆盖旧键。合并JSON保留未知/历史字段；已完成旧版无formVersion可缺画像，已有画像不能清空。总秒数及其他原始人数存储不变，旧长按/带货列与审计保留。
+
+## D052 数据契约
+
+- WorkSession.actualAnchorId（可空User外键，Restrict）/actualAnchorName：本场实际主播及姓名快照。旧记录保留NULL，显示回退AccountRecord历史主播，不迁移猜测。
+- LiveReport新增anchorName、leadUserId、leadUserName三个可空历史补正字段；原anchorId/controllerId不删除。有场次实际人员及LeadTask时优先读取关联事实；无对应关联时使用原报表人员和新补正快照。查询采用当前已更正场次开播时间，原报表startedAt/指标保持不改；旧报表表单使用originalStartedAt维护原记录。
+- LeadBackend：id、唯一name、url、active、version、createdAt/updatedAt。仅老板操作；关联后可停用不可物理删。
+- ConfirmedLead：day（YYYY-MM-DD北京时间业务日）、anchorId(User FK)/anchorName、backendId(FK)/backendName/backendUrl、joinCount/effectiveCount、backendUnitCents/anchorUnitCents（整数分）、version、deletedAt及创建更新时间。day+anchorId+backendId唯一，anchorId+day索引；数据库检查非负及有效≤加人。
+- 总价/提成不另存易过期副本，按有效数量×整数分以BigInt运算，再输出两位小数字符串；单价最多7位整数元、数量上限20亿。
+- 新增20261002030000_confirmed_leads、20261002031000_legacy_report_people迁移，原20张表全部原列保持不变；新增两模型后共22模型，不更新旧指标。

@@ -99,6 +99,8 @@ model User {
   managedBranches    Branch[]         @relation("BranchManager")
   operatedAccounts   DouyinAccount[]  @relation("AccountOperator")
   controlledAccounts DouyinAccount[]  @relation("AccountController")
+  actualAnchorSessions WorkSession[] @relation("SessionAnchor")
+  confirmedLeads ConfirmedLead[]
   anchoredAccounts   DouyinAccount[]  @relation("AccountAnchor")
   operatedRooms LiveRoom[] @relation("RoomOperator")
   controlledRooms LiveRoom[] @relation("RoomController")
@@ -220,6 +222,9 @@ model AccountRecord {
 
 // 每场人工录入数据；归属来自开播时的账号版本，后续调拨不修改历史。
 model LiveReport {
+  anchorName String?
+  leadUserId String?
+  leadUserName String?
   femaleHundredths Int?
   age31To40Hundredths Int?
   id                    String        @id @default(cuid())
@@ -298,6 +303,9 @@ enum WorkPhase {
 }
 
 model WorkSession {
+  actualAnchorId String?
+  actualAnchorName String?
+  actualAnchor User? @relation("SessionAnchor", fields: [actualAnchorId], references: [id], onDelete: Restrict)
   supplementedAt DateTime?
   supplementedById String?
   supplementedByName String?
@@ -589,4 +597,37 @@ model LeadTask {
 
   @@index([branchId, createdAt])
   @@index([userId, completedAt])
+}
+
+model LeadBackend {
+  id String @id @default(cuid())
+  name String @unique
+  url String
+  active Boolean @default(true)
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  records ConfirmedLead[]
+}
+
+model ConfirmedLead {
+  id String @id @default(cuid())
+  day String
+  anchorId String
+  anchor User @relation(fields: [anchorId], references: [id], onDelete: Restrict)
+  anchorName String
+  backendId String
+  backend LeadBackend @relation(fields: [backendId], references: [id], onDelete: Restrict)
+  backendName String
+  backendUrl String
+  joinCount Int
+  effectiveCount Int
+  backendUnitCents Int
+  anchorUnitCents Int
+  version Int @default(1)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([day, anchorId, backendId])
+  @@index([anchorId, day])
 }

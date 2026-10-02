@@ -1,3 +1,4 @@
+import { requireSessionAnchor } from "./anchors";
 import { z } from "zod";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { isAccountBoss } from "@/lib/auth/account-permissions";
@@ -11,12 +12,13 @@ import { endKindSchema, endKinds, endOutcomes, endKindForOutcome, isInterrupted,
 import type { Screenshot } from "./screenshots";
 
 export type CorrectionChange = { field: string; before: string; after: string };
-export const correctionLabels = { times: "实际开播和下播时间", controller: "本场直播中控", task: "事项记录", violation: "违规情况", wrap: "收尾情况", evidence: "截图", unstarted: "未开播原因" };
+export const correctionLabels = { anchor: "本场主播", times: "实际开播和下播时间", controller: "本场直播中控", task: "事项记录", violation: "违规情况", wrap: "收尾情况", evidence: "截图", unstarted: "未开播原因" };
 const correctionSchema = z.object({
   id: z.string().min(1).max(100), version: z.coerce.number().int().min(1),
-  kind: z.enum(["times", "controller", "task", "violation", "wrap", "evidence", "unstarted"]),
+  kind: z.enum(["anchor", "times", "controller", "task", "violation", "wrap", "evidence", "unstarted"]),
   reason: z.string().trim().min(1, "请填写更正原因").max(2000),
   startedAt: z.string().max(30).default(""), endedAt: z.string().max(30).default(""),
+  actualAnchorId: z.string().max(100).default(""),
   actualControllerId: z.string().max(100).default(""),
   phase: z.enum(phases).default("before"), index: z.coerce.number().int().min(0).max(39).default(0),
   status: z.enum(["done", "pending", "issue", "skip"]).default("done"),
@@ -55,7 +57,7 @@ export async function correctSession(tx: Prisma.TransactionClient, token: string
   const actor = await requireAccountActor(tx, token);
   const s = await tx.workSession.findUnique({ where: { id: input.id }, include: { account: true, sourceRecord: true, shift: true } });
   if (!s || s.deletedAt || !canExecute(actor, s.account, s.controllerId) || (s.loginUserId && s.loginUserId !== actor.id && !isAccountBoss(actor))) throw new UserActionError("场次不存在或无更正权限");
-  if (!["COMPLETE", "CANCELLED"].includes(s.phase)) throw new UserActionError("请先完成本场收尾或未开播归档，再更正记录");
+  if (input.kind !== "anchor" && !["COMPLETE", "CANCELLED"].includes(s.phase)) throw new UserActionError("请先完成本场收尾或未开播归档，再更正记录");
   if (s.version !== input.version) throw new UserActionError("本场记录已更新，请刷新后核对再更正");
   if (screenshots.length && !["violation", "wrap", "evidence", "unstarted"].includes(input.kind)) throw new UserActionError("此更正不需要上传截图");
   const workflow = workflowSchema.parse(s.workflow), progress = s.progress as Progress;
@@ -65,7 +67,13 @@ export async function correctSession(tx: Prisma.TransactionClient, token: string
   function change(field: string, label: string, oldValue: Prisma.InputJsonValue | null, newValue: Prisma.InputJsonValue | null, oldText: string, newText: string) {
     before[field] = oldValue; after[field] = newValue; changes.push({ field: label, before: oldText, after: newText });
   }
-  if (input.kind === "times") {
+  if (input.kind === "anchor") {
+    if (!isAccountBoss(actor)) throw new UserActionError("仅老板可以更正本场主播");
+    const person = await requireSessionAnchor(tx, input.actualAnchorId, s.sourceRecord.branchId);
+    if (person.id === (s.actualAnchorId ?? s.sourceRecord.anchorId)) throw new UserActionError("主播未发生变化");
+    data.actualAnchor = { connect: { id: person.id } }; data.actualAnchorName = person.name;
+    change("actualAnchorId", "本场实际主播", s.actualAnchorId ?? s.sourceRecord.anchorId, person.id, s.actualAnchorName ?? s.sourceRecord.anchorName ?? "未记录", person.name);
+  } else if (input.kind === "times") {
     if (s.phase !== "COMPLETE" || !s.startedAt || !s.endedAt) throw new UserActionError("未开播场次不能填写开播和下播时间，请另建真实开播场次");
     const start = correctedTime(input.startedAt, s.startedAt), end = correctedTime(input.endedAt, s.endedAt);
     if (s.shift && (start.getTime() < minuteFloor(s.shift.startedAt) || s.shift.endedAt && minuteFloor(end) > s.shift.endedAt.getTime())) throw new UserActionError("直播时间必须在本次上班范围内，请先核对上班时间");

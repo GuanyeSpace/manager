@@ -32,7 +32,7 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   if ((!before || before.femaleHundredths !== null) && input.femalePercent === "" || (!before || before.age31To40Hundredths !== null) && input.age31To40Percent === "") throw new UserActionError("请填写女性比例和31–40岁比例；已有画像不能清空");
   if (startedAt.getTime() + durationSeconds * 1000 > Date.now()) throw new UserActionError("请在直播结束后录入，开播时间加直播时长不能晚于现在");
   const work = input.workSessionId ? await tx.workSession.findUnique({ where: { id: input.workSessionId }, include: { sourceRecord: true, report: { select: { id: true } } } }) : null;
-  if (input.workSessionId && (!work || work.deletedAt || work.accountId !== account.id || !["WRAP", "COMPLETE"].includes(work.phase) || !work.startedAt || work.startedAt.getTime() !== startedAt.getTime())) throw new UserActionError("所选工作场次与账号、开播时间或状态不符");
+  if (input.workSessionId && (!work || work.deletedAt || work.accountId !== account.id || !["WRAP", "COMPLETE"].includes(work.phase) || !work.startedAt || (!before && work.startedAt.getTime() !== startedAt.getTime()))) throw new UserActionError("所选工作场次与账号、开播时间或状态不符");
   if (work?.leadEligible) throw new UserActionError("请先由导粉专员认领本场，再在导粉工作台填写");
   if (work?.report && work.report.id !== before?.id) throw new UserActionError("本场已有直播数据，请打开原记录修改");
   if (before && input.workSessionId && before.workSessionId !== input.workSessionId) throw new UserActionError("不能修改记录关联的工作场次");
@@ -67,4 +67,28 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   await writeAudit({ db: tx, actorId: actor.id, action: before ? "LIVE_REPORT_UPDATE" : "LIVE_REPORT_CREATE", targetType: "LiveReport", targetId: report.id,
     detail: { actorName: actor.name, reason: input.reason, accountId: account.id, startedAt: startedAt.toISOString(), version: report.version, before: previousMetrics, after: data, historicalBackfill }, ip });
   return report.id;
+}
+
+// Only for legacy reports without a LeadTask. Linked execution personnel stay in their own audited workflow.
+export async function correctReportPeople(tx: Prisma.TransactionClient, token: string, raw: unknown, ip: string) {
+  const { z } = await import("zod");
+  const { roleWhere } = await import("@/lib/auth/roles");
+  const v=z.object({id:z.string().min(1),version:z.coerce.number().int(),anchorId:z.string().default(""),controllerId:z.string().default(""),leadUserId:z.string().default(""),reason:z.string().trim().min(1,"请填写更正原因").max(2000)}).parse(raw);
+  await acquireUserMutationLock(tx);const actor=await requireAccountActor(tx,token);
+  if(!isAccountBoss(actor))throw new UserActionError("仅老板可以更正历史报表人员");
+  const r=await tx.liveReport.findUnique({where:{id:v.id},include:{workSession:{include:{leadTask:true}}}});
+  if(!r||r.deletedAt||r.workSession?.deletedAt||r.workSession?.leadTask)throw new UserActionError("请通过关联场次或导粉记录更正人员");
+  if(r.version!==v.version)throw new UserActionError("报表已更新，请刷新核对");
+  const data:Prisma.LiveReportUpdateInput={version:{increment:1},updatedByName:actor.name};
+  if(!r.workSessionId){
+    const anchor=await tx.user.findFirst({where:{id:v.anchorId,AND:[roleWhere("ANCHOR")]}});
+    const controller=await tx.user.findUnique({where:{id:v.controllerId}});
+    if(!anchor||!controller)throw new UserActionError("请选择已有主播和本场直播中控");
+    data.anchorId=anchor.id;data.anchorName=anchor.name;data.controllerId=controller.id;data.controllerName=controller.name;
+  }
+  if(v.leadUserId){const person=await tx.user.findFirst({where:{id:v.leadUserId,AND:[roleWhere("LEAD_SPECIALIST")]}});if(!person)throw new UserActionError("请选择已有导粉专员");data.leadUserId=person.id;data.leadUserName=person.name;}
+  const updated=await tx.liveReport.update({where:{id:r.id},data});
+  const fields=["anchorId","anchorName","controllerId","controllerName","leadUserId","leadUserName"] as const;
+  await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_UPDATE",targetType:"LiveReport",targetId:r.id,ip,detail:{actorName:actor.name,reason:v.reason,before:Object.fromEntries(fields.map(k=>[k,r[k]])),after:Object.fromEntries(fields.map(k=>[k,updated[k]]))}});
+  return r.id;
 }

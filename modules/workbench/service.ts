@@ -1,3 +1,4 @@
+import { availableAnchors, requireSessionAnchor } from "./anchors";
 import { correctSession } from "./corrections";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { currentAccountScope, historicalAccountScope, requireAccountActor } from "@/modules/accounts/service";
@@ -39,16 +40,18 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
     if (!account || !canExecute(actor, account)) throw new UserActionError("仅负责直播中控或老板可以开始准备");
     if (!account.controllerId) throw new UserActionError("请先为直播账号绑定直播中控，再开始准备");
     if (account.banned) throw new UserActionError("账号已封禁，请确认解封并启用后再开始准备");
-    if (!account.active || account.branch.status !== "ACTIVE" || !account.anchorId) throw new UserActionError("请先启用账号、分公司并绑定主播");
+    if (!account.active || account.branch.status !== "ACTIVE") throw new UserActionError("请先启用账号与分公司");
     if (!account.workflow) throw new UserActionError("请先保存账号流程");
     const shift = await tx.workShift.findFirst({ where: { userId: actor.id, endedAt: null } });
     if (!shift) throw new UserActionError("请先在工作台开始上班，再开始本场准备");
     const actual = await tx.user.findFirst({ where: { id: input.actualControllerId || actor.id, employmentStatus: "ACTIVE", OR: [{ branchId: account.branchId }, ...(isAccountBoss(actor) ? [{ id: actor.id }] : [])] }, select: { id: true, name: true } });
     if (!actual) throw new UserActionError("本场直播中控必须是本分公司在职员工");
+    const anchorId = input.actualAnchorId || account.anchorId;
+    const anchor = anchorId ? await requireSessionAnchor(tx, anchorId, account.branchId) : null;
     const existing = await tx.workSession.findFirst({ where: { accountId: account.id, phase: { in: ["PREPARING", "LIVE"] } } });
     if (existing) throw new UserActionError("此账号已有准备或直播中的场次，请先继续该场次");
     const source = await tx.accountRecord.findFirstOrThrow({ where: { accountId: account.id, endedAt: null } });
-    const session = await tx.workSession.create({ data: { accountId: account.id, sourceRecordId: source.id, controllerId: account.controllerId, shiftId: shift.id, loginUserId: actor.id, loginUserName: actor.name, actualControllerId: actual.id, actualControllerName: actual.name, label: `${shanghaiInput(new Date()).replace("T", " ")} 场`, workflow: workflowSchema.parse(account.workflow.content), workflowVersion: account.workflow.version } });
+    const session = await tx.workSession.create({ data: { actualAnchorId: anchor?.id, actualAnchorName: anchor?.name, accountId: account.id, sourceRecordId: source.id, controllerId: account.controllerId, shiftId: shift.id, loginUserId: actor.id, loginUserName: actor.name, actualControllerId: actual.id, actualControllerName: actual.name, label: `${shanghaiInput(new Date()).replace("T", " ")} 场`, workflow: workflowSchema.parse(account.workflow.content), workflowVersion: account.workflow.version } });
     await writeAudit({ db: tx, actorId: actor.id, action: "WORK_SESSION_UPDATE", targetType: "WorkSession", targetId: session.id, detail: { command: "create", controllerId: account.controllerId }, ip });
     return session.id;
   }
@@ -63,7 +66,12 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
   if (screenshots.length && !needsScreenshots && input.command !== "complete") throw new UserActionError("此操作不需要上传截图");
   const data: Prisma.WorkSessionUpdateInput = { version: { increment: 1 } };
   let body = input.note;
-  if (input.command === "controller") {
+  if (input.command === "anchor") {
+    if (session.phase !== "PREPARING") throw new UserActionError("开播后主播已锁定，请由老板通过更正入口处理");
+    const anchor = await requireSessionAnchor(tx, input.actualAnchorId, session.sourceRecord.branchId);
+    data.actualAnchor = { connect: { id: anchor.id } }; data.actualAnchorName = anchor.name;
+    body = `本场主播：${session.actualAnchorName ?? session.sourceRecord.anchorName ?? "未记录"} → ${anchor.name}`;
+  } else if (input.command === "controller") {
     if (session.phase !== "PREPARING") throw new UserActionError("仅在开播前可以选择本场直播中控");
     const actual = await tx.user.findFirst({ where: { id: input.actualControllerId, employmentStatus: "ACTIVE", OR: [{ branchId: session.account.branchId }, ...(isAccountBoss(actor) ? [{ id: actor.id }] : [])] }, select: { id: true, name: true } });
     if (!actual) throw new UserActionError("本场直播中控必须是本分公司在职员工");
@@ -74,6 +82,8 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
     if (!time || time.getTime() > Date.now()) throw new UserActionError("请填写不晚于现在的实际时间（北京时间）");
     if (input.command === "start") {
       if (session.phase !== "PREPARING") throw new UserActionError("只有准备中的场次可以开播");
+      const anchor = await requireSessionAnchor(tx, session.actualAnchorId ?? session.sourceRecord.anchorId ?? "", session.sourceRecord.branchId);
+      data.actualAnchor = { connect: { id: anchor.id } }; data.actualAnchorName = anchor.name;
       if (session.account.banned) throw new UserActionError("账号已封禁，请确认解封并启用后再开播");
       if (!session.account.active || session.account.branch.status !== "ACTIVE") throw new UserActionError("账号或分公司已停用");
       // 输入精度为分钟；同一分钟建档和准备允许从该分钟起记。
@@ -183,7 +193,7 @@ export async function readWorkspace(tx: Prisma.TransactionClient, token: string,
   const current = await tx.workSession.findFirst({ where: { deletedAt: null, accountId: id, phase: { in: ["PREPARING", "LIVE"] }, sourceRecord: historicalAccountScope(actor) } });
   const wrapping = await tx.workSession.findMany({ where: { deletedAt: null, accountId: id, phase: "WRAP", sourceRecord: historicalAccountScope(actor) }, select: { id: true, label: true, endedAt: true }, orderBy: { createdAt: "desc" } });
   const controllers = await tx.user.findMany({ where: { branchId: account.branchId, employmentStatus: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } });
-  return { account, current, wrapping, controllers, editable: canEditWorkflow(actor, account), scriptsEditable: canEditScripts(actor, account), executable: canExecute(actor, account) };
+  return { anchors: await availableAnchors(tx, account.branchId), account, current, wrapping, controllers, editable: canEditWorkflow(actor, account), scriptsEditable: canEditScripts(actor, account), executable: canExecute(actor, account) };
 }
 export async function readWorkSession(tx: Prisma.TransactionClient, token: string, id: string) {
   const actor = await requireAccountActor(tx, token);
@@ -195,7 +205,7 @@ export async function readWorkSession(tx: Prisma.TransactionClient, token: strin
   void _account;
   const controllers = editable && ["PREPARING", "COMPLETE", "CANCELLED"].includes(session.phase) ? await tx.user.findMany({ where: { branchId: session.sourceRecord.branchId, employmentStatus: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [];
   const corrections = await tx.auditLog.findMany({ where: { targetType: "WorkSession", targetId: id, detail: { path: ["command"], equals: "correct" } }, orderBy: { createdAt: "desc" }, select: { id: true, createdAt: true, detail: true } });
-  return { corrections, session: { ...safe, report: isExecutionController(actor) ? null : safe.report }, editable, controllers, accountWorkflowVersion: session.account.workflow?.version ?? 0 };
+  return { anchors: await availableAnchors(tx, session.sourceRecord.branchId), boss: isAccountBoss(actor), corrections, session: { ...safe, report: isExecutionController(actor) ? null : safe.report }, editable, controllers, accountWorkflowVersion: session.account.workflow?.version ?? 0 };
 }
 export async function readWorkHistory(tx: Prisma.TransactionClient, token: string, page: number) {
   const actor = await requireAccountActor(tx, token);

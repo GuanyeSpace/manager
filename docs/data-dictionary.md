@@ -1,6 +1,6 @@
 # 数据字段速查（schema 快照）
 
-核对日期：2026-10-01（本次更新User及账号中控可空字段）；从当前 prisma/schema.prisma 提取。此文档便于查字段，不替代源码；变更 schema 时须同步本表。SQL 专属索引/检查约束仍须查看迁移。JSON 内部结构、业务含义和单位见 [数据模型](data-model.md) 与 [业务规则](business-rules.md)。
+核对日期：2026-10-02（D052新增字段见末尾）；从当前 prisma/schema.prisma 提取。此文档便于查字段，不替代源码；变更 schema 时须同步本表。SQL 专属索引/检查约束仍须查看迁移。JSON 内部结构、业务含义和单位见 [数据模型](data-model.md) 与 [业务规则](business-rules.md)。
 
 `?` 为可空，`[]` 为数组或关联集合。关联对象字段不是独立数据库列；其外键字段另列。约束列保留 Prisma 定义，不包含真实数据库内容。
 
@@ -659,3 +659,25 @@
 | deletedAt | DateTime? | 回收站时间，空表示有效 |
 | deletedById | String? | 删除操作员工ID |
 | deleteReason | String? | 当前删除原因，恢复清空，完整历史仍在审计 |
+
+
+## D052 人员统计与确定数据增量（2026-10-02）
+
+| 模型 | 字段 | 类型 / 含义 |
+| --- | --- | --- |
+| User | actualAnchorSessions / confirmedLeads | WorkSession[] / ConfirmedLead[] 反向关系 |
+| WorkSession | actualAnchorId / actualAnchorName | String? / String?，实际主播员工关联和姓名快照；旧记录为空 |
+| WorkSession | actualAnchor | User?，SessionAnchor关系，删除限制 |
+| LiveReport | anchorName / leadUserId / leadUserName | String?，独立历史报表人员补正；关联场次优先用场次实际人员和认领记录 |
+| LeadBackend | id / name / url | String，主键 / 唯一名称 / HTTP(S)链接 |
+| LeadBackend | active / version | Boolean（默认true）/ Int（默认1） |
+| LeadBackend | createdAt / updatedAt / records | DateTime / DateTime / ConfirmedLead[] |
+| ConfirmedLead | id / day | String主键 / 北京日期YYYY-MM-DD |
+| ConfirmedLead | anchorId / anchorName / anchor | String员工外键 / String姓名快照 / User |
+| ConfirmedLead | backendId / backendName / backendUrl / backend | String后端外键 / 名称及链接快照 / LeadBackend |
+| ConfirmedLead | joinCount / effectiveCount | Int，非负人数，有效不得超过加人 |
+| ConfirmedLead | backendUnitCents / anchorUnitCents | Int，单价单位为分 |
+| ConfirmedLead | version / deletedAt | Int（默认1）/ DateTime?软删除 |
+| ConfirmedLead | createdAt / updatedAt | DateTime |
+
+唯一键day+anchorId+backendId（含回收站），索引anchorId+day。总价与主播提成为有效人数乘对应单价，以BigInt分计算后输出两位小数字符串，不单独存浮点金额。修改理由、前后值、操作者及时间沿用AuditLog；没有新增付款字段。

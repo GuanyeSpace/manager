@@ -27,6 +27,7 @@ export function getWorkbenchPath(user: CurrentUser): string {
   if (canAccessBossWorkspace(user)) return "/boss";
   if (canAccessControllerWorkspace(user)) return "/controller";
   if (hasRole(user, Role.LEAD_SPECIALIST)) return "/leads";
+  if (hasRole(user, Role.ANCHOR)) return "/anchor";
   return "/wip";
 }
 

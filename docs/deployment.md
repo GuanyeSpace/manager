@@ -358,3 +358,14 @@ D050对应源码提交：744c6db4c2969e750c71ee88b657db02e93539f0，已同步ori
 - 本轮桌面功能在隔离库完成，生产未创建测试业务记录。隔离测试及范围见[tasks/report-metrics-verification.md](tasks/report-metrics-verification.md)。
 
 D051源码提交：97880635db50ab70f428f24ef3019624c3f902b2，已推送origin/main且远程一致。后续交接文档提交不改变部署源码。
+
+
+## 2026-10-02 D052 人员统计、确定数据与主播空间
+
+- 北京时间14:46切换；服务地址仍为https://8.163.69.11。源码范围244文件SHA核对一致，依赖锁未改变。
+- staging `/opt/manager/build-settlements-20261002`，受限webpack构建141.283秒、峰值890MiB；unit退出0及专属marker确认，服务继续运行至最终备份阶段。
+- 暂停写入后备份 `/var/backups/manager/manager-20261002T064641Z.dump` 与同名 `.screenshots.tar.gz`；pg_restore --list和截图tar目录可读。没有做本次完整恢复演练。
+- 原数据摘要 `/opt/manager/data-before-settlements-20261002.json`，20张原业务表全部原列与行数一致。新增两次追加迁移至26：20261002030000_confirmed_leads、20261002031000_legacy_report_people。没有回填历史主播或改写指标。
+- 旧程序 `/opt/manager/standalone-before-settlements-20261002`，旧源码 `/opt/manager/source-before-settlements-20261002.tar.gz`。
+- 截图应用用户独立读写探针通过；standalone不含.env；manager/nginx/backup timer/cert renew timer active。HTTPS登录200、未登录settlements与anchor为307。timer启用不表示本次已完成证书续期。
+- 隔离桌面浏览器与业务验证见 [D052验收](tasks/settlements-verification.md)，未在正式库建立测试员工/场次/确定数据。Git提交与推送另见current-status.md。

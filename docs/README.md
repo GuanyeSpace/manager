@@ -53,6 +53,8 @@
 
 - [D051导粉填报精简验收](tasks/report-metrics-verification.md)：中文时长、画像、统一公式、历史兼容及发布验证。
 
+- [D052人员统计与确定数据验收](tasks/settlements-verification.md)：历史人员、金额精度、按日对比、主播权限及发布证据。
+
 ## 旧专题文档
 
 - [账号与调拨](douyin-accounts.md)：历史规则、早期自动采集设想。

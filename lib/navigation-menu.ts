@@ -18,6 +18,8 @@ export const MENU_GROUPS: MenuGroup[] = [
     { href: "/live-reports", label: "直播数据" },
     { href: "/live-reports?view=monetization", label: "打粉数据" },
     { href: "/leads", label: "导粉任务" },
+    { href: "/settlements", label: "确定打粉数据" },
+    { href: "/settlements/comparison", label: "每日数据对比" },
   ] },
   { title: "设备与物资", items: [
     { href: "/resources/phones", label: "手机" },
@@ -43,6 +45,7 @@ export function isMenuActive(href: string, pathname: string, view: string | null
     const inReports = pathname === "/live-reports" || pathname.startsWith("/live-reports/");
     return inReports && (view === "monetization") === href.includes("view=monetization");
   }
+  if (href === "/settlements") return (pathname === href || pathname.startsWith(`${href}/`)) && pathname !== "/settlements/comparison";
   if (href === "/boss") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }

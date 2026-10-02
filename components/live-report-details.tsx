@@ -1,3 +1,4 @@
+import { ReportPeopleForm } from "./report-people-form";
 import { HistoricalReportFields } from "./report-metric-sections";
 import { CorrectionHistory } from "@/components/work-corrections";
 import { monetizationFields } from "@/modules/live-reports/monetization-schema";
@@ -53,11 +54,12 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
       {!r.monetizationDeletedAt && r.monetizationUpdatedAt && canEditMoney && <ReportRecycleForm key={`money-${r.version}`} id={r.id} version={r.version} section="monetization" />}
     </section>
     {canEdit ? <><h2 className="text-lg font-semibold">更正数据</h2><LiveReportForm embedded={embedded} accounts={[{ id: r.accountId, name: r.accountName, douyinId: r.douyinId }]} initial={{
-      ...metrics, femalePercent: r.femaleHundredths === null ? "" : String(r.femaleHundredths / 100), age31To40Percent: r.age31To40Hundredths === null ? "" : String(r.age31To40Hundredths / 100), reason: "", id: r.id, version: String(r.version), accountId: r.accountId, startedAt: shanghaiInput(r.startedAt),
+      ...metrics, femalePercent: r.femaleHundredths === null ? "" : String(r.femaleHundredths / 100), age31To40Percent: r.age31To40Hundredths === null ? "" : String(r.age31To40Hundredths / 100), reason: "", id: r.id, version: String(r.version), accountId: r.accountId, startedAt: shanghaiInput(r.originalStartedAt),
       durationHours: String(Math.floor(r.durationSeconds / 3600)), durationMinutes: String(Math.floor(r.durationSeconds % 3600 / 60)), durationSeconds: String(r.durationSeconds % 60),
       sessionLabel: r.sessionLabel, averageStayMinutes: String(r.averageStayHundredths / 100), confirmBackfill: "false",
     }} /></> : <p className="text-sm text-muted-foreground">此记录仅可查看。如需纠错，请联系老板。</p>}
     <HistoricalReportFields data={{ longPressCount: r.longPressCount, hasSales: r.hasSales, salesGmv: r.salesGmv?.toString() }} />
+    {data.people.length>0 && <ReportPeopleForm key={`people-${r.version}`} report={r} people={data.people}/>}
     {history}
     {canEdit && <ReportRecycleForm key={`report-${r.version}`} id={r.id} version={r.version} section="report" />}
   </>;

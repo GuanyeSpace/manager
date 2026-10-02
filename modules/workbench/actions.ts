@@ -19,7 +19,7 @@ function errorState(error: unknown): WorkState {
   if ((error as { code?: string })?.code === "P2002") return { error: "该直播中控或账号已有进行中的场次，请刷新后继续" };
   console.error("工作台保存失败"); return { error: "保存失败，请稍后重试" };
 }
-function refresh() { revalidatePath("/workbench", "layout"); revalidatePath("/controller"); revalidatePath("/account-config", "layout"); }
+function refresh() { revalidatePath("/live-reports", "layout"); revalidatePath("/settlements", "layout"); revalidatePath("/leads", "layout"); revalidatePath("/workbench", "layout"); revalidatePath("/controller"); revalidatePath("/account-config", "layout"); }
 export async function workCommandAction(_state: WorkState, form: FormData): Promise<WorkState> {
   const token = await guard(), ip = await getClientIp(); let id: string;
   try { id = await submitWorkCommand(prisma, token, form, ip); } catch (error) { return { ...errorState(error), savedVersion: _state?.savedVersion }; }

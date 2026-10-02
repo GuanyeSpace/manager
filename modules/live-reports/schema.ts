@@ -41,11 +41,13 @@ export type ReportFormState = { success?: string; error?: string; fieldErrors?: 
 
 const dateFilter = z.string().refine((v) => !v || shanghaiDate(`${v}T00:00`) !== null, "日期无效");
 export const reportFilterSchema = z.object({
+  anchorId: z.string().default(""), controllerId: z.string().default(""), leadId: z.string().default(""),
+  preset: z.enum(["yesterday","7d","30d","month","lastMonth"]).optional(),
   trash: z.enum(["true", "false"]).optional(), view: z.enum(["performance", "monetization"]).optional(),
   accountId: z.string().default(""), from: dateFilter.default(""), to: dateFilter.default(""),
   page: z.coerce.number().int().min(1).max(100000).catch(1),
-}).refine((v) => !v.from || !v.to || v.from <= v.to, { message: "开始日期不能晚于结束日期", path: ["from"] });
-export type ReportFilters = z.infer<typeof reportFilterSchema>;
+}).refine((v) => !!v.preset || !v.from || !v.to || v.from <= v.to, { message: "开始日期不能晚于结束日期", path: ["from"] });
+export type ReportFilters = z.input<typeof reportFilterSchema>;
 
 export function percentage(numerator: number, denominator: number): string {
   return denominator > 0 ? `${(numerator / denominator * 100).toFixed(2)}%` : "—";

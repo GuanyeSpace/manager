@@ -72,3 +72,11 @@ export async function recycleLiveReportAction(_state: ReportFormState, form: For
   revalidatePath("/live-reports", "layout"); revalidatePath("/workbench", "layout"); revalidatePath("/controller");
   return { success: parsed.data.operation === "delete" ? "已移入回收站，可恢复" : "已恢复数据" };
 }
+
+export async function correctReportPeopleAction(_state: ReportFormState, form: FormData): Promise<ReportFormState> {
+  const token=await getCurrentSessionToken();if(!token)return {error:"登录已失效"};
+  const ip = await getClientIp();
+  try {const {correctReportPeople}=await import("./service");await prisma.$transaction(tx=>correctReportPeople(tx,token,Object.fromEntries(form),ip));}
+  catch(e){return {error:e instanceof UserActionError?e.message:"请检查人员与更正原因，未保存修改"};}
+  revalidatePath("/live-reports","layout");revalidatePath("/settlements","layout");return {success:"已更正人员"};
+}
