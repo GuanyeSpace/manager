@@ -369,3 +369,5 @@ D051源码提交：97880635db50ab70f428f24ef3019624c3f902b2，已推送origin/ma
 - 旧程序 `/opt/manager/standalone-before-settlements-20261002`，旧源码 `/opt/manager/source-before-settlements-20261002.tar.gz`。
 - 截图应用用户独立读写探针通过；standalone不含.env；manager/nginx/backup timer/cert renew timer active。HTTPS登录200、未登录settlements与anchor为307。timer启用不表示本次已完成证书续期。
 - 隔离桌面浏览器与业务验证见 [D052验收](tasks/settlements-verification.md)，未在正式库建立测试员工/场次/确定数据。Git提交与推送另见current-status.md。
+
+D052源码对应Git提交8cf29805fdfe89c44a0bf02b80a84dcdfe6d5647，已推送origin/main，远程与本地一致；后续纯交接文档提交不改变生产程序。
