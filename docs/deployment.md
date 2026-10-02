@@ -391,3 +391,5 @@ D053备份pg_restore目录及截图tar均可读取，旧程序保留；代码28a
 - 截图应用用户读写探针通过，manager/nginx/backup timer/cert timer active；HTTPS登录200、未登录leads和live-reports307。未在生产造测试数据。timer active不等同续期成功。
 - 实测范围见 [D054验收](tasks/lead-mode-verification.md)，含桌面浏览器，不包括真机移动端；日常开发库未迁移，隔离测试库27迁移。
 - 备份pg_restore目录及截图tar可读取；本次未做完整恢复演练。
+
+D054生产源码对应fdd63b5fc892b1fa46f5fdfb12cb06f468baed76，已同步origin/main；后续纯文档提交不改变程序。
