@@ -16,7 +16,7 @@ export async function leadAction(previous: LeadActionState, form: FormData): Pro
   try {
     const ip = await getClientIp();
     const id = await prisma.$transaction(tx => runLeadCommand(tx, token, parsed.data, ip));
-    revalidatePath("/leads", "layout"); revalidatePath("/live-reports", "layout");
+    revalidatePath("/settlements", "layout"); revalidatePath("/leads", "layout"); revalidatePath("/live-reports", "layout");
     return { id, savedVersion: parsed.data.version + 1, success: parsed.data.command === "complete" ? "已提交完成" : "已保存" };
   } catch (error) {
     return { ...previous, success: undefined, error: error instanceof UserActionError ? error.message : (error as { code?: string }).code === "P2002" ? "本场已有认领或数据，请刷新核对" : "保存失败，未提交更改，请稍后重试" };

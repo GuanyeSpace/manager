@@ -21,6 +21,7 @@ export async function readReportAccountOptions(tx: Prisma.TransactionClient, tok
 }
 export async function readLiveReports(tx: Prisma.TransactionClient, token: string, raw: ReportFilters) {
   const filters = reportFilterSchema.parse(raw);
+  if(!filters.leadMode) filters.leadMode = filters.view === "monetization" ? "yes" : "all";
   const range = filters.preset ? dateRange(filters.preset) : null;
   if (range) Object.assign(filters, range);
   const actor = await requireAccountActor(tx, token);
@@ -31,11 +32,12 @@ export async function readLiveReports(tx: Prisma.TransactionClient, token: strin
     : { deletedAt: null, ...(filters.view === "monetization" ? { monetizationDeletedAt: null } : {}) };
   // Resolve historical personnel and corrected session times before filtering; never use current account staff.
   const all = (await tx.liveReport.findMany({ where: { AND: [scope, visibility, { OR: [{ workSessionId: null }, { workSession: { deletedAt: null } }] }] }, include: reportPeopleInclude })).map(reportPeople);
-  const matches = all.filter(r => (!filters.accountId || r.accountId === filters.accountId) && (!filters.anchorId || (filters.anchorId === "unrecorded" ? !r.anchorId : r.anchorId === filters.anchorId)) && (!filters.controllerId || (filters.controllerId === "unrecorded" ? !r.controllerId : r.controllerId === filters.controllerId)) && (!filters.leadId || (filters.leadId === "unrecorded" ? !r.leadId : r.leadId === filters.leadId)) && (!filters.from || r.startedAt >= shanghaiDate(`${filters.from}T00:00`)!) && (!filters.to || r.startedAt < new Date(+shanghaiDate(`${filters.to}T00:00`)! + 86400000))).sort((a,b)=>+b.startedAt-+a.startedAt || a.id.localeCompare(b.id));
+  const matches = all.filter(r => (filters.view !== "monetization" || filters.leadMode === "all" || (filters.leadMode === "yes" ? r.isLeadGeneration !== false : filters.leadMode === "no" ? r.isLeadGeneration === false : r.isLeadGeneration === null)) && (!filters.accountId || r.accountId === filters.accountId) && (!filters.anchorId || (filters.anchorId === "unrecorded" ? !r.anchorId : r.anchorId === filters.anchorId)) && (!filters.controllerId || (filters.controllerId === "unrecorded" ? !r.controllerId : r.controllerId === filters.controllerId)) && (!filters.leadId || (filters.leadId === "unrecorded" ? !r.leadId : r.leadId === filters.leadId)) && (!filters.from || r.startedAt >= shanghaiDate(`${filters.from}T00:00`)!) && (!filters.to || r.startedAt < new Date(+shanghaiDate(`${filters.to}T00:00`)! + 86400000))).sort((a,b)=>+b.startedAt-+a.startedAt || a.id.localeCompare(b.id));
   const count = matches.length, pages = Math.max(1, Math.ceil(count / 30)), page = Math.min(filters.page, pages);
   const reports = matches.slice((page-1)*30,page*30).map(r => ({ ...r, canDelete: !r.workSession?.leadTask && canManageLiveReports(actor,r.branch), canDeleteMoney: !r.workSession?.leadTask && canManageLiveReports(actor,r.branch) }));
   const peopleOptions = (id: "anchorId"|"controllerId"|"leadId", name: "anchorName"|"controllerName"|"leadName") => [...new Map(all.filter(r=>r[id]).map(r=>[r[id]!, {id:r[id]!,name:r[name]}])).values()].sort((a,b)=>a.name.localeCompare(b.name));
-  const summary = { sessions: count, joins: matches.reduce((n,r)=>n+(r.monetizationDeletedAt ? 0 : r.backendJoinCount ?? 0),0), effective: matches.reduce((n,r)=>n+(r.monetizationDeletedAt ? 0 : r.effectiveCount ?? 0),0), incomplete: matches.filter(r=>r.monetizationDeletedAt || r.backendJoinCount === null || r.effectiveCount === null).length };
+  const powderMatches = matches.filter(r=>r.isLeadGeneration !== false);
+  const summary = { sessions: count, powderSessions: powderMatches.length, joins: powderMatches.reduce((n,r)=>n+(r.monetizationDeletedAt ? 0 : r.backendJoinCount ?? 0),0), effective: powderMatches.reduce((n,r)=>n+(r.monetizationDeletedAt ? 0 : r.effectiveCount ?? 0),0), incomplete: powderMatches.filter(r=>r.monetizationDeletedAt || r.backendJoinCount === null || r.effectiveCount === null).length };
   // 选择器也遵循权限：过去负责的账号显示历史名称，不读取交接后的当前资料。
   const historical = await tx.liveReport.findMany({ where: scope, distinct: ["accountId"],
     select: { accountId: true, accountName: true, douyinId: true }, orderBy: { startedAt: "desc" } });

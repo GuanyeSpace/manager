@@ -222,6 +222,7 @@ model AccountRecord {
 
 // 每场人工录入数据；归属来自开播时的账号版本，后续调拨不修改历史。
 model LiveReport {
+  isLeadGeneration Boolean?
   anchorName String?
   leadUserId String?
   leadUserName String?

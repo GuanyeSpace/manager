@@ -160,3 +160,5 @@ modules/live-reports/input-metrics.ts集中中文时长解析、画像单位转�
 `modules/settlements`包含共享日期/金额校验、老板CRUD、独立主播安全DTO及每日对比，写服务复用全局人员变更锁、事务内身份复核和版本审计。`/settlements`列表/新增/详情/回收站，`/settlements/backends`后端资料，`/settlements/comparison`按日主播对比，页面守卫及读写服务均限制老板。`/anchor`只返回本人数量/提成；纯主播登录重定向和多岗位切换共用岗位能力判断。
 
 `modules/live-reports/personnel.ts`解析场次实际人员→历史快照，`date-range.ts`统一北京时间快捷日期。报表当前在权限过滤后解析历史人员及更正时间，再对全部匹配数据汇总/分页，避免当前账号人员替换历史。`modules/workbench/anchors.ts`统一本场主播选择与开播校验；老板主播更正复用原更正审计。导航来源白名单扩展settlements/anchor，保留筛选及分页。
+
+D054：导粉表单状态用LeadTask.data.leadMode保存，提交事务同步LiveReport.isLeadGeneration；列表状态筛选/全量合计由live-reports/data统一处理，对比由settlements/comparison排除不导粉报告和草稿。旧独立报表沿monetization服务更正；状态变更沿用锁、版本和审计，无新增岗位权限。

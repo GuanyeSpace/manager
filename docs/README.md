@@ -55,6 +55,8 @@
 
 - [D052人员统计与确定数据验收](tasks/settlements-verification.md)：历史人员、金额精度、按日对比、主播权限及发布证据。
 
+- [D054不导粉场次验收](tasks/lead-mode-verification.md)：填报状态、历史兼容、报表/对比和迁移验证。
+
 ## 旧专题文档
 
 - [账号与调拨](douyin-accounts.md)：历史规则、早期自动采集设想。

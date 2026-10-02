@@ -1,3 +1,4 @@
+import { readComparison } from "../modules/settlements/comparison";
 import assert from "node:assert/strict";
 import { validateTestEnv, resolveTestClient, assertTestDatabase, newRunId, cleanupRun } from "./lib/test-db";
 import { saveAccount } from "../modules/accounts/service";
@@ -53,7 +54,7 @@ async function main() {
     const editRace = await Promise.allSettled([cmd(owner.token, { id: task.id, version: task.version, command: "save", data: { ...values, exposureCount: "101" } }), cmd(manager.token, { id: task.id, version: task.version, command: "save", data: { ...values, exposureCount: "102" } })]);
     assert.equal(editRace.filter(r => r.status === "fulfilled").length, 1);
     await assert.rejects(save(values, "complete"), /请补齐/);
-    const full = leadValues(Object.fromEntries(leadFields.map(([k]) => [k, "0"]))); full.durationMinutes = "10"; full.durationText = "10分钟"; full.averageStayMinutes = "2.9";
+    const full = leadValues(Object.fromEntries(leadFields.map(([k]) => [k, "0"]))); full.leadMode = "yes"; full.durationMinutes = "10"; full.durationText = "10分钟"; full.averageStayMinutes = "2.9";
     await assert.rejects(save({ ...full, averageOnline: "2", peakOnline: "1" }), /平均在线/);
     await assert.rejects(save({ ...full, effectiveCount: "2", backendJoinCount: "1" }), /有效人数/);
     await assert.rejects(save(full, "complete"), /实际下播/);
@@ -64,6 +65,7 @@ async function main() {
     await assert.rejects(save({ ...full, femalePercent: "100.01" }), /画像比例/);
     await assert.rejects(save({ ...full, durationText: "错误时长" }), /直播时长/);
     full.femalePercent = "65.32%"; full.age31To40Percent = "100%";
+    await assert.rejects(save({...full,leadMode:""}, "complete"), /本场是否导粉/);
     await save(full, "complete"); task = await db.leadTask.findUniqueOrThrow({ where: { id: task.id } }); assert.ok(task.completedAt);
     const report = await db.liveReport.findUniqueOrThrow({ where: { workSessionId: live.id } }); assert.equal(report.hasSales, null); assert.equal(report.salesGmv, null); assert.equal(report.effectiveCount, 0);
     for (const u of [boss, manager, operator, owner]) assert.ok(await db.$transaction(tx => readLiveReport(tx, u.token, report.id)));
@@ -77,11 +79,12 @@ async function main() {
     const existingTask = await db.leadTask.findUniqueOrThrow({ where: { id: task.id } });
     const legacyData = { ...(existingTask.data as Record<string, unknown>), femalePercent: "", age31To40Percent: "", longPressCount: "9", legacyNote: "保留" };
     delete (legacyData as Record<string, unknown>).formVersion;
+    delete (legacyData as Record<string, unknown>).leadMode;
     await db.leadTask.update({ where: { id: task.id }, data: { data: legacyData } });
     await db.liveReport.update({ where: { id: report.id }, data: { femaleHundredths: null, age31To40Hundredths: null, longPressCount: 9, hasSales: true, salesGmv: "88.50" } });
-    await save({ ...full, femalePercent: "", age31To40Percent: "", likeCount: "3" }, "save", manager.token, task.id, "旧完成记录更正");
+    await save({ ...full, leadMode:"", femalePercent: "", age31To40Percent: "", likeCount: "3" }, "save", manager.token, task.id, "旧完成记录更正");
     const preserved = await db.liveReport.findUniqueOrThrow({ where: { id: report.id } });
-    assert.equal(preserved.femaleHundredths, null); assert.equal(preserved.longPressCount, 9); assert.equal(preserved.salesGmv?.toFixed(2), "88.50");
+    assert.equal(preserved.isLeadGeneration,null); assert.equal(preserved.femaleHundredths, null); assert.equal(preserved.longPressCount, 9); assert.equal(preserved.salesGmv?.toFixed(2), "88.50");
     const preservedData = (await db.leadTask.findUniqueOrThrow({ where: { id: task.id } })).data as Record<string, unknown>;
     assert.equal(preservedData.legacyNote, "保留"); assert.equal(preservedData.longPressCount, "9");
     await save(full, "save", manager.token, task.id, "补录画像");
@@ -112,6 +115,29 @@ async function main() {
     await db.workSession.update({ where: { id: done.id }, data: { phase: "COMPLETE", endedAt: new Date(Date.now() - 100 * 60000) } });
     await save(full, "complete", manager.token, second); assert.equal((await db.leadTask.findUniqueOrThrow({ where: { id: second } })).userId, owner.id);
     assert.equal((await db.$transaction(tx => readLiveReports(tx, controller.token, { accountId: "", from: "", to: "", page: 1 }))).count, 0);
+    // 不导粉仅校验直播指标，未填数字不转换为0，历史原值保留。
+    const noPowder = {...full,leadMode:"no",fanGroupCount:"",linkClickCount:"",backendJoinCount:"",effectiveCount:""};
+    await assert.rejects(save(noPowder,"save",manager.token,second),/更正原因/);
+    await save(noPowder,"save",manager.token,second,"本场未导粉");
+    const noReport = await db.liveReport.findUniqueOrThrow({where:{workSessionId:done.id}});
+    assert.equal(leadValues((await db.leadTask.findUniqueOrThrow({where:{id:second}})).data).backendJoinCount,"0"); assert.equal(noReport.isLeadGeneration,false); assert.equal(noReport.effectiveCount,0);
+    let filtered=await db.$transaction(tx=>readLiveReports(tx,boss.token,{view:"monetization",page:1,accountId}));
+    assert(!filtered.reports.some(r=>r.id===noReport.id));
+    filtered=await db.$transaction(tx=>readLiveReports(tx,boss.token,{view:"monetization",page:1,accountId:done.accountId,leadMode:"no"}));
+    assert.equal(filtered.count,1);assert.equal(filtered.summary.powderSessions,0);assert.equal(filtered.summary.incomplete,0);
+    await assert.rejects(save({...noPowder,leadMode:"yes"},"save",manager.token,second,"改回导粉"),/请补齐/);
+    await save({...noPowder,fanGroupCount:"暂存文字"},"save",manager.token,second,"无关草稿保留");
+    assert.equal(leadValues((await db.leadTask.findUniqueOrThrow({where:{id:second}})).data).fanGroupCount,"暂存文字");
+    await save({...full,leadMode:"no"},"save",manager.token,task.id,"另场也未导粉");
+    assert.equal((await db.$transaction(tx=>readComparison(tx,boss.token,{from:"2000-01-01",to:"2099-01-01"}))).rows.length,0);
+    await save(full,"save",manager.token,second,"恢复导粉");
+    assert.equal((await db.liveReport.findUniqueOrThrow({where:{workSessionId:done.id}})).isLeadGeneration,true);
+    await db.douyinAccount.update({where:{id:accountId},data:{branchId:a.id}});
+    const fresh=await claim(other.token,(await session("COMPLETE",400)).id);
+    await save(noPowder,"complete",other.token,fresh);
+    const freshTask=await db.leadTask.findUniqueOrThrow({where:{id:fresh}});
+    const freshReport=await db.liveReport.findUniqueOrThrow({where:{workSessionId:freshTask.sessionId}});
+    assert.equal(freshReport.effectiveCount,null);assert.equal(freshReport.isLeadGeneration,false);
     const base = process.env.TEST_HTTP_BASE;
     if (base) {
       const login = await fetch(base + "/login", { headers: { Cookie: `session=${signSessionToken(other.token)}` }, redirect: "manual" });

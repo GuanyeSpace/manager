@@ -22,7 +22,7 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
   if (!data) notFound();
   if (data.leadTaskId) redirect(withTrail(`/leads/${data.leadTaskId}`, parseTrail(via)));
   const { report: r } = data;
-  const labels: Record<string, string> = Object.fromEntries([...metricFields, ...monetizationFields, ["femaleHundredths", "女性比例（百分之一百分点）"], ["age31To40Hundredths", "31–40岁比例（百分之一百分点）"], ["durationSeconds", "直播时长（秒）"], ["sessionLabel", "场次"], ["averageStayHundredths", "人均停留（百分之一分钟）"], ["updatedByName", "修改人"], ["hasSales", "历史带货情况"], ["salesGmv", "历史带货GMV"]]);
+  const labels: Record<string, string> = Object.fromEntries([...metricFields, ...monetizationFields, ["femaleHundredths", "女性比例（百分之一百分点）"], ["age31To40Hundredths", "31–40岁比例（百分之一百分点）"], ["isLeadGeneration", "是否导粉"], ["durationSeconds", "直播时长（秒）"], ["sessionLabel", "场次"], ["averageStayHundredths", "人均停留（百分之一分钟）"], ["updatedByName", "修改人"], ["hasSales", "历史带货情况"], ["salesGmv", "历史带货GMV"]]);
   const history = <details className="space-y-3 rounded-xl border p-4"><summary className="cursor-pointer">数据修改记录</summary><CorrectionHistory rows={data.history.map(row => {
     const d = row.detail as { actorName?: string; reason?: string; operation?: string; before?: unknown; after?: unknown };
     const before = d.before && typeof d.before === "object" ? d.before as Record<string, unknown> : {};
@@ -46,7 +46,7 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
       <p className="text-sm text-muted-foreground">场观人数沿用本场进房人数。后端有效人数用于打粉结算。</p>
       {!r.monetizationDeletedAt && !embedded && <MonetizationTable reports={[r]} />}
       {r.monetizationDeletedAt ? <div className="space-y-3 rounded-lg border p-4"><p className="text-sm">本场打粉数据已删除，可恢复后更正。</p>{canEditMoney && <ReportRecycleForm key={r.version} id={r.id} version={r.version} section="monetization" restore />}</div> : canEditMoney ? <MonetizationForm entryCount={r.entryCount} embedded={embedded} initial={{
-        reason: "", id: r.id, version: String(r.version), fanGroupCount: r.fanGroupCount?.toString() ?? "",
+        leadMode: r.isLeadGeneration === null ? "" : r.isLeadGeneration ? "yes" : "no", reason: "", id: r.id, version: String(r.version), fanGroupCount: r.fanGroupCount?.toString() ?? "",
         linkClickCount: r.linkClickCount?.toString() ?? "", longPressCount: r.longPressCount?.toString() ?? "",
         backendJoinCount: r.backendJoinCount?.toString() ?? "", effectiveCount: r.effectiveCount?.toString() ?? "",
         salesStatus: r.hasSales === null ? "UNFILLED" : r.hasSales ? "REPORTED" : "NONE", salesGmv: r.salesGmv?.toFixed(2) ?? "",

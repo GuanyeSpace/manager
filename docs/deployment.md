@@ -380,3 +380,14 @@ D052源码对应Git提交8cf29805fdfe89c44a0bf02b80a84dcdfe6d5647，已推送ori
 - 本地类型、相关lint、确定数据专项通过（无链接新增、历史链接保留、金额/权限/并发/审计/回收站）；本次未重复浏览器全矩阵。生产没有测试数据写入，日常开发库未修改。
 
 D053备份pg_restore目录及截图tar均可读取，旧程序保留；代码28a8500已推送并核对远程一致。此次只核验备份可读，未完整恢复演练。
+
+
+## 2026-10-02 D054 支持不导粉场次
+
+- 北京时间16:11发布；stage `/opt/manager/build-lead-mode-20261002`，受限webpack构建148.308秒、峰值908.3MiB，退出0与marker确认后切换。
+- 停止写入后备份 `/var/backups/manager/manager-20261002T081143Z.dump` 与同名截图包；原数据摘要 `/opt/manager/data-before-lead-mode-20261002.json` 核对22张业务表全部原列一致。
+- 只追加 `20261002080000_report_lead_mode`，共27迁移，无回填和旧指标变更。245部署文件SHA一致，standalone无.env。
+- 保留旧程序 `/opt/manager/standalone-before-lead-mode-20261002` 与旧源码 `/opt/manager/source-before-lead-mode-20261002.tar.gz`。
+- 截图应用用户读写探针通过，manager/nginx/backup timer/cert timer active；HTTPS登录200、未登录leads和live-reports307。未在生产造测试数据。timer active不等同续期成功。
+- 实测范围见 [D054验收](tasks/lead-mode-verification.md)，含桌面浏览器，不包括真机移动端；日常开发库未迁移，隔离测试库27迁移。
+- 备份pg_restore目录及截图tar可读取；本次未做完整恢复演练。

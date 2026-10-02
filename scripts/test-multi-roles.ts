@@ -63,7 +63,7 @@ async function main() {
     assert.equal(await db.$transaction(tx => readLeadTask(tx, controller.token, otherTask)), null);
     const operatorRead = await db.$transaction(tx => readLeadTask(tx, both.token, tasks[0]));
     assert.ok(operatorRead); assert.equal(operatorRead.editable, false);
-    const values = leadValues(Object.fromEntries(leadFields.map(([k]) => [k, "0"]))); values.durationMinutes = "1";
+    const values = leadValues(Object.fromEntries(leadFields.map(([k]) => [k, "0"]))); values.durationMinutes = "1"; values.durationText = "1分钟"; values.leadMode = "yes";
     await db.$transaction(tx => runLeadCommand(tx, controller.token, { command: "save", id: tasks[0], version: 1, data: values }, "test"));
     await assert.rejects(db.$transaction(tx => runLeadCommand(tx, both.token, { command: "save", id: tasks[0], version: 2, data: values }, "test")), /无修改权限/);
     await db.workSession.update({ where: { id: sessions[0].id }, data: { phase: "COMPLETE", endedAt: new Date() } });
@@ -73,7 +73,7 @@ async function main() {
     assert.ok(await db.$transaction(tx => readLiveReport(tx, both.token, report.id)));
     const pendingAccount = await db.$transaction(tx => saveAccount(tx, boss.token, { ...accountInput, douyinId: marker + "pending" }, "test"));
     const pendingSource = await db.accountRecord.findFirstOrThrow({ where: { accountId: pendingAccount } });
-    const pending = await db.workSession.create({ data: { accountId: pendingAccount, sourceRecordId: pendingSource.id, controllerId: controller.id, label: "第二场", phase: "PREPARING", workflow, workflowVersion: 1 } });
+    const pending = await db.workSession.create({ data: { accountId: pendingAccount, sourceRecordId: pendingSource.id, actualAnchorId: boss.id, actualAnchorName: boss.name, controllerId: controller.id, label: "第二场", phase: "PREPARING", workflow, workflowVersion: 1 } });
     await assert.rejects(db.$transaction(tx => runWorkCommand(tx, controller.token, { command: "start", id: pending.id, version: 1, time: shanghaiInput(new Date()) }, "test")), /已有直播中的场次/);
     const base = process.env.TEST_HTTP_BASE;
     if (base) {

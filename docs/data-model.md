@@ -170,3 +170,7 @@ LeadTask.data新增durationText、femalePercent、age31To40Percent字符串；�
 - 新增20261002030000_confirmed_leads、20261002031000_legacy_report_people迁移，原20张表全部原列保持不变；新增两模型后共22模型，不更新旧指标。
 
 D053（2026-10-02）：后端url及确定数据backendUrl保留为历史兼容列，不迁移。新增写空字符串，更新保留旧值（包括改选后端）；业务页面不再填写/展示链接，历史审计不删除。
+
+## D054 是否导粉
+
+LiveReport新增isLeadGeneration Boolean?；true导粉、false不导粉、null历史未标记。迁移20261002080000_report_lead_mode仅添加可空列，不回填；共27迁移、22模型。LeadTask.data新增leadMode字符串：yes/no/空串，旧JSON缺键等同空；提交完成事务内同步报表。旧人数列/JSON/扩展字段保留，未导粉新报表的打粉人数为空。

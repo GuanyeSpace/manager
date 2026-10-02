@@ -41,6 +41,7 @@ export type ReportFormState = { success?: string; error?: string; fieldErrors?: 
 
 const dateFilter = z.string().refine((v) => !v || shanghaiDate(`${v}T00:00`) !== null, "日期无效");
 export const reportFilterSchema = z.object({
+  leadMode: z.enum(["all","yes","no","legacy"]).optional(),
   anchorId: z.string().default(""), controllerId: z.string().default(""), leadId: z.string().default(""),
   preset: z.enum(["yesterday","7d","30d","month","lastMonth"]).optional(),
   trash: z.enum(["true", "false"]).optional(), view: z.enum(["performance", "monetization"]).optional(),

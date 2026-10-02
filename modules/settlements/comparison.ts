@@ -11,13 +11,13 @@ export async function readComparison(tx:Prisma.TransactionClient,token:string,ra
   function get(day:string,anchorId:string|null,anchorName:string){const key=day+":"+(anchorId??"unrecorded");let row=groups.get(key);if(!row){row={day,anchorId,anchorName,reportCount:0,reportJoins:0,reportEffective:0,confirmedCount:0,confirmedJoins:0,confirmedEffective:0,pending:0};groups.set(key,row);}return row;}
   const reports=(await tx.liveReport.findMany({where:{deletedAt:null,monetizationDeletedAt:null,OR:[{workSessionId:null},{workSession:{deletedAt:null}}]},include:reportPeopleInclude})).map(reportPeople);
   const included=new Set<string>();
-  for(const r of reports){const day=shanghaiInput(r.startedAt).slice(0,10);if(!within(day,r.anchorId))continue;
+  for(const r of reports){if(r.isLeadGeneration === false){if(r.workSessionId)included.add(r.workSessionId);continue;}const day=shanghaiInput(r.startedAt).slice(0,10);if(!within(day,r.anchorId))continue;
     const g=get(day,r.anchorId,r.anchorName);
     if((r.workSession?.leadTask&&!r.workSession.leadTask.completedAt)||r.workSession?.leadTask?.deletedAt||r.backendJoinCount===null||r.effectiveCount===null){if(!r.workSessionId)g.pending++;continue;}
     g.reportCount++;g.reportJoins+=r.backendJoinCount;g.reportEffective+=r.effectiveCount;if(r.workSessionId)included.add(r.workSessionId);
   }
-  const sessions=await tx.workSession.findMany({where:{deletedAt:null,leadEligible:true,startedAt:{not:null},phase:{in:["LIVE","WRAP","COMPLETE"]}},include:{sourceRecord:true}});
-  for(const s of sessions){if(included.has(s.id))continue;const day=shanghaiInput(s.startedAt!).slice(0,10),anchorId=s.actualAnchorId??s.sourceRecord.anchorId;if(within(day,anchorId))get(day,anchorId,s.actualAnchorName??s.sourceRecord.anchorName??"未记录").pending++;}
+  const sessions=await tx.workSession.findMany({where:{deletedAt:null,leadEligible:true,startedAt:{not:null},phase:{in:["LIVE","WRAP","COMPLETE"]}},include:{sourceRecord:true,leadTask:{select:{data:true}}}});
+  for(const s of sessions){if(included.has(s.id) || (s.leadTask?.data as {leadMode?:string}|null)?.leadMode === "no")continue;const day=shanghaiInput(s.startedAt!).slice(0,10),anchorId=s.actualAnchorId??s.sourceRecord.anchorId;if(within(day,anchorId))get(day,anchorId,s.actualAnchorName??s.sourceRecord.anchorName??"未记录").pending++;}
   const confirmed=await tx.confirmedLead.findMany({where:{deletedAt:null,day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})},...(filters.anchorId?{anchorId:filters.anchorId}:{})}});
   for(const c of confirmed){const g=get(c.day,c.anchorId,c.anchorName);g.confirmedCount++;g.confirmedJoins+=c.joinCount;g.confirmedEffective+=c.effectiveCount;}
   const all=[...groups.values()].sort((a,b)=>b.day.localeCompare(a.day)||a.anchorName.localeCompare(b.anchorName));

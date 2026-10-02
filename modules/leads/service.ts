@@ -83,18 +83,20 @@ export async function runLeadCommand(tx: Prisma.TransactionClient, token: string
     if (task.completedAt && !input.reason) throw new UserActionError("请填写更正原因");
     const values = input.data, old = leadValues(task.data);
     const previousData = task.data as Record<string, Prisma.InputJsonValue>;
+    if(values.leadMode === "no") for(const [key] of powderFields) if(values[key] === "") values[key] = old[key];
     for (const [key, label] of audienceFields) if (old[key] !== "" && values[key] === "") throw new UserActionError(`${label}已有记录，不能清空`);
-    for (const [key, label] of activeLeadFields) if (values[key] !== old[key]) changes.push({ field: label, before: old[key] || "未填写", after: values[key] || "未填写" });
+    for (const [key, label] of activeLeadFields) if (values[key] !== old[key]) changes.push({ field: label, before: key === "leadMode" ? old[key] === "yes" ? "导粉" : old[key] === "no" ? "不导粉" : "未标记" : old[key] || "未填写", after: key === "leadMode" ? values[key] === "yes" ? "导粉" : values[key] === "no" ? "不导粉" : "未标记" : values[key] || "未填写" });
+    if(old.leadMode && !values.leadMode) throw new UserActionError("已确认是否导粉，不能清空选择");
     const complete = input.command === "complete" || !!task.completedAt;
     if (complete) {
-      const missing = activeLeadFields.filter(([key]) => values[key] === "" && !(task.completedAt && previousData.formVersion !== 2 && audienceFields.some(([field]) => field === key)));
+      const missing = activeLeadFields.filter(([key]) => values[key] === "" && !(values.leadMode === "no" && powderFields.some(([field])=>field === key)) && !(key === "leadMode" && task.completedAt && !old.leadMode) && !(task.completedAt && previousData.formVersion !== 2 && audienceFields.some(([field]) => field === key)));
       if (missing.length) throw new UserActionError(`请补齐：${missing.map(([, label]) => label).join("、")}`);
       const s = task.session, source = s.sourceRecord;
       if (!s.startedAt || !s.endedAt || !["WRAP", "COMPLETE"].includes(s.phase)) throw new UserActionError("请在本场实际下播后提交完成");
       const durationSeconds = parseDuration(values.durationText) ?? 0;
       if (!durationSeconds || s.startedAt.getTime() + durationSeconds * 1000 > Date.now()) throw new UserActionError("请核对直播时长：须大于0，且结束时间不能晚于现在");
-      const metrics = Object.fromEntries([...metricFields, ...powderFields].map(([key]) => [key, Number(values[key])])) as Record<typeof metricFields[number][0] | typeof powderFields[number][0], number>;
-      const fields = { ...metrics, femaleHundredths: audienceHundredths(values.femalePercent), age31To40Hundredths: audienceHundredths(values.age31To40Percent), durationSeconds, averageStayHundredths: Math.round(Number(values.averageStayMinutes) * 100), updatedByName: actor.name, monetizationUpdatedAt: new Date(), monetizationUpdatedBy: actor.name };
+      const metrics = Object.fromEntries([...metricFields, ...(values.leadMode === "no" ? [] : powderFields)].map(([key]) => [key, Number(values[key])])) as Record<typeof metricFields[number][0] | typeof powderFields[number][0], number>;
+      const fields = { isLeadGeneration: values.leadMode === "" ? null : values.leadMode === "yes", ...metrics, femaleHundredths: audienceHundredths(values.femalePercent), age31To40Hundredths: audienceHundredths(values.age31To40Percent), durationSeconds, averageStayHundredths: Math.round(Number(values.averageStayMinutes) * 100), updatedByName: actor.name, monetizationUpdatedAt: new Date(), monetizationUpdatedBy: actor.name };
       await tx.liveReport.upsert({ where: { workSessionId: task.sessionId }, update: { ...fields, version: { increment: 1 } }, create: { ...fields, workSessionId: task.sessionId, accountId: s.accountId, sourceRecordId: s.sourceRecordId, branchId: task.branchId, branchName: source.branchName, accountName: source.name, douyinId: source.douyinId, controllerId: source.controllerId, controllerName: source.controllerName, operatorId: source.operatorId, anchorId: source.anchorId, startedAt: s.startedAt, sessionLabel: s.label, createdById: actor.id, createdByName: actor.name } });
       if (!task.completedAt) { data.completedAt = new Date(); changes.push({ field: "填报状态", before: "待补数据", after: "已完成" }); }
     }

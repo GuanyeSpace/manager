@@ -3,6 +3,7 @@ import { startTransition, useActionState, useState } from "react";
 import { followHref } from "@/lib/navigation-trail";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { leadAction } from "@/modules/leads/actions";
+import { powderFields } from "@/modules/live-reports/input-metrics";
 import { leadValues, type LeadValues } from "@/modules/leads/schema";
 import { ReportMetricSections } from "./report-metric-sections";
 
@@ -28,7 +29,9 @@ export function LeadDataForm({ id, version, initial, completed, editable, ended 
   return <form className="space-y-6" onSubmit={e => { e.preventDefault(); const form = new FormData(e.currentTarget); const button = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null; form.set("command", button?.value ?? "save"); startTransition(() => action(form)); }}>
     <input type="hidden" name="id" value={id} /><input type="hidden" name="version" value={state.savedVersion ?? initialVersion} />
     <p className="text-sm text-slate-500">未确定请留空，实际没有填 0。多个粉丝群按本场汇总；场观人数沿用进房人数。可以跨天补填。</p>
-    <ReportMetricSections values={values} onChange={(key,value) => setValues(v => ({ ...v, [key]: value }))} disabled={!editable || pending} completed={completed} powder />
+    <label className="block text-sm">本场是否导粉<select aria-label="本场是否导粉" name="leadMode" value={values.leadMode} disabled={!editable || pending} onChange={e=>setValues(v=>({...v,leadMode:e.target.value}))} className={leadInputClass}><option value="">{completed ? "历史未标记" : "请选择"}</option><option value="yes">导粉</option><option value="no">不导粉</option></select></label>
+    {values.leadMode === "no" && <><p className="text-sm text-slate-500">本场不导粉，只需填写直播数据；打粉指标不适用。</p>{powderFields.map(([key])=><input key={key} type="hidden" name={key} value={values[key]}/>)}</>}
+    <ReportMetricSections values={values} onChange={(key,value) => setValues(v => ({ ...v, [key]: value }))} disabled={!editable || pending} completed={completed} powder={values.leadMode !== "no"} />
     {editable && <><label className="block space-y-1 text-sm">{completed ? "更正原因（必填）" : "填写说明（可选）"}<textarea className={leadInputClass} name="reason" maxLength={2000} required={completed} /></label>
       {stale && <p role="alert" className="text-sm text-amber-800">记录已有更新，当前输入已保留。请复制需要的草稿后<button type="button" className="underline" onClick={() => window.location.reload()}>刷新页面</button>核对。</p>}
       <div className="flex gap-3"><button name="command" value="save" disabled={pending || stale} className="rounded-lg border px-5 py-2 text-sm">{completed ? "保存更正" : "保存草稿"}</button>{!completed && <button name="command" value="complete" disabled={pending || stale || !ended} className="rounded-lg bg-emerald-900 px-5 py-2 text-sm text-white disabled:opacity-50">提交完成</button>}</div>{!ended && <p className="text-sm text-slate-500">本场仍在直播，可以先保存草稿，实际下播后再提交完成。</p>}</>}

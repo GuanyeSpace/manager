@@ -81,6 +81,12 @@ async function main(){
  // More than one page: totals must include all rows, including explicit zeros.
  for(let i=0;i<31;i++)await db.liveReport.create({data:{...copy,workSessionId:null,startedAt:new Date(+shanghaiDate(day+"T01:00")!+i*60000),anchorId:other.id,anchorName:other.name,controllerId:boss.id,controllerName:boss.name,leadUserId:lead.id,leadUserName:lead.name}});
  reports=await tx(t=>readLiveReports(t,boss.token,filter));assert.equal(reports.count,32);assert.equal(reports.reports.length,30);assert.equal(reports.summary.joins,32*12);
+ const confirmedBefore=await db.confirmedLead.findMany({orderBy:{id:"asc"}});
+ await db.liveReport.updateMany({where:{accountId:account},data:{isLeadGeneration:false}});
+ await db.leadTask.update({where:{sessionId:session},data:{data:{leadMode:"no"}}});
+ const withoutLeads=await tx(t=>readComparison(t,boss.token,{from:day,to:day,anchorId:anchor.id}));
+ assert.equal(withoutLeads.rows[0].reportCount,0);assert.equal(withoutLeads.rows[0].pending,0);assert.equal(withoutLeads.rows[0].confirmedJoins,20);
+ assert.deepEqual(await db.confirmedLead.findMany({orderBy:{id:"asc"}}),confirmedBefore);
  await db.session.delete({where:{id:boss.token}});await assert.rejects(tx(t=>readConfirmed(t,boss.token,{})),/登录/);
  assert.deepEqual(dateRange("month",new Date("2026-10-01T04:00:00Z")),{from:"2026-10-01",to:"2026-09-30"});assert.deepEqual(dateRange("lastMonth",new Date("2026-03-01T00:00:00Z")),{from:"2026-02-01",to:"2026-02-28"});assert.deepEqual(dateRange("7d",new Date("2026-10-02T00:00:00Z")),{from:"2026-09-25",to:"2026-10-01"});assert.equal(period("2026-10-04","week"),"2026-09-28 ~ 2026-10-04");assert.equal(moneyText(totalCents(2000000000,999999999)),"19999999980000000.00");
  console.log("PASS: settlement permissions, cents, multiple backends, snapshots, versions, audit rollback, recycle, anchor DTO, periods, actual staff, start guard, corrections, cross-midnight, report filters/all-page sums and comparison");

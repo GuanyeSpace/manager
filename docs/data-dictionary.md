@@ -681,3 +681,12 @@
 | ConfirmedLead | createdAt / updatedAt | DateTime |
 
 唯一键day+anchorId+backendId（含回收站），索引anchorId+day。总价与主播提成为有效人数乘对应单价，以BigInt分计算后输出两位小数字符串，不单独存浮点金额。修改理由、前后值、操作者及时间沿用AuditLog；没有新增付款字段。
+
+## D054字段增量
+
+| 模型 | 字段 | 类型/说明 |
+| --- | --- | --- |
+| LiveReport | isLeadGeneration | Boolean?；true导粉、false不导粉、null历史未标记；无回填 |
+| LeadTask | data.leadMode | JSON字符串yes/no/空；缺键兼容空，完成时同步LiveReport |
+
+reportFilterSchema新增可选leadMode：all/yes/no/legacy；yes保留历史未标记统计。旧原始打粉人数保留，展示与聚合先判断isLeadGeneration。
