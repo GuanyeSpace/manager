@@ -14,7 +14,7 @@ export async function saveBackend(tx:Prisma.TransactionClient,token:string,raw:u
   const old=v.id ? await tx.leadBackend.findUnique({where:{id:v.id}}):null;
   if(v.id&&!old)throw new UserActionError("后端不存在");
   if(old&&(old.version!==v.version||!v.reason))throw new UserActionError(old.version!==v.version?"资料已被修改，请刷新核对":"请填写更正原因");
-  const data={name:v.name,url:v.url,active:v.active};
+  const data={name:v.name,url:old?.url??"",active:v.active};
   const row=old?await tx.leadBackend.update({where:{id:old.id},data:{...data,version:{increment:1}}}):await tx.leadBackend.create({data});
   await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_UPDATE",targetType:"LeadBackend",targetId:row.id,ip,detail:{actorName:actor.name,reason:v.reason,before:json(old),after:json(row)}});return row.id;
 }
@@ -31,7 +31,7 @@ export async function saveConfirmed(tx:Prisma.TransactionClient,token:string,raw
   if(!backend||(!backend.active&&old?.backendId!==backend.id))throw new UserActionError("请选择启用的后端");
   const duplicate=await tx.confirmedLead.findUnique({where:{day_anchorId_backendId:{day:v.day,anchorId:v.anchorId,backendId:v.backendId}}});
   if(duplicate&&duplicate.id!==old?.id)throw new UserActionError(duplicate.deletedAt?"该日期、主播和后端记录在回收站，请恢复原记录":"该日期、主播和后端已有记录，请编辑原记录");
-  const data={day:v.day,anchorId:v.anchorId,anchorName:old?.anchorId===v.anchorId?old.anchorName:anchor!.name,backendId:v.backendId,backendName:old?.backendId===v.backendId?old.backendName:backend.name,backendUrl:old?.backendId===v.backendId?old.backendUrl:backend.url,joinCount:v.joinCount,effectiveCount:v.effectiveCount,backendUnitCents:v.backendUnit,anchorUnitCents:v.anchorUnit};
+  const data={day:v.day,anchorId:v.anchorId,anchorName:old?.anchorId===v.anchorId?old.anchorName:anchor!.name,backendId:v.backendId,backendName:old?.backendId===v.backendId?old.backendName:backend.name,backendUrl:old?.backendUrl??"",joinCount:v.joinCount,effectiveCount:v.effectiveCount,backendUnitCents:v.backendUnit,anchorUnitCents:v.anchorUnit};
   const row=old?await tx.confirmedLead.update({where:{id:old.id},data:{...data,version:{increment:1}}}):await tx.confirmedLead.create({data});
   await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_UPDATE",targetType:"ConfirmedLead",targetId:row.id,ip,detail:{actorName:actor.name,reason:v.reason,before:json(old),after:json(row)}});return row.id;
 }

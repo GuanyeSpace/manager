@@ -20,24 +20,29 @@ async function main(){
  const boss=await user("boss","BOSS"),anchor=await user("anchor","ANCHOR"),other=await user("other","ANCHOR"),control=await user("control","CONTROLLER"),lead=await user("lead","LEAD_SPECIALIST"),operator=await user("operator","OPERATOR"),manager=await user("manager","ASSISTANT");
  await db.branch.update({where:{id:a.id},data:{managerId:manager.id}});
  const tx=<T>(fn:(t:Parameters<Parameters<typeof db.$transaction>[0]>[0])=>Promise<T>)=>db.$transaction(fn);
- const backendRaw={id:"",version:0,name:marker+"backend",url:"https://example.com/backend",active:"true"};
+ const backendRaw={id:"",version:0,name:marker+"backend",active:"true"};
  for(const u of [anchor,lead,control,operator,manager]){await assert.rejects(tx(t=>saveBackend(t,u.token,backendRaw,"test")),/仅老板/);await assert.rejects(tx(t=>readConfirmed(t,u.token,{})),/仅老板/);await assert.rejects(tx(t=>readComparison(t,u.token,{})),/仅老板/);}
  const b=await tx(t=>saveBackend(t,boss.token,backendRaw,"test")),b2=await tx(t=>saveBackend(t,boss.token,{...backendRaw,name:marker+"backend2"},"test"));
+ assert.equal((await db.leadBackend.findUniqueOrThrow({where:{id:b}})).url,"");
+ await db.leadBackend.update({where:{id:b},data:{url:"https://example.com/legacy"}});
  const day=dateRange("yesterday")!.to,raw={id:"",version:0,day,anchorId:anchor.id,backendId:b,joinCount:"12",effectiveCount:"10",backendUnit:"12.35",anchorUnit:"2.56"};
  await assert.rejects(tx(t=>saveConfirmed(t,boss.token,{...raw,day:shanghaiInput(new Date()).slice(0,10)},"test")),/昨天/);
  await assert.rejects(tx(t=>saveConfirmed(t,boss.token,{...raw,effectiveCount:"13"},"test")),/有效数量/);
  await assert.rejects(tx(t=>saveConfirmed(t,boss.token,{...raw,anchorUnit:"1.234"},"test")),/单价/);
  const id=await tx(t=>saveConfirmed(t,boss.token,raw,"test"));await assert.rejects(tx(t=>saveConfirmed(t,boss.token,raw,"test")),/已有记录/);
+ assert.equal((await db.confirmedLead.findUniqueOrThrow({where:{id}})).backendUrl,"");
+ await db.confirmedLead.update({where:{id},data:{backendUrl:"https://example.com/historical-snapshot"}});
  const id2=await tx(t=>saveConfirmed(t,boss.token,{...raw,backendId:b2,joinCount:"8",effectiveCount:"5",anchorUnit:"3.00"},"test"));
  await tx(t=>saveConfirmed(t,boss.token,{...raw,anchorId:other.id},"test"));
  const own=await tx(t=>readAnchorIncome(t,anchor.token,{from:day,to:day}));assert.deepEqual(own.totals,{joins:20,effective:15,income:"40.60"});assert.equal(own.rows.length,1);assert(!JSON.stringify(own).includes("backend"));assert(!JSON.stringify(own).includes(other.id));
  for(const group of ["week","month"]){const grouped=await tx(t=>readAnchorIncome(t,anchor.token,{from:day,to:day,group}));assert.equal(grouped.rows[0].income,"40.60");}
  assert.equal((await tx(t=>readAnchorIncome(t,other.token,{from:day,to:day}))).totals.income,"25.60");
  await assert.rejects(tx(t=>readAnchorIncome(t,lead.token,{})),/仅主播/);
- await tx(t=>saveBackend(t,boss.token,{...backendRaw,id:b,version:1,name:marker+"renamed",url:"https://example.com/new",reason:"改后端"},"test"));
+ await tx(t=>saveBackend(t,boss.token,{...backendRaw,id:b,version:1,name:marker+"renamed",reason:"改后端"},"test"));
+ assert.equal((await db.leadBackend.findUniqueOrThrow({where:{id:b}})).url,"https://example.com/legacy");
  assert.equal((await db.confirmedLead.findUniqueOrThrow({where:{id}})).backendName,backendRaw.name);
  const edit={...raw,id,version:1,reason:"核对单价"};const race=await Promise.allSettled([tx(t=>saveConfirmed(t,boss.token,{...edit,anchorUnit:"2.57"},"test")),tx(t=>saveConfirmed(t,boss.token,{...edit,anchorUnit:"2.58"},"test"))]);assert.equal(race.filter(r=>r.status==="fulfilled").length,1);
- const row=await db.confirmedLead.findUniqueOrThrow({where:{id}});await assert.rejects(tx(t=>saveConfirmed(t,boss.token,{...edit,version:row.version,reason:""},"test")),/更正原因/);
+ const row=await db.confirmedLead.findUniqueOrThrow({where:{id}});assert.equal(row.backendUrl,"https://example.com/historical-snapshot");await assert.rejects(tx(t=>saveConfirmed(t,boss.token,{...edit,version:row.version,reason:""},"test")),/更正原因/);
  await assert.rejects(tx(async t=>{await saveConfirmed(t,boss.token,{...edit,version:row.version,joinCount:"99"},"test");throw Error("rollback");}),/rollback/);assert.equal((await db.confirmedLead.findUniqueOrThrow({where:{id}})).joinCount,12);
  await tx(t=>recycleConfirmed(t,boss.token,{id:id2,version:1,operation:"delete",reason:"误录"},"test"));assert.equal((await tx(t=>readAnchorIncome(t,anchor.token,{from:day,to:day}))).totals.joins,12);
  await assert.rejects(tx(t=>saveConfirmed(t,boss.token,{...raw,backendId:b2},"test")),/回收站/);

@@ -669,12 +669,12 @@
 | WorkSession | actualAnchorId / actualAnchorName | String? / String?，实际主播员工关联和姓名快照；旧记录为空 |
 | WorkSession | actualAnchor | User?，SessionAnchor关系，删除限制 |
 | LiveReport | anchorName / leadUserId / leadUserName | String?，独立历史报表人员补正；关联场次优先用场次实际人员和认领记录 |
-| LeadBackend | id / name / url | String，主键 / 唯一名称 / HTTP(S)链接 |
+| LeadBackend | id / name / url | String，主键 / 唯一名称 / 旧链接（D053停用，新建为空） |
 | LeadBackend | active / version | Boolean（默认true）/ Int（默认1） |
 | LeadBackend | createdAt / updatedAt / records | DateTime / DateTime / ConfirmedLead[] |
 | ConfirmedLead | id / day | String主键 / 北京日期YYYY-MM-DD |
 | ConfirmedLead | anchorId / anchorName / anchor | String员工外键 / String姓名快照 / User |
-| ConfirmedLead | backendId / backendName / backendUrl / backend | String后端外键 / 名称及链接快照 / LeadBackend |
+| ConfirmedLead | backendId / backendName / backendUrl / backend | String后端外键 / 名称及旧链接快照（D053新建为空，旧值保留）/ LeadBackend |
 | ConfirmedLead | joinCount / effectiveCount | Int，非负人数，有效不得超过加人 |
 | ConfirmedLead | backendUnitCents / anchorUnitCents | Int，单价单位为分 |
 | ConfirmedLead | version / deletedAt | Int（默认1）/ DateTime?软删除 |

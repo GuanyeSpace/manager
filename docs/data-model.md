@@ -168,3 +168,5 @@ LeadTask.data新增durationText、femalePercent、age31To40Percent字符串；�
 - ConfirmedLead：day（YYYY-MM-DD北京时间业务日）、anchorId(User FK)/anchorName、backendId(FK)/backendName/backendUrl、joinCount/effectiveCount、backendUnitCents/anchorUnitCents（整数分）、version、deletedAt及创建更新时间。day+anchorId+backendId唯一，anchorId+day索引；数据库检查非负及有效≤加人。
 - 总价/提成不另存易过期副本，按有效数量×整数分以BigInt运算，再输出两位小数字符串；单价最多7位整数元、数量上限20亿。
 - 新增20261002030000_confirmed_leads、20261002031000_legacy_report_people迁移，原20张表全部原列保持不变；新增两模型后共22模型，不更新旧指标。
+
+D053（2026-10-02）：后端url及确定数据backendUrl保留为历史兼容列，不迁移。新增写空字符串，更新保留旧值（包括改选后端）；业务页面不再填写/展示链接，历史审计不删除。

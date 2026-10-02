@@ -371,3 +371,10 @@ D051源码提交：97880635db50ab70f428f24ef3019624c3f902b2，已推送origin/ma
 - 隔离桌面浏览器与业务验证见 [D052验收](tasks/settlements-verification.md)，未在正式库建立测试员工/场次/确定数据。Git提交与推送另见current-status.md。
 
 D052源码对应Git提交8cf29805fdfe89c44a0bf02b80a84dcdfe6d5647，已推送origin/main，远程与本地一致；后续纯交接文档提交不改变生产程序。
+
+## 2026-10-02 D053 移除后端链接
+
+- 北京时间15:26发布，独立stage `/opt/manager/build-backend-links-20261002`，受限webpack构建150.820秒，峰值906.6MiB。
+- 备份 `/var/backups/manager/manager-20261002T072603Z.dump` 与同名截图包；旧程序 `/opt/manager/standalone-before-backend-links-20261002`、源码归档 `/opt/manager/source-before-backend-links-20261002.tar.gz`。
+- 暂停写入后核对 `/opt/manager/data-before-backend-links-20261002.json`：22表全部原列一致；26迁移、无新增/待执行；244文件SHA一致。截图用户读写探针通过，standalone无.env，manager/nginx及两个timer active，HTTPS登录200/未登录后端页307。
+- 本地类型、相关lint、确定数据专项通过（无链接新增、历史链接保留、金额/权限/并发/审计/回收站）；本次未重复浏览器全矩阵。生产没有测试数据写入，日常开发库未修改。
