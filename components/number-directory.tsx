@@ -9,7 +9,7 @@ export async function NumberDirectory({ q, page, filters, pageSize }: { q: strin
   return <>
     <header className="flex items-center justify-between gap-3"><h1 className="text-2xl font-semibold">手机号管理</h1>{data.manager && <Link className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground" href="/resources/numbers/new">新增手机号</Link>}</header>
     <p className="text-sm text-muted-foreground">点击手机号查看套餐、所在手机及关联资料。每页显示 {data.pageSize} 条。</p>
-    <form key={`${q}-${JSON.stringify(data.filters)}-${data.pageSize}`} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-5">
+    <form method="GET" key={`${q}-${JSON.stringify(data.filters)}-${data.pageSize}`} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-5">
       <label className="grid gap-2 text-sm">搜索<input name="q" defaultValue={q} maxLength={100} placeholder="手机号、账号或用途" className={control} /></label>
       <label className="grid gap-2 text-sm">开户人<input name="openedBy" defaultValue={data.filters.openedBy} maxLength={100} placeholder="输入开户人姓名" className={control} /></label>
       <label className="grid gap-2 text-sm">使用人<select name="userId" defaultValue={data.filters.userId} className={control}><option value="">全部使用人</option><option value="unassigned">暂未分配</option>{data.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>

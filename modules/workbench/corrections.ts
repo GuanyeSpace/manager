@@ -1,3 +1,4 @@
+import { assertNoDirectDuplicate } from "@/modules/direct-leads/service";
 import { requireSessionAnchor } from "./anchors";
 import { z } from "zod";
 import type { Prisma } from "@/app/generated/prisma/client";
@@ -39,6 +40,7 @@ export function correctedTime(value: string, previous: Date | null) {
 export const minuteFloor = (date: Date) => Math.floor(date.getTime() / 60000) * 60000;
 
 export async function assertSessionInterval(tx: Prisma.TransactionClient, session: { id: string; accountId: string; loginUserId: string | null; controllerId: string }, actualId: string, start: Date, end: Date) {
+  await assertNoDirectDuplicate(tx,session.accountId,start);
   if (end <= start) throw new UserActionError("下播时间必须晚于开播时间");
   const people = [...new Set([session.loginUserId ?? session.controllerId, actualId])];
   const conflict = await tx.workSession.findFirst({ where: {

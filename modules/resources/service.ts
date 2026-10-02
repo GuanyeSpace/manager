@@ -7,7 +7,7 @@ import { writeAudit } from "@/lib/audit";
 import { carriers, numberStatus, itemCodes, deviceKind, toCents, normalizeNumber, resourceSchema, type ResourceKind } from "./schema";
 
 async function assignNumber(tx: Prisma.TransactionClient, token: string, account: NonNullable<Awaited<ReturnType<typeof tx.douyinAccount.findUnique>>>, phoneNumberId: string | null, ip: string) {
-  await saveAccount(tx, token, { ...account, controllerId: account.controllerId ?? "", phoneNumberId: phoneNumberId ?? "", roomId: account.roomId ?? "", operatorId: account.operatorId ?? "", anchorId: account.anchorId ?? "", phone: "", active: account.banned ? "banned" : account.active ? "true" : "false", unbanDate: account.unbanDate ?? "" }, ip);
+  await saveAccount(tx, token, { ...account, externalAnchorId: account.externalAnchorId ?? "", controllerId: account.controllerId ?? "", phoneNumberId: phoneNumberId ?? "", roomId: account.roomId ?? "", operatorId: account.operatorId ?? "", anchorId: account.anchorId ?? "", phone: "", active: account.banned ? "banned" : account.active ? "true" : "false", unbanDate: account.unbanDate ?? "" }, ip);
 }
 export async function saveResource(tx: Prisma.TransactionClient, token: string, kind: ResourceKind, raw: unknown, ip: string) {
   const input = resourceSchema.parse(raw);

@@ -1,3 +1,6 @@
+import { numberScope } from "@/lib/auth/resource-permissions";
+import { assertNoDirectDuplicate } from "@/modules/direct-leads/service";
+import { requireReadAccountActor } from "@/lib/auth/read-actor";
 import { availableAnchors, requireSessionAnchor } from "./anchors";
 import { correctSession } from "./corrections";
 import type { Prisma } from "@/app/generated/prisma/client";
@@ -102,6 +105,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
       const conflict = await tx.workSession.findFirst({ where: { deletedAt: null, id: { not: session.id }, AND: [{ OR: [{ loginUserId: { in: people } }, { actualControllerId: { in: people } }, { loginUserId: null, controllerId: { in: people } }, { actualControllerId: null, controllerId: { in: people } }] }, { OR: [{ phase: "LIVE" }, { endedAt: { gt: time } }] }] } });
       if (conflict) throw new UserActionError("该直播中控已有直播中的场次，或填写时间与已有场次重叠");
       if (workflow.before.some((_, i) => progress[`before:${i}`]?.status !== "done")) throw new UserActionError("请先勾选完成全部开播前事项");
+      await assertNoDirectDuplicate(tx,session.accountId,time);
       data.phase = "LIVE"; data.startedAt = time;
     } else {
       if (session.phase !== "LIVE" || !session.startedAt || time <= session.startedAt) throw new UserActionError("下播时间须晚于开播时间，且场次正在直播中");
@@ -171,7 +175,7 @@ export async function saveDailyWork(tx: Prisma.TransactionClient, token: string,
 }
 
 export async function readWorkbench(tx: Prisma.TransactionClient, token: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const accounts = await tx.douyinAccount.findMany({ where: currentAccountScope(actor), select: { id: true, name: true, douyinId: true, active: true, banned: true, unbanDate: true, purpose: true, anchor: { select: { name: true } }, controller: { select: { name: true } }, branch: { select: { name: true } } }, orderBy: { name: "asc" } });
   const scope = { deletedAt: null, sourceRecord: historicalAccountScope(actor) };
   if (isExecutionController(actor)) {
@@ -187,16 +191,17 @@ export async function readWorkbench(tx: Prisma.TransactionClient, token: string)
   return { accounts, sessions, daily, executionOnly: false };
 }
 export async function readWorkspace(tx: Prisma.TransactionClient, token: string, id: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const account = await tx.douyinAccount.findFirst({ where: { id, ...currentAccountScope(actor) }, select: { id: true, name: true, douyinId: true, purpose: true, room: { select: { id: true, name: true } }, phoneNumber: { select: { id: true, number: true } }, active: true, banned: true, unbanDate: true, branchId: true, controllerId: true, operatorId: true, anchorId: true, branch: { select: { id: true, name: true, managerId: true, status: true } }, controller: { select: { name: true } }, operator: { select: { name: true } }, anchor: { select: { name: true } }, workflow: true } });
   if (!account) return null;
   const current = await tx.workSession.findFirst({ where: { deletedAt: null, accountId: id, phase: { in: ["PREPARING", "LIVE"] }, sourceRecord: historicalAccountScope(actor) } });
   const wrapping = await tx.workSession.findMany({ where: { deletedAt: null, accountId: id, phase: "WRAP", sourceRecord: historicalAccountScope(actor) }, select: { id: true, label: true, endedAt: true }, orderBy: { createdAt: "desc" } });
   const controllers = await tx.user.findMany({ where: { branchId: account.branchId, employmentStatus: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } });
-  return { anchors: await availableAnchors(tx, account.branchId), account, current, wrapping, controllers, editable: canEditWorkflow(actor, account), scriptsEditable: canEditScripts(actor, account), executable: canExecute(actor, account) };
+  const visibleNumber = !account.phoneNumber || !!await tx.phoneNumber.findFirst({where:{AND:[numberScope(actor),{id:account.phoneNumber.id}]},select:{id:true}});
+  return { anchors: await availableAnchors(tx, account.branchId), account: visibleNumber ? account : {...account,phoneNumber:null}, current, wrapping, controllers, editable: canEditWorkflow(actor, account), scriptsEditable: canEditScripts(actor, account), executable: canExecute(actor, account) };
 }
 export async function readWorkSession(tx: Prisma.TransactionClient, token: string, id: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const session = await tx.workSession.findFirst({ where: { id, ...(!isAccountBoss(actor) ? { deletedAt: null } : {}), sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } }, events: { orderBy: { createdAt: "desc" }, take: 200, include: { screenshots: { select: { id: true }, orderBy: { createdAt: "asc" } } } }, account: { select: { controllerId: true, branchId: true, workflow: { select: { version: true } } } } } });
   if (!session) return null;
   const editable = !session.deletedAt && canExecute(actor, session.account, session.controllerId) && (!session.loginUserId || session.loginUserId === actor.id || isAccountBoss(actor));
@@ -208,13 +213,13 @@ export async function readWorkSession(tx: Prisma.TransactionClient, token: strin
   return { anchors: await availableAnchors(tx, session.sourceRecord.branchId), boss: isAccountBoss(actor), corrections, session: { ...safe, report: isExecutionController(actor) ? null : safe.report }, editable, controllers, accountWorkflowVersion: session.account.workflow?.version ?? 0 };
 }
 export async function readWorkHistory(tx: Prisma.TransactionClient, token: string, page: number) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const sessions = await tx.workSession.findMany({ where: { deletedAt: null, sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } } }, orderBy: { createdAt: "desc" }, take: 30, skip: (page - 1) * 30 });
   return sessions.map(s => ({ ...s, report: isExecutionController(actor) ? null : s.report }));
 }
 
 export async function readConfigAccounts(tx: Prisma.TransactionClient, token: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const accounts = await tx.douyinAccount.findMany({ where: currentAccountScope(actor), include: { branch: true, workflow: { select: { version: true } } }, orderBy: { name: "asc" } });
   return accounts.filter(a => canEditWorkflow(actor, a)).map(a => ({ id: a.id, name: a.name, douyinId: a.douyinId, branchName: a.branch.name, version: a.workflow?.version }));
 }

@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
+import { previewRoute } from "@/lib/auth/preview-path";
 import { usePathname, useSearchParams } from "next/navigation";
 import { followHref, parseTrail, trailLabel, withTrail } from "@/lib/navigation-trail";
 import type { ComponentProps } from "react";
 
 export default function ContextLink({ href, ...props }: ComponentProps<typeof Link>) {
-  const path = usePathname(), search = useSearchParams();
+  const pathname = usePathname(), path = previewRoute(pathname)?.path ?? pathname, search = useSearchParams();
   // 查询分页及同模块导航维持原语义；资料详情、账号数据和新增入口记录来路。
   const trail = parseTrail(search.get("via"));
   const destination = typeof href !== "string" ? href : href.startsWith("?") ? withTrail(path + href, trail)

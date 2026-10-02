@@ -174,3 +174,10 @@ D053（2026-10-02）：后端url及确定数据backendUrl保留为历史兼容�
 ## D054 是否导粉
 
 LiveReport新增isLeadGeneration Boolean?；true导粉、false不导粉、null历史未标记。迁移20261002080000_report_lead_mode仅添加可空列，不回填；共27迁移、22模型。LeadTask.data新增leadMode字符串：yes/no/空串，旧JSON缺键等同空；提交完成事务内同步报表。旧人数列/JSON/扩展字段保留，未导粉新报表的打粉人数为空。
+
+## D055 兼容扩展（2026-10-02）
+新增ExternalAnchor与DirectLeadTask，模型数24。ExternalAnchor关联分公司，无用户会话；版本与启用状态保护维护。DirectLeadTask独立保存账号/AccountRecord/分公司/外部主播ID及姓名快照、负责人ID及姓名、开播时间、场次标签、草稿JSON、完成/删除时间、版本；提交与LiveReport更新同事务。
+DouyinAccount、AccountRecord、LiveReport、ConfirmedLead新增可空externalAnchorId；AccountRecord新增externalAnchorName快照，LiveReport复用anchorName；LiveReport新增唯一可空directTaskId，不能同时关联WorkSession。ConfirmedLead.anchorId改为可空，约束内部/外部恰好一种，增加日期+外部主播+后端唯一索引，原内部唯一索引保持。旧列/指标/快照不回填；旧关联不清空。
+迁移20261002110000_external_direct_leads为第28个迁移；独立空临时库从旧结构升级，22张旧表原列摘要一致，含旧结算金额及后端链接，两张新表为空。正式尚未迁移。
+
+D055生产已于2026-10-02完成第28次迁移；24个业务模型，22张原表原列摘要一致，无旧数据回填。

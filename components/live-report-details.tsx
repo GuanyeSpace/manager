@@ -1,3 +1,4 @@
+import { previewHref } from "@/lib/auth/preview-navigation";
 import { ReportPeopleForm } from "./report-people-form";
 import { HistoricalReportFields } from "./report-metric-sections";
 import { CorrectionHistory } from "@/components/work-corrections";
@@ -20,7 +21,8 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
   await requirePasswordChanged(user);
   const data = await getLiveReport(id);
   if (!data) notFound();
-  if (data.leadTaskId) redirect(withTrail(`/leads/${data.leadTaskId}`, parseTrail(via)));
+  if (data.directTaskId) redirect(await previewHref(withTrail(`/leads/direct/${data.directTaskId}`, parseTrail(via))));
+  if (data.leadTaskId) redirect(await previewHref(withTrail(`/leads/${data.leadTaskId}`, parseTrail(via))));
   const { report: r } = data;
   const labels: Record<string, string> = Object.fromEntries([...metricFields, ...monetizationFields, ["femaleHundredths", "女性比例（百分之一百分点）"], ["age31To40Hundredths", "31–40岁比例（百分之一百分点）"], ["isLeadGeneration", "是否导粉"], ["durationSeconds", "直播时长（秒）"], ["sessionLabel", "场次"], ["averageStayHundredths", "人均停留（百分之一分钟）"], ["updatedByName", "修改人"], ["hasSales", "历史带货情况"], ["salesGmv", "历史带货GMV"]]);
   const history = <details className="space-y-3 rounded-xl border p-4"><summary className="cursor-pointer">数据修改记录</summary><CorrectionHistory rows={data.history.map(row => {

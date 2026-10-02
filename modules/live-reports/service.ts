@@ -1,3 +1,4 @@
+import { assertNoDirectDuplicate } from "@/modules/direct-leads/service";
 import { audienceHundredths, parseDuration } from "./input-metrics";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { requireAccountActor } from "@/modules/accounts/service";
@@ -14,7 +15,7 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   const before = input.id ? await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { deletedAt: true, leadTask: { select: { id: true } } } } } }) : null;
   if (input.id && (!before || !canManageLiveReports(actor, before.branch))) throw new UserActionError("记录不存在或无修改权限");
   if (before?.workSession?.deletedAt) throw new UserActionError("请先恢复关联场次");
-  if (before?.workSession?.leadTask) throw new UserActionError("请在导粉场次页面更正本场数据");
+  if (before?.directTaskId || before?.workSession?.leadTask) throw new UserActionError("请在导粉场次页面更正本场数据");
   if (before && !input.reason) throw new UserActionError("请填写更正原因");
   if (before?.deletedAt) throw new UserActionError("该记录已删除，请先在回收站恢复");
   if (before && before.version !== Number(input.version)) throw new UserActionError("数据已被修改，请刷新后重新填写");
@@ -25,7 +26,9 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   const account = await tx.douyinAccount.findUnique({ where: { id: input.accountId }, include: { branch: true } });
   if (!account || !canManageLiveReports(actor, before?.branch ?? account.branch)) throw new UserActionError("仅老板或所属分公司负责人可维护历史数据");
   if (!before && (!account.active || account.branch.status !== "ACTIVE")) throw new UserActionError("账号或分公司已停用，不能新增数据");
+  if (!before && account.externalAnchorId) throw new UserActionError("外部主播场次请由导粉专员通过直接录入场次数据建档");
   const startedAt = shanghaiDate(input.startedAt)!;
+  await assertNoDirectDuplicate(tx,account.id,startedAt);
   if (!before && await tx.liveReport.findFirst({ where: { accountId: account.id, startedAt, deletedAt: { not: null } }, select: { id: true } })) throw new UserActionError("该场记录已在回收站，请先恢复原记录再修改");
   if (!before && !input.workSessionId && await tx.workSession.findFirst({ where: { deletedAt: null, accountId: account.id, leadEligible: true, startedAt: { gte: startedAt, lt: new Date(startedAt.getTime() + 60000) } }, select: { id: true } })) throw new UserActionError("本场请通过导粉工作台认领和填写，避免重复录入");
   const durationSeconds = input.durationText !== undefined ? parseDuration(input.durationText)! : Number(input.durationHours) * 3600 + Number(input.durationMinutes) * 60 + Number(input.durationSeconds);
@@ -77,7 +80,7 @@ export async function correctReportPeople(tx: Prisma.TransactionClient, token: s
   await acquireUserMutationLock(tx);const actor=await requireAccountActor(tx,token);
   if(!isAccountBoss(actor))throw new UserActionError("仅老板可以更正历史报表人员");
   const r=await tx.liveReport.findUnique({where:{id:v.id},include:{workSession:{include:{leadTask:true}}}});
-  if(!r||r.deletedAt||r.workSession?.deletedAt||r.workSession?.leadTask)throw new UserActionError("请通过关联场次或导粉记录更正人员");
+  if(!r||r.directTaskId||r.deletedAt||r.workSession?.deletedAt||r.workSession?.leadTask)throw new UserActionError("请通过关联场次或导粉记录更正人员");
   if(r.version!==v.version)throw new UserActionError("报表已更新，请刷新核对");
   const data:Prisma.LiveReportUpdateInput={version:{increment:1},updatedByName:actor.name};
   if(!r.workSessionId){

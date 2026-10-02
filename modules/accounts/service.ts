@@ -10,6 +10,7 @@ import {
 import { accountSchema, managerSchema, type AccountInput } from "./schema";
 
 export async function requireAccountActor(tx: Prisma.TransactionClient, token: string): Promise<AccountActor & { name: string }> {
+  if (token.startsWith("readonly-preview:")) throw new UserActionError("只读预览不能执行修改操作");
   const session = await tx.session.findUnique({ where: { id: token }, include: { user: true } });
   if (!session || session.expiresAt.getTime() <= Date.now() || !canUseAccounts(session.user)) {
     throw new UserActionError("登录或权限已变化，请刷新页面后重试");
@@ -49,7 +50,9 @@ export async function saveAccount(tx: Prisma.TransactionClient, token: string, r
   if (before && before.branchId !== input.branchId && !isAccountBoss(actor)) {
     throw new UserActionError("跨公司调拨仅限老板操作");
   }
-  if (before && (before.branchId !== input.branchId || before.controllerId !== (input.controllerId || null) || before.operatorId !== (input.operatorId || null) || before.anchorId !== (input.anchorId || null) || input.active !== "true")) {
+  const externalAnchorId = input.externalAnchorId === undefined ? before?.externalAnchorId ?? null : input.externalAnchorId || null;
+  if (input.anchorId && externalAnchorId) throw new UserActionError("员工主播与外部主播只能选择一种");
+  if (before && (before.externalAnchorId !== externalAnchorId || before.branchId !== input.branchId || before.controllerId !== (input.controllerId || null) || before.operatorId !== (input.operatorId || null) || before.anchorId !== (input.anchorId || null) || input.active !== "true")) {
     const ongoing = await tx.workSession.findFirst({ where: { accountId: before.id, phase: { in: ["PREPARING", "LIVE"] } } });
     if (ongoing) throw new UserActionError("账号正在准备或直播中，请先取消准备或确认下播，再交接人员、调拨、停用或标记封禁");
   }
@@ -68,6 +71,8 @@ export async function saveAccount(tx: Prisma.TransactionClient, token: string, r
   if (number?.account && number.account.id !== before?.id) throw new UserActionError("该手机号已经绑定其他抖音账号");
   if (before && before.roomId !== roomId && await tx.workSession.findFirst({ where: { accountId: before.id, phase: { in: ["PREPARING", "LIVE"] } } })) throw new UserActionError("请先结束本场准备或直播，再变更直播间");
   if (before && before.branchId !== branch.id && await tx.phoneAccountLogin.findFirst({ where: { accountId: before.id } })) throw new UserActionError("此账号仍登记在原分公司的手机上，请先解除手机登录关联再调拨");
+  const externalAnchor = externalAnchorId ? await tx.externalAnchor.findUnique({ where: { id: externalAnchorId } }) : null;
+  if (externalAnchorId && (!externalAnchor || externalAnchor.branchId !== branch.id || (!externalAnchor.active && before?.externalAnchorId !== externalAnchorId))) throw new UserActionError("请选择本分公司启用的外部主播");
   const duties = [
     { key: "operatorId", id: input.operatorId, role: Role.OPERATOR, label: "运营" },
     { key: "controllerId", id: input.controllerId, role: Role.CONTROLLER, label: "直播中控" },
@@ -85,7 +90,7 @@ export async function saveAccount(tx: Prisma.TransactionClient, token: string, r
     douyinId: input.douyinId, name: input.name, homepageUrl: input.homepageUrl,
     realName: input.realName, phone: number?.number ?? input.phone, phoneNumberId, roomId, purpose: input.purpose, notes: input.notes,
     branchId: branch.id, operatorId: input.operatorId || null,
-    controllerId: input.controllerId || null, anchorId: input.anchorId || null, active: input.active === "true", banned: input.active === "banned",
+    externalAnchorId, controllerId: input.controllerId || null, anchorId: input.anchorId || null, active: input.active === "true", banned: input.active === "banned",
     unbanDate: input.active === "banned" ? input.unbanDate || null : null,
   };
   const now = new Date();
@@ -101,6 +106,7 @@ export async function saveAccount(tx: Prisma.TransactionClient, token: string, r
     douyinId: account.douyinId, name: account.name, active: account.active, banned: account.banned, unbanDate: account.unbanDate,
     operatorId: account.operatorId, operatorName: people.find((p) => p.id === account.operatorId)?.name ?? null,
     controllerId: account.controllerId, controllerName: people.find((p) => p.id === account.controllerId)?.name ?? null,
+    externalAnchorId, externalAnchorName: externalAnchor?.name ?? null,
     anchorId: account.anchorId, anchorName: people.find((p) => p.id === account.anchorId)?.name ?? null,
     actorName: actor.name, version: account.version, startedAt: now,
   } });

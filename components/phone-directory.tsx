@@ -8,7 +8,7 @@ export async function PhoneDirectory({ q, page, pageSize, userId, status }: { q:
   return <>
     <header className="flex items-center justify-between gap-3"><h1 className="text-2xl font-semibold">手机管理</h1>{data.manager && <Link href="/resources/phones/new" className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">新增手机</Link>}</header>
     <p className="text-sm text-muted-foreground">登录账号按实际情况单独登记；卡槽显示装在这台手机中的号码。购入价格、估值和其他归属信息可在详情查看。</p>
-    <form key={`${q}-${userId}-${data.status}-${data.pageSize}`} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-5">
+    <form method="GET" key={`${q}-${userId}-${data.status}-${data.pageSize}`} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-5">
       <label className="grid gap-2 text-sm">搜索<input name="q" maxLength={100} defaultValue={q} placeholder="编号、型号、账号或手机号" className={control} /></label>
       <label className="grid gap-2 text-sm">使用人<select name="userId" defaultValue={userId} className={control}><option value="">全部使用人</option><option value="unassigned">暂未分配</option>{data.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
       <label className="grid gap-2 text-sm">状态<select name="status" defaultValue={data.status} className={control}><option value="">全部状态</option><option value="active">启用</option><option value="inactive">停用</option></select></label>

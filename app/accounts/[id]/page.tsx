@@ -24,7 +24,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         <p>抖音号：{account.douyinId}</p><p>分公司：{account.branch.name}</p>
         <p>实名人：{account.realName || "未填写"}</p><p>绑定手机号：{account.phoneNumber ? <Link className="text-primary underline" href={`/resources/numbers/${account.phoneNumber.id}`}>{account.phoneNumber.number}</Link> : account.phone || "未填写"}</p>
         <p>直播间：{account.room ? <Link className="text-primary underline" href={`/resources/rooms/${account.room.id}`}>{account.room.name}</Link> : "未分配"}</p>
-        <p>运营：{account.operator?.name ?? "无"} · 直播中控：{account.controller?.name ?? "无"} · 主播：{account.anchor?.name ?? "无"}</p>
+        <p>运营：{account.operator?.name ?? "无"} · 直播中控：{account.controller?.name ?? "无"} · 主播：{account.externalAnchor ? `${account.externalAnchor.name}（外部）` : account.anchor?.name ?? "无"}</p>
         <p>登录手机：{phones.length ? phones.map(phone => <Link key={phone.id} href={`/resources/phones/${phone.id}`} className="mr-3 text-primary underline">{phone.code}</Link>) : "未登记或无可见手机"}</p>
         <p>状态：{accountStatusLabel(account)}</p>
         <p className="break-words">用途：{account.purpose || "未填写"}</p>
@@ -34,7 +34,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
       {canEdit && options && <section id="edit-duties" className="flex scroll-mt-24 flex-col gap-4">
         <h2 className="text-lg font-semibold">编辑资料与负责人</h2>
         <AccountForm key={account.version} {...options} initial={{
-          phoneNumberId: account.phoneNumberId ?? "", roomId: account.roomId ?? "", id: account.id, version: account.version, douyinId: account.douyinId, name: account.name,
+          externalAnchorId: account.externalAnchorId ?? "", phoneNumberId: account.phoneNumberId ?? "", roomId: account.roomId ?? "", id: account.id, version: account.version, douyinId: account.douyinId, name: account.name,
           homepageUrl: account.homepageUrl, realName: account.realName, phone: account.phone,
           purpose: account.purpose, notes: account.notes, branchId: account.branchId,
           operatorId: account.operatorId ?? "", controllerId: account.controllerId ?? "", anchorId: account.anchorId ?? "",

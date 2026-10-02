@@ -690,3 +690,8 @@
 | LeadTask | data.leadMode | JSON字符串yes/no/空；缺键兼容空，完成时同步LiveReport |
 
 reportFilterSchema新增可选leadMode：all/yes/no/legacy；yes保留历史未标记统计。旧原始打粉人数保留，展示与聚合先判断isLeadGeneration。
+
+## D055 新增字段（2026-10-02）
+- ExternalAnchor：id、name、branchId、active、notes、version、createdAt、updatedAt；所有业务外键onDelete Restrict，无登录凭证。
+- DirectLeadTask：id、accountId、sourceRecordId、branchId、externalAnchorId、anchorName、userId、userName、startedAt、label、data(JSON)、completedAt?、deletedAt?、version、createdAt、updatedAt。JSON指标沿用LeadTask和D054导粉模式，保留空值与0差异。
+- DouyinAccount.externalAnchorId?；AccountRecord.externalAnchorId? / externalAnchorName?；LiveReport.externalAnchorId? / directTaskId?（unique）；ConfirmedLead.externalAnchorId?，原anchorId可空。人数/分单位不变，不使用姓名作为唯一标识。

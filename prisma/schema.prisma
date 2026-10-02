@@ -56,6 +56,8 @@ enum AuditAction {
 
 // 分公司
 model Branch {
+  externalAnchors ExternalAnchor[]
+  directLeadTasks DirectLeadTask[]
   phoneLogins PhoneAccountLogin[]
   id             String          @id @default(cuid())
   name           String          @unique
@@ -79,6 +81,7 @@ model Branch {
 
 // 用户
 model User {
+  directLeadTasks DirectLeadTask[]
   id                 String           @id @default(cuid())
   username           String           @unique
   name               String
@@ -149,6 +152,9 @@ model AuditLog {
 
 // 当前资料与历史分开存储；历史不保存实名人、手机号和登录凭证。
 model DouyinAccount {
+  externalAnchorId String?
+  externalAnchor ExternalAnchor? @relation(fields: [externalAnchorId], references: [id], onDelete: Restrict)
+  directLeadTasks DirectLeadTask[]
   phoneLogins PhoneAccountLogin[]
   id           String          @id @default(cuid())
   douyinId     String          @unique
@@ -189,6 +195,10 @@ model DouyinAccount {
 
 // 每次变更结束旧版本、创建新版本，保留当时归属及姓名快照。
 model AccountRecord {
+  externalAnchorName String?
+  externalAnchorId String?
+  externalAnchor ExternalAnchor? @relation(fields: [externalAnchorId], references: [id], onDelete: Restrict)
+  directLeadTasks DirectLeadTask[]
   id             String        @id @default(cuid())
   accountId      String
   account        DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
@@ -222,6 +232,10 @@ model AccountRecord {
 
 // 每场人工录入数据；归属来自开播时的账号版本，后续调拨不修改历史。
 model LiveReport {
+  directTaskId String? @unique
+  directTask DirectLeadTask? @relation(fields: [directTaskId], references: [id], onDelete: Restrict)
+  externalAnchorId String?
+  externalAnchor ExternalAnchor? @relation(fields: [externalAnchorId], references: [id], onDelete: Restrict)
   isLeadGeneration Boolean?
   anchorName String?
   leadUserId String?
@@ -612,10 +626,12 @@ model LeadBackend {
 }
 
 model ConfirmedLead {
+  externalAnchorId String?
+  externalAnchor ExternalAnchor? @relation(fields: [externalAnchorId], references: [id], onDelete: Restrict)
   id String @id @default(cuid())
   day String
-  anchorId String
-  anchor User @relation(fields: [anchorId], references: [id], onDelete: Restrict)
+  anchorId String?
+  anchor User? @relation(fields: [anchorId], references: [id], onDelete: Restrict)
   anchorName String
   backendId String
   backend LeadBackend @relation(fields: [backendId], references: [id], onDelete: Restrict)
@@ -630,5 +646,54 @@ model ConfirmedLead {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@unique([day, anchorId, backendId])
+  @@unique([day, externalAnchorId, backendId])
   @@index([anchorId, day])
+}
+
+// 外部主播不创建员工或登录账号；引用后停用，历史姓名由各业务快照保存。
+model ExternalAnchor {
+  id String @id @default(cuid())
+  name String
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  active Boolean @default(true)
+  notes String @default("")
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  accounts DouyinAccount[]
+  records AccountRecord[]
+  reports LiveReport[]
+  confirmedLeads ConfirmedLead[]
+  directLeadTasks DirectLeadTask[]
+  @@index([branchId, active])
+}
+
+// 无中控执行记录的实际直播，由导粉专员直接建档并负责填报。
+model DirectLeadTask {
+  id String @id @default(cuid())
+  accountId String
+  account DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  sourceRecordId String
+  sourceRecord AccountRecord @relation(fields: [sourceRecordId], references: [id], onDelete: Restrict)
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  externalAnchorId String
+  externalAnchor ExternalAnchor @relation(fields: [externalAnchorId], references: [id], onDelete: Restrict)
+  anchorName String
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userName String
+  startedAt DateTime
+  label String
+  data Json @default("{}")
+  completedAt DateTime?
+  deletedAt DateTime?
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  report LiveReport?
+  @@index([accountId, startedAt])
+  @@index([branchId, createdAt])
+  @@index([userId, completedAt])
 }

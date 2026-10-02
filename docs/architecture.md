@@ -162,3 +162,10 @@ modules/live-reports/input-metrics.ts集中中文时长解析、画像单位转�
 `modules/live-reports/personnel.ts`解析场次实际人员→历史快照，`date-range.ts`统一北京时间快捷日期。报表当前在权限过滤后解析历史人员及更正时间，再对全部匹配数据汇总/分页，避免当前账号人员替换历史。`modules/workbench/anchors.ts`统一本场主播选择与开播校验；老板主播更正复用原更正审计。导航来源白名单扩展settlements/anchor，保留筛选及分页。
 
 D054：导粉表单状态用LeadTask.data.leadMode保存，提交事务同步LiveReport.isLeadGeneration；列表状态筛选/全量合计由live-reports/data统一处理，对比由settlements/comparison排除不导粉报告和草稿。旧独立报表沿monetization服务更正；状态变更沿用锁、版本和审计，无新增岗位权限。
+
+## D055 新入口与授权（2026-10-02）
+- /resources/external-anchors与modules/external-anchors：分公司隔离的外部主播维护；账号表单二选一关联；无独立员工登录。
+- /leads/direct/new、/leads/direct/[id]与modules/direct-leads：独立任务建档/维护；复用LeadDataForm和指标校验；导粉列表合并分页；LiveReport用directTaskId唯一关联。
+- lib/anchor-identity.ts区分内部/外部ID；reportPeople、报表筛选、确定数据和comparison同一标识；直接记录不依赖中控WorkSession。
+- /boss/preview/[role]选择员工；/boss/preview/{role}/{employee}/view/{原路径}在proxy内部重写到原员工页。proxy拒绝未签名外来预览头，仅从专属路径生成签名上下文；内部重写再次经过proxy时只保留签名有效且路径匹配的上下文；真实老板会话不变。read-actor对每个读事务重新确认老板及目标员工，再应用原员工scope；普通写鉴权拒绝readonly-preview凭据，预览POST在proxy额外拒绝，截图落盘前再次写鉴权。
+- WorkspacePreviewFrame显示固定只读身份，内部链接/GET筛选保持上下文并禁止业务表单；服务端保护不依赖前端禁用。previewHref保持服务器重定向上下文。不得把只读凭据传给客户端或写服务。

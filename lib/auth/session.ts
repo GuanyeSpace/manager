@@ -1,6 +1,9 @@
+import { verifiedPreviewContext } from "@/lib/auth/preview-context";
+import { PREVIEW_HEADER } from "./preview-path";
+import { previewReadToken, requireReadAccountActor } from "./read-actor";
 import "server-only";
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { signSessionToken, verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/auth/session-token";
 import { EmploymentStatus, type Role } from "@/app/generated/prisma/enums";
@@ -37,7 +40,9 @@ export async function setSessionCookie(token: string, expiresAt: Date): Promise<
 // 用于改密等场景在事务内复核「当前会话是否已被并发撤销」。
 export async function getCurrentSessionToken(): Promise<string | null> {
   const cookieStore = await cookies();
-  return verifySessionToken(cookieStore.get(SESSION_COOKIE_NAME)?.value);
+  const token=verifySessionToken(cookieStore.get(SESSION_COOKIE_NAME)?.value);
+  const preview=verifiedPreviewContext((await headers()).get(PREVIEW_HEADER));
+  return token&&preview ? previewReadToken(token,preview.role,preview.userId) : token;
 }
 
 // 读取当前登录用户。返回 null 表示未登录、会话过期、或用户已离职。
@@ -67,6 +72,14 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     return null;
   }
 
+  const preview=verifiedPreviewContext((await headers()).get(PREVIEW_HEADER));
+  if(preview){
+    try {
+      const actor=await prisma.$transaction(tx=>requireReadAccountActor(tx,previewReadToken(token,preview.role,preview.userId)),{isolationLevel:"RepeatableRead"});
+      const profile=await prisma.user.findUniqueOrThrow({where:{id:actor.id},select:{username:true,lastLoginAt:true}});
+      return {...actor,...profile};
+    }catch{return null;}
+  }
   // 只挑选安全字段返回，passwordHash 绝不离开这个函数
   return {
     id: user.id,
@@ -90,6 +103,7 @@ export async function destroySessionByToken(token: string): Promise<void> {
 }
 
 export async function destroyCurrentSession(): Promise<void> {
+  if((await headers()).has(PREVIEW_HEADER)) throw new Error("只读预览不能退出员工会话");
   const cookieStore = await cookies();
   const token = verifySessionToken(cookieStore.get(SESSION_COOKIE_NAME)?.value);
   if (token) {

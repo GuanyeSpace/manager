@@ -4,6 +4,7 @@ import { validateTestEnv, resolveTestClient, assertTestDatabase, newRunId, clean
 import { saveAccount, setBranchManager } from "../modules/accounts/service";
 import { createIndividualMaterials, splitMaterial, saveResource } from "../modules/resources/service";
 import { readResourceDetail, readResourceList, readResourceOptions, readAnchors } from "../modules/resources/data";
+import { readAccountDetail, readAccountList } from "../modules/accounts/data";
 import { resignUserMutation } from "../modules/users/user-mutations";
 import { signSessionToken } from "../lib/auth/session-token";
 import type { ResourceKind } from "../modules/resources/schema";
@@ -65,6 +66,18 @@ async function main() {
     await assert.rejects(save(otherManager.token, "phones", { branchId: other.id, code: `${marker}-越界`, model: "测试", sim1: numberId }), /本公司/);
     await assert.rejects(save(manager.token, "rooms", { ...roomInput, id: roomId, version: 1, active: "false" }), /先移出/);
     const equipmentId = await save(manager.token, "equipment", { code: `${marker}-电脑`, model: "台式机", category: "电脑", roomId, userId: outsider.id, controllerId: controller.id });
+    // D055: 所属中控不是使用人，不能从列表、搜索、详情或直播间关联看到设备。
+    assert.equal(await read(controller.token, "equipment", equipmentId), null);
+    assert.equal((await db.$transaction(tx => readResourceList(tx, controller.token, "equipment", `${marker}-电脑`, 1))).total, 0);
+    assert(!(await read(controller.token, "rooms", roomId))!.related.some(r => r.href === `/resources/equipment/${equipmentId}`));
+    const controllerOnlyNumber = await save(manager.token, "numbers", { number: `8${phoneDigits}`, controllerId: controller.id, userId: outsider.id, roomId });
+    assert.equal(await read(controller.token, "numbers", controllerOnlyNumber), null);
+    assert.equal((await read(outsider.token, "numbers", controllerOnlyNumber))?.initial.number, `8${phoneDigits}`);
+    assert(!(await read(controller.token, "rooms", roomId))!.related.some(r => r.href === `/resources/numbers/${controllerOnlyNumber}`));
+    const controllerOnlyPhone = await save(manager.token, "phones", { code: `${marker}-他人手机`, model: "测试", controllerId: controller.id, userId: outsider.id, roomId, sim1: controllerOnlyNumber });
+    assert.equal(await read(controller.token, "phones", controllerOnlyPhone), null);
+    assert.equal((await db.$transaction(tx => readResourceList(tx, controller.token, "phones", `${marker}-他人手机`, 1))).total, 0);
+    assert((await read(outsider.token, "phones", controllerOnlyPhone))?.related.some(r => r.href === `/resources/numbers/${controllerOnlyNumber}`));
     await assert.rejects(db.$transaction(tx => resignUserMutation(tx, boss.id, boss.token, outsider.id)), /设备/);
     assert.equal((await read(outsider.token, "equipment", equipmentId))?.initial.model, "台式机");
     assert.equal(await read(outsider.token, "rooms", roomId), null);
@@ -78,6 +91,21 @@ async function main() {
     assert.equal(material.kind, "MATERIAL"); assert.equal(material.quantity, 6); assert.equal(material.purchaseUnitPriceCents, 19999); assert.equal(material.currentUnitValueCents, 10005);
     assert.equal((await read(controller.token, "materials", materialId))?.editable, false);
     assert.equal(await read(outsider.token, "materials", materialId), null);
+    const controllerOnlyMaterial = await save(manager.token, "materials", { ...materialInput, code: `${marker}-他人物资`, userId: outsider.id });
+    assert.equal(await read(controller.token, "materials", controllerOnlyMaterial), null);
+    assert.equal((await db.$transaction(tx => readResourceList(tx, controller.token, "materials", `${marker}-他人物资`, 1))).total, 0);
+    assert.equal((await read(outsider.token, "materials", controllerOnlyMaterial))?.editable, false);
+    assert.equal((await read(operator.token, "equipment", equipmentId))?.initial.model, "台式机");
+    await db.phoneNumber.update({ where: { id: numberId }, data: { userId: outsider.id } });
+    const restrictedAccount = await db.$transaction(tx => readAccountDetail(tx, controller.token, accountId));
+    assert.equal(restrictedAccount.account?.phoneNumber, null);
+    assert.equal(restrictedAccount.account?.phone, "");
+    const restrictedList = await db.$transaction(tx => readAccountList(tx, controller.token));
+    assert.equal(restrictedList.accounts.find(a => a.id === accountId)?.phoneNumber, null);
+    assert(!(await read(controller.token, "phones", phoneId))?.related.some(r => r.href === `/resources/numbers/${numberId}`));
+    await db.phoneNumber.update({ where: { id: numberId }, data: { userId: controller.id } });
+    console.log("PASS: D055 使用人物资范围、所属中控不授权、列表搜索/详情/关联一致、运营范围保持");
+
     assert.equal(await read(otherManager.token, "materials", materialId), null);
     assert.equal(await read(manager.token, "equipment", materialId), null);
     assert((await read(controller.token, "rooms", roomId))!.related.some(r => r.href === `/resources/materials/${materialId}`));

@@ -1,3 +1,4 @@
+import { previewHref } from "@/lib/auth/preview-navigation";
 import { accountStatusLabel } from "@/lib/account-status";
 import Link from "@/components/context-link";
 import { notFound, redirect } from "next/navigation";
@@ -20,7 +21,7 @@ export default async function AccountWorkspace({ params, searchParams }: { param
     if (!work || work.session.accountId !== id) notFound();
     return <><Link href={`/workbench/accounts/${id}`} className="text-sm text-muted-foreground">← 账号直播流程 / 准备下一场</Link><WorkSessionView id={sessionId} /></>;
   }
-  if (current) redirect(`/workbench/accounts/${id}?sessionId=${current.id}`);
+  if (current) redirect(await previewHref(`/workbench/accounts/${id}?sessionId=${current.id}`));
   const workflow = a.workflow ? workflowSchema.parse(a.workflow.content) : { ...defaultWorkflow, before: [], live: [], after: [] };
   const { shift } = await getShift();
   const ready = !!shift && !!a.controllerId && executable && !a.banned && a.active && a.branch.status === "ACTIVE" && a.workflow;

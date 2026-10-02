@@ -1,3 +1,4 @@
+import { anchorIds, anchorKey } from "@/lib/anchor-identity";
 import { roleWhere } from "@/lib/auth/roles";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { requireSettlementBoss } from "./service";
@@ -18,8 +19,10 @@ export async function readComparison(tx:Prisma.TransactionClient,token:string,ra
   }
   const sessions=await tx.workSession.findMany({where:{deletedAt:null,leadEligible:true,startedAt:{not:null},phase:{in:["LIVE","WRAP","COMPLETE"]}},include:{sourceRecord:true,leadTask:{select:{data:true}}}});
   for(const s of sessions){if(included.has(s.id) || (s.leadTask?.data as {leadMode?:string}|null)?.leadMode === "no")continue;const day=shanghaiInput(s.startedAt!).slice(0,10),anchorId=s.actualAnchorId??s.sourceRecord.anchorId;if(within(day,anchorId))get(day,anchorId,s.actualAnchorName??s.sourceRecord.anchorName??"未记录").pending++;}
-  const confirmed=await tx.confirmedLead.findMany({where:{deletedAt:null,day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})},...(filters.anchorId?{anchorId:filters.anchorId}:{})}});
-  for(const c of confirmed){const g=get(c.day,c.anchorId,c.anchorName);g.confirmedCount++;g.confirmedJoins+=c.joinCount;g.confirmedEffective+=c.effectiveCount;}
+  const direct=await tx.directLeadTask.findMany({where:{deletedAt:null,completedAt:null},select:{startedAt:true,externalAnchorId:true,anchorName:true,data:true}});
+  for(const t of direct){if((t.data as {leadMode?:string}).leadMode === "no")continue;const day=shanghaiInput(t.startedAt).slice(0,10),key=anchorKey(null,t.externalAnchorId);if(within(day,key))get(day,key,`${t.anchorName}（外部）`).pending++;}
+  const confirmed=await tx.confirmedLead.findMany({where:{deletedAt:null,day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})},...(filters.anchorId?anchorIds(filters.anchorId):{})}});
+  for(const c of confirmed){const g=get(c.day,anchorKey(c.anchorId,c.externalAnchorId),c.externalAnchorId?`${c.anchorName}（外部）`:c.anchorName);g.confirmedCount++;g.confirmedJoins+=c.joinCount;g.confirmedEffective+=c.effectiveCount;}
   const all=[...groups.values()].sort((a,b)=>b.day.localeCompare(a.day)||a.anchorName.localeCompare(b.anchorName));
   const pages=Math.max(1,Math.ceil(all.length/30)),page=Math.min(filters.page,pages);
   const historicalAnchors=[...new Map([...groups.values()].filter(r=>r.anchorId).map(r=>[r.anchorId!,{id:r.anchorId!,name:r.anchorName}])).values()];

@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import "dotenv/config";
+import {NextRequest} from "next/server";
+import {proxy} from "../proxy";
+import {PREVIEW_HEADER} from "../lib/auth/preview-path";
+import {verifiedPreviewContext} from "../lib/auth/preview-context";
+const path="/boss/preview/controller/employee/view/controller",first=proxy(new NextRequest("http://localhost"+path));
+const context=first.headers.get("x-middleware-request-"+PREVIEW_HEADER)!;
+assert.equal(verifiedPreviewContext(context)?.userId,"employee");
+const second=proxy(new NextRequest("http://localhost/controller",{headers:{[PREVIEW_HEADER]:context}}));assert.equal(second.headers.get("x-middleware-next"),"1");
+assert.equal(proxy(new NextRequest("http://localhost"+path,{method:"POST"})).status,403);
+assert.equal(proxy(new NextRequest("http://localhost/controller",{method:"POST",headers:{[PREVIEW_HEADER]:context}})).status,403);
+assert.equal(proxy(new NextRequest("http://localhost/controller",{method:"POST",headers:{referer:"http://localhost"+path}})).status,403);
+assert.equal(verifiedPreviewContext(path),null);assert.equal(verifiedPreviewContext(context+"tamper"),null);
+assert.equal(proxy(new NextRequest("http://localhost/controller",{headers:{[PREVIEW_HEADER]:path}})).headers.get("location"),"http://localhost/login");
+console.log("PASS: signed internal rewrite context, forged header rejection, preview POST and referer write guard");

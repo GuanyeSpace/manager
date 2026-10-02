@@ -1,3 +1,4 @@
+import { requireReadAccountActor } from "@/lib/auth/read-actor";
 import { correctedTime, minuteFloor, type CorrectionChange } from "./corrections";
 import { formatDateTime } from "@/lib/datetime";
 import type { Prisma } from "@/app/generated/prisma/client";
@@ -8,7 +9,7 @@ import { writeAudit } from "@/lib/audit";
 import { completedCheckCount, SHIFT_MINIMUM_MS, equipmentLabels, shiftCommandSchema, type EquipmentChecks } from "./schema";
 
 export async function readShift(tx: Prisma.TransactionClient, token: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const shift = await tx.workShift.findFirst({ where: { userId: actor.id, endedAt: null } });
   const first = shift ? await tx.workSession.findFirst({ where: { deletedAt: null, shiftId: shift.id, startedAt: { not: null } }, orderBy: { startedAt: "asc" }, select: { startedAt: true } }) : null;
   const unfinished = await tx.workSession.count({ where: { phase: { in: ["PREPARING", "LIVE", "WRAP"] }, OR: [{ loginUserId: actor.id }, { loginUserId: null, controllerId: actor.id }] } });
@@ -89,7 +90,7 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
 }
 
 export async function readShiftHistory(tx: Prisma.TransactionClient, token: string, page: number, id?: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const rows = await tx.workShift.findMany({ where: { ...(isAccountBoss(actor) ? {} : { userId: actor.id }), ...(id ? { id } : {}) }, orderBy: [{ startedAt: "desc" }, { id: "asc" }], take: 30, skip: (page - 1) * 30, include: { sessions: { where: { deletedAt: null }, select: { id: true, label: true, startedAt: true, phase: true, outcome: true, actualControllerName: true }, orderBy: { createdAt: "asc" } } } });
   const changes = await tx.auditLog.findMany({ where: { targetType: "WorkShift", targetId: { in: rows.map(s => s.id) } }, orderBy: { createdAt: "asc" }, select: { id: true, targetId: true, createdAt: true, detail: true } });
   return rows.map(s => ({ ...s, changes: changes.filter(c => c.targetId === s.id) }));

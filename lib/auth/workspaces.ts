@@ -8,7 +8,7 @@ export type WorkspaceLink = { href: string; label: string };
 // 顶栏切换菜单与全局 WorkspaceSwitcher 共用本函数，避免两处岗位判断漂移或放宽。
 export function workspaceLinks(user: { role: Role; roles?: Role[] }): WorkspaceLink[] {
   return [
-    ...(hasRole(user, Role.BOSS) ? [{ href: "/boss", label: "老板工作台" }] : []),
+    ...(hasRole(user, Role.BOSS) ? [{ href: "/boss", label: "老板工作台" }, { href: "/boss/preview/controller", label: "直播中控工作台预览" }, { href: "/boss/preview/leads", label: "导粉专员工作台预览" }, { href: "/boss/preview/anchor", label: "主播工作台预览" }] : []),
     ...(hasRole(user, Role.CONTROLLER) ? [{ href: "/controller", label: "直播中控工作台" }] : []),
     ...(hasRole(user, Role.LEAD_SPECIALIST) ? [{ href: "/leads", label: "导粉工作台" }] : []),
     ...(hasRole(user, Role.ANCHOR) ? [{ href: "/anchor", label: "主播工作台" }] : []),

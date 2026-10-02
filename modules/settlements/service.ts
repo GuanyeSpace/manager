@@ -1,3 +1,5 @@
+import { requireReadAccountActor } from "@/lib/auth/read-actor";
+import { anchorIds, anchorKey } from "@/lib/anchor-identity";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { requireAccountActor } from "@/modules/accounts/service";
 import { isAccountBoss } from "@/lib/auth/account-permissions";
@@ -25,13 +27,14 @@ export async function saveConfirmed(tx:Prisma.TransactionClient,token:string,raw
   if(v.id&&!old)throw new UserActionError("记录不存在");
   if(old?.deletedAt)throw new UserActionError("请先恢复记录");
   if(old&&(old.version!==v.version||!v.reason))throw new UserActionError(old.version!==v.version?"记录已被修改，请刷新核对":"请填写更正原因");
-  const anchor=await tx.user.findFirst({where:{id:v.anchorId,AND:[roleWhere("ANCHOR")]},select:{id:true,name:true}});
-  if(!anchor && old?.anchorId!==v.anchorId)throw new UserActionError("请选择已有主播员工");
+  const identity=anchorIds(v.anchorId), same=!!old&&anchorKey(old.anchorId,old.externalAnchorId)===v.anchorId;
+  const anchor=identity.externalAnchorId ? await tx.externalAnchor.findFirst({where:{id:identity.externalAnchorId,...(same?{}:{active:true})},select:{id:true,name:true}}) : await tx.user.findFirst({where:{id:identity.anchorId??"",AND:[roleWhere("ANCHOR")]},select:{id:true,name:true}});
+  if(!anchor&&!same)throw new UserActionError("请选择已有主播员工或启用的外部主播");
   const backend=await tx.leadBackend.findUnique({where:{id:v.backendId}});
   if(!backend||(!backend.active&&old?.backendId!==backend.id))throw new UserActionError("请选择启用的后端");
-  const duplicate=await tx.confirmedLead.findUnique({where:{day_anchorId_backendId:{day:v.day,anchorId:v.anchorId,backendId:v.backendId}}});
+  const duplicate=await tx.confirmedLead.findFirst({where:{day:v.day,...identity,backendId:v.backendId}});
   if(duplicate&&duplicate.id!==old?.id)throw new UserActionError(duplicate.deletedAt?"该日期、主播和后端记录在回收站，请恢复原记录":"该日期、主播和后端已有记录，请编辑原记录");
-  const data={day:v.day,anchorId:v.anchorId,anchorName:old?.anchorId===v.anchorId?old.anchorName:anchor!.name,backendId:v.backendId,backendName:old?.backendId===v.backendId?old.backendName:backend.name,backendUrl:old?.backendUrl??"",joinCount:v.joinCount,effectiveCount:v.effectiveCount,backendUnitCents:v.backendUnit,anchorUnitCents:v.anchorUnit};
+  const data={day:v.day,...identity,anchorName:same?old!.anchorName:anchor!.name,backendId:v.backendId,backendName:old?.backendId===v.backendId?old.backendName:backend.name,backendUrl:old?.backendUrl??"",joinCount:v.joinCount,effectiveCount:v.effectiveCount,backendUnitCents:v.backendUnit,anchorUnitCents:v.anchorUnit};
   const row=old?await tx.confirmedLead.update({where:{id:old.id},data:{...data,version:{increment:1}}}):await tx.confirmedLead.create({data});
   await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_UPDATE",targetType:"ConfirmedLead",targetId:row.id,ip,detail:{actorName:actor.name,reason:v.reason,before:json(old),after:json(row)}});return row.id;
 }
@@ -46,21 +49,22 @@ export async function recycleConfirmed(tx:Prisma.TransactionClient,token:string,
 export async function settlementOptions(tx:Prisma.TransactionClient,token:string) {
   await requireSettlementBoss(tx,token);
   const anchors=await tx.user.findMany({where:{OR:[roleWhere("ANCHOR"),{confirmedLeads:{some:{}}}]},select:{id:true,name:true},orderBy:{name:"asc"}});
-  const backends=await tx.leadBackend.findMany({orderBy:{name:"asc"}});return {anchors,backends};
+  const external=await tx.externalAnchor.findMany({where:{OR:[{active:true},{confirmedLeads:{some:{}}}]},select:{id:true,name:true},orderBy:{name:"asc"}});
+  const backends=await tx.leadBackend.findMany({orderBy:{name:"asc"}});return {anchors:[...anchors,...external.map(a=>({id:`external:${a.id}`,name:`${a.name}（外部）`}))],backends};
 }
 export async function readConfirmed(tx:Prisma.TransactionClient,token:string,raw:unknown) {
   await requireSettlementBoss(tx,token);const filters=resolveFilters(raw);
-  const where:Prisma.ConfirmedLeadWhereInput={deletedAt:filters.trash==="true"?{not:null}:null,...(filters.anchorId?{anchorId:filters.anchorId}:{}),...(filters.backendId?{backendId:filters.backendId}:{}),day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})}};
+  const where:Prisma.ConfirmedLeadWhereInput={deletedAt:filters.trash==="true"?{not:null}:null,...(filters.anchorId?anchorIds(filters.anchorId):{}),...(filters.backendId?{backendId:filters.backendId}:{}),day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})}};
   const all=await tx.confirmedLead.findMany({where,orderBy:[{day:"desc"},{anchorName:"asc"},{id:"asc"}]});
   const pages=Math.max(1,Math.ceil(all.length/20)),page=Math.min(filters.page,pages);
   return {filters:{...filters,page},count:all.length,pages,rows:all.slice((page-1)*20,page*20),summary:{joins:all.reduce((n,r)=>n+r.joinCount,0),effective:all.reduce((n,r)=>n+r.effectiveCount,0),revenue:moneyText(all.reduce((n,r)=>n+totalCents(r.effectiveCount,r.backendUnitCents),BigInt(0))),commission:moneyText(all.reduce((n,r)=>n+totalCents(r.effectiveCount,r.anchorUnitCents),BigInt(0)))},...await settlementOptions(tx,token)};
 }
 export async function readConfirmedDetail(tx:Prisma.TransactionClient,token:string,id:string) {
   await requireSettlementBoss(tx,token);const row=await tx.confirmedLead.findUnique({where:{id}});if(!row)return null;
-  return {row,...await settlementOptions(tx,token),history:await tx.auditLog.findMany({where:{targetType:"ConfirmedLead",targetId:id},orderBy:{createdAt:"desc"},select:{id:true,createdAt:true,detail:true}})};
+  return {row:{...row,anchorId:anchorKey(row.anchorId,row.externalAnchorId)!},...await settlementOptions(tx,token),history:await tx.auditLog.findMany({where:{targetType:"ConfirmedLead",targetId:id},orderBy:{createdAt:"desc"},select:{id:true,createdAt:true,detail:true}})};
 }
 export async function readAnchorIncome(tx:Prisma.TransactionClient,token:string,raw:unknown) {
-  const actor=await requireAccountActor(tx,token);if(!hasRole(actor,"ANCHOR"))throw new UserActionError("仅主播可以查看本人提成");
+  const actor=await requireReadAccountActor(tx,token);if(!hasRole(actor,"ANCHOR"))throw new UserActionError("仅主播可以查看本人提成");
   const filters=resolveFilters(raw,new Date(),true);
   // Deliberately select no backend, other staff, or backend prices for the anchor DTO.
   const rows=await tx.confirmedLead.findMany({where:{anchorId:actor.id,deletedAt:null,day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})}},select:{day:true,joinCount:true,effectiveCount:true,anchorUnitCents:true},orderBy:{day:"desc"}});

@@ -1,3 +1,4 @@
+import { requireReadAccountActor } from "@/lib/auth/read-actor";
 import { isAccountBoss } from "@/lib/auth/account-permissions";
 import { requireSessionBoss, supplementSession } from "./management";
 import { mkdir, writeFile, unlink, readFile } from "node:fs/promises";
@@ -19,6 +20,7 @@ export function screenshotType(bytes: Buffer): string | null {
 
 // 先鉴权再写私有文件；文件全部落盘后才提交业务事务。失败不留下可访问的附件。
 export async function submitWorkCommand(db: PrismaClient, token: string, form: FormData, ip: string) {
+  await db.$transaction(tx => requireAccountActor(tx, token));
   const files = form.getAll("screenshots").filter(v => typeof v !== "string" && v.size > 0) as File[];
   if (files.length > 6 || files.some(f => f.size > 5 * 1024 * 1024) || files.reduce((n, f) => n + f.size, 0) > 20 * 1024 * 1024) throw new UserActionError("每次最多 6 张截图，单张不超过 5MB，合计不超过 20MB");
   const uploads: Screenshot[] = [];
@@ -53,7 +55,7 @@ export async function submitWorkCommand(db: PrismaClient, token: string, form: F
 }
 
 export async function readScreenshot(tx: Prisma.TransactionClient, token: string, id: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   return tx.workScreenshot.findFirst({ where: { id, session: { ...(!isAccountBoss(actor) ? { deletedAt: null } : {}), sourceRecord: historicalAccountScope(actor) } }, select: { id: true, contentType: true, size: true } });
 }
 export async function screenshotBytes(id: string) {

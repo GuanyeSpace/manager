@@ -10,7 +10,7 @@ export function LiveReportTable({ reports }: { reports: (LiveReport & {  leadNam
   return <div className="overflow-x-auto rounded-lg border"><Table className="whitespace-nowrap">
     <TableHeader><TableRow>{["账号", "主播", "直播中控", "导粉专员", "开播时间", "直播时长", "场次", "导粉状态", "曝光人数", "进房人数", "进房率", "平均在线", "最高在线", "人均停留（分钟）", "评论人数", "点赞次数", "新增粉丝", "粉丝转化率", "分享次数", "加粉丝团人数", "女性比例", "31–40岁比例", "当场分公司", "操作"].map((label) => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader>
     <TableBody>{reports.map((r) => <TableRow key={r.id}>
-      <TableCell><span className="font-medium">{r.accountName}</span><span className="block text-xs text-muted-foreground">{r.douyinId}</span></TableCell>
+      <TableCell><span className="font-medium">{r.accountName}</span><span className="block text-xs text-muted-foreground">{r.douyinId}</span>{r.directTaskId && <span className="block text-xs text-emerald-800">直接录入</span>}</TableCell>
       <TableCell>{r.anchorName ?? "未记录"}</TableCell><TableCell>{r.controllerName ?? "未记录"}</TableCell><TableCell>{r.leadName ?? "未记录"}</TableCell><TableCell>{formatDateTime(r.startedAt)}</TableCell><TableCell>{durationText(r.durationSeconds)}</TableCell><TableCell>{r.sessionLabel}</TableCell><TableCell>{r.isLeadGeneration === null ? "历史未标记" : r.isLeadGeneration ? "导粉" : "不导粉"}</TableCell>
       <TableCell>{r.exposureCount}</TableCell><TableCell>{r.entryCount}</TableCell><TableCell>{percentage(r.entryCount,r.exposureCount)}</TableCell>
       <TableCell>{r.averageOnline}</TableCell><TableCell>{r.peakOnline}</TableCell><TableCell>{r.averageStayHundredths / 100}</TableCell>

@@ -20,7 +20,7 @@ export default async function LiveReportsPage({ searchParams }: { searchParams: 
   const trash = filters.trash === "true";
   const data = await listLiveReports(filters);
   filters = data.filters;
-  const shared = { ...((monetization || params.leadMode) && filters.leadMode ? {leadMode:filters.leadMode}:{}), anchorId: filters.anchorId, controllerId: filters.controllerId, leadId: filters.leadId, ...(filters.preset ? {preset:filters.preset}: {}) };
+  const shared = { source: filters.source, ...((monetization || params.leadMode) && filters.leadMode ? {leadMode:filters.leadMode}:{}), anchorId: filters.anchorId, controllerId: filters.controllerId, leadId: filters.leadId, ...(filters.preset ? {preset:filters.preset}: {}) };
   const pageUrl = (page: number) => `/live-reports?${new URLSearchParams({ ...shared, trash: String(trash), view: monetization ? "monetization" : "performance", accountId: filters.accountId, from: filters.from, to: filters.to, page: String(page) })}`;
   return <>
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">{title}</h1><p className="mt-1 text-sm text-muted-foreground">每场结束后人工填写，按开播时间从新到旧展示。</p></div>
@@ -41,6 +41,7 @@ export default async function LiveReportsPage({ searchParams }: { searchParams: 
         <option value="">全部可见账号</option>{data.accounts.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.douyinId}</option>)}
       </select></label>
       {([["anchorId","主播",data.anchors],["controllerId","直播中控",data.controllers],["leadId","导粉专员",data.leads]] as const).map(([key,label,people])=><label key={key} className="flex flex-col gap-1 text-sm">{label}<select name={key} defaultValue={filters[key]} className="h-9 rounded-lg border px-2"><option value="">全部可见人员</option><option value="unrecorded">未记录</option>{people.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>)}
+      <label className="flex flex-col gap-1 text-sm">数据来源<select name="source" defaultValue={filters.source} className="h-9 rounded-lg border px-2"><option value="all">全部</option><option value="execution">中控 / 历史录入</option><option value="direct">直接录入</option></select></label>
       {monetization && <label className="flex flex-col gap-1 text-sm">导粉状态<select name="leadMode" defaultValue={filters.leadMode} className="h-9 rounded-lg border px-2"><option value="yes">导粉（含历史未标记）</option><option value="no">不导粉</option><option value="legacy">历史未标记</option><option value="all">全部</option></select></label>}
       <label className="flex flex-col gap-1 text-sm">开始日期<Input type="date" name="from" defaultValue={filters.from > filters.to && filters.to ? "" : filters.from} /></label>
       <label className="flex flex-col gap-1 text-sm">结束日期<Input type="date" name="to" defaultValue={filters.from > filters.to && filters.to ? "" : filters.to} /></label>

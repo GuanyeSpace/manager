@@ -22,6 +22,7 @@ export const accountSchema = z.object({
   operatorId: z.string(),
   controllerId: z.string().default(""),
   anchorId: z.string(),
+  externalAnchorId: z.string().max(100).optional(),
   active: z.enum(["true", "false", "banned"]),
   unbanDate: z.string().optional().refine(value => {
     if (!value) return true;

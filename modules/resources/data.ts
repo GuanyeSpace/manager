@@ -1,6 +1,7 @@
+import { requireReadAccountActor } from "@/lib/auth/read-actor";
 import { roleWhere } from "@/lib/auth/roles";
 import type { Prisma } from "@/app/generated/prisma/client";
-import { requireAccountActor, currentAccountScope } from "@/modules/accounts/service";
+import { currentAccountScope } from "@/modules/accounts/service";
 import { isExecutionController, canManageAccountBranch, isAccountBoss } from "@/lib/auth/account-permissions";
 import { roomScope, numberScope, deviceScope } from "@/lib/auth/resource-permissions";
 import { pageSizeSchema, numberStatus, numberFiltersSchema, type NumberFilters, deviceKind, devicePath, resourceLabels, moneyInput, resourceSchema, type ResourceKind } from "./schema";
@@ -8,7 +9,7 @@ const person = { select: { id: true, name: true } } as const;
 const ownership = { branch: true, operator: person, controller: person } as const;
 const assetOwnership = { ...ownership, room: { select: { id: true, name: true } }, user: person } as const;
 export async function readResourceOptions(tx: Prisma.TransactionClient, token: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   if (isExecutionController(actor)) return { branches: [], people: [], rooms: [], numbers: [], accounts: [], phones: [] };
   const branches = await tx.branch.findMany({ where: { status: "ACTIVE", ...(isAccountBoss(actor) ? {} : { id: actor.branchId ?? "", managerId: actor.id }) }, select: { id: true, name: true } });
   const branchIds = branches.map(b => b.id);
@@ -21,7 +22,7 @@ export async function readResourceOptions(tx: Prisma.TransactionClient, token: s
 }
 export type ResourceOptions = Awaited<ReturnType<typeof readResourceOptions>>;
 export async function readResourceList(tx: Prisma.TransactionClient, token: string, kind: ResourceKind, q: string, requestedPage: number, archived = false) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const manager = !isExecutionController(actor) && (isAccountBoss(actor) || !!await tx.branch.findFirst({ where: { id: actor.branchId ?? "", managerId: actor.id } }));
   const roomWhere: Prisma.LiveRoomWhereInput = { AND: [roomScope(actor), { name: { contains: q } }] };
   const numberWhere: Prisma.PhoneNumberWhereInput = { AND: [numberScope(actor), { OR: [{ number: { contains: q } }, { purpose: { contains: q } }] }] };
@@ -40,7 +41,7 @@ export async function readResourceList(tx: Prisma.TransactionClient, token: stri
   return { rows, manager, total, page, pages };
 }
 export async function readResourceDetail(tx: Prisma.TransactionClient, token: string, kind: ResourceKind, id: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const related: { label: string; title: string; href: string }[] = [];
   let initial, record;
   if (kind === "rooms") {
@@ -98,7 +99,7 @@ export async function readResourceDetail(tx: Prisma.TransactionClient, token: st
 }
 
 export async function readAnchors(tx: Prisma.TransactionClient, token: string, id?: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const manager = !isExecutionController(actor) && (isAccountBoss(actor) || !!await tx.branch.findFirst({ where: { id: actor.branchId ?? "", managerId: actor.id } }));
   const scope: Prisma.UserWhereInput = isAccountBoss(actor) ? {} : manager ? { branchId: actor.branchId ?? "" } : { OR: [{ id: actor.id }, { anchoredAccounts: { some: currentAccountScope(actor) } }, { roomAnchors: { some: { room: roomScope(actor) } } }] };
   const anchors = await tx.user.findMany({ where: { AND: [scope, { id, OR: [roleWhere("ANCHOR"), { anchoredAccounts: { some: {} } }, { roomAnchors: { some: {} } }] }] }, select: { id: true, name: true, employmentStatus: true, branch: { select: { name: true } }, anchoredAccounts: { where: currentAccountScope(actor), select: { id: true, name: true, operator: person, controller: person, branch: { select: { id: true, managerId: true, status: true } } } }, roomAnchors: { where: { room: roomScope(actor) }, select: { room: { select: { id: true, name: true } } } } }, orderBy: { name: "asc" } });
@@ -106,7 +107,7 @@ export async function readAnchors(tx: Prisma.TransactionClient, token: string, i
 }
 
 export async function readNumberList(tx: Prisma.TransactionClient, token: string, q: string, requestedPage: number, rawFilters: Partial<NumberFilters> = {}, requestedSize = 20) {
-  const actor = await requireAccountActor(tx, token), filters = numberFiltersSchema.parse(rawFilters);
+  const actor = await requireReadAccountActor(tx, token), filters = numberFiltersSchema.parse(rawFilters);
   const scope = numberScope(actor);
   const statusFilter = !filters.status ? {} : { OR: [{ status: filters.status }, ...(filters.status === "CANCELLED" ? [] : [{ status: null, active: filters.status === "NORMAL" }])] };
   const where: Prisma.PhoneNumberWhereInput = { AND: [scope, statusFilter, { openedBy: { contains: filters.openedBy }, ...(filters.userId ? { userId: filters.userId === "unassigned" ? null : filters.userId } : {}), OR: [{ number: { contains: q } }, { purpose: { contains: q } }, { wechat: { contains: q } }, { xiaohongshu: { contains: q } }, { kuaishou: { contains: q } }, { account: { AND: [currentAccountScope(actor), { name: { contains: q } }] } }] }] };
@@ -122,7 +123,7 @@ export async function readNumberList(tx: Prisma.TransactionClient, token: string
 }
 
 export async function readPhoneList(tx: Prisma.TransactionClient, token: string, q: string, requestedPage: number, requestedSize = 20, userId = "", rawStatus = "") {
-  const actor = await requireAccountActor(tx, token), scope = deviceScope(actor), pageSize = pageSizeSchema.parse(requestedSize);
+  const actor = await requireReadAccountActor(tx, token), scope = deviceScope(actor), pageSize = pageSizeSchema.parse(requestedSize);
   const status = ["active", "inactive"].includes(rawStatus) ? rawStatus : "";
   const where: Prisma.AssetDeviceWhereInput = { AND: [scope, { kind: "PHONE", ...(userId ? { userId: userId === "unassigned" ? null : userId } : {}), ...(status ? { active: status === "active" } : {}), OR: [{ code: { contains: q } }, { model: { contains: q } }, { loginWechats: { contains: q } }, { slots: { some: { phoneNumber: { AND: [numberScope(actor), { number: { contains: q } }] } } } }, { phoneLogins: { some: { account: { AND: [currentAccountScope(actor), { OR: [{ name: { contains: q } }, { douyinId: { contains: q } }] }] } } } }] }] };
   const total = await tx.assetDevice.count({ where }), pages = Math.max(1, Math.ceil(total / pageSize)), page = Math.min(pages, Math.max(1, Math.trunc(requestedPage) || 1));

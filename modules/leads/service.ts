@@ -1,3 +1,5 @@
+import { requireReadAccountActor } from "@/lib/auth/read-actor";
+import { directScope } from "@/modules/direct-leads/service";
 import { audienceFields, audienceHundredths, parseDuration, powderFields } from "@/modules/live-reports/input-metrics";
 import { metricFields } from "@/modules/live-reports/schema";
 import { roleWhere } from "@/lib/auth/roles";
@@ -15,7 +17,7 @@ export function leadScope(actor: AccountActor): Prisma.LeadTaskWhereInput {
 }
 const eligible = { deletedAt: null, leadEligible: true, startedAt: { not: null }, phase: { in: ["LIVE", "WRAP", "COMPLETE"] as ("LIVE" | "WRAP" | "COMPLETE")[] } };
 export async function readLeadList(tx: Prisma.TransactionClient, token: string, view: string, page = 1) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const specialist = isLeadSpecialist(actor);
   const manager = !!await tx.branch.findFirst({ where: reportManagementScope(actor), select: { id: true } }) || isAccountBoss(actor);
   const skip = (Math.max(1, Math.min(100000, page)) - 1) * 20;
@@ -26,11 +28,13 @@ export async function readLeadList(tx: Prisma.TransactionClient, token: string, 
     return { specialist, manager, asOf: Date.now(), count, sessions: sessions.map(s => ({ ...s, account: { room: s.account.branchId === actor.branchId ? s.account.room : null } })), tasks: [] };
   }
   const where: Prisma.LeadTaskWhereInput = { AND: [leadScope(actor), view === "trash" ? { deletedAt: { not: null } } : { deletedAt: null, ...(view === "completed" ? { completedAt: { not: null } } : { completedAt: null }) }] };
-  const tasks = await tx.leadTask.findMany({ where, select: { id: true, userName: true, completedAt: true, deletedAt: true, updatedAt: true, session: { select: { phase: true, label: true, startedAt: true, endedAt: true, sourceRecord: { select: { name: true, anchorName: true } } } } }, orderBy: [{ createdAt: "desc" }, { id: "asc" }], take: 20, skip });
-  return { specialist, manager, asOf: Date.now(), count: await tx.leadTask.count({ where }), sessions: [], tasks };
+  const tasks = await tx.leadTask.findMany({ where, select: { id: true, createdAt: true, userName: true, completedAt: true, deletedAt: true, updatedAt: true, session: { select: { phase: true, label: true, startedAt: true, endedAt: true, sourceRecord: { select: { name: true, anchorName: true } } } } }, orderBy: [{ createdAt: "desc" }, { id: "asc" }] });
+  const direct = await tx.directLeadTask.findMany({ where: { AND: [directScope(actor), view === "trash" ? {deletedAt:{not:null}} : {deletedAt:null,...(view === "completed" ? {completedAt:{not:null}} : {completedAt:null})}] }, select:{id:true,createdAt:true,userName:true,completedAt:true,deletedAt:true,updatedAt:true,label:true,startedAt:true,anchorName:true,sourceRecord:{select:{name:true}}} });
+  const combined=[...tasks.map(t=>({...t,direct:false})),...direct.map(t=>({id:t.id,createdAt:t.createdAt,userName:t.userName,completedAt:t.completedAt,deletedAt:t.deletedAt,updatedAt:t.updatedAt,direct:true,session:{phase:"COMPLETE" as const,label:t.label,startedAt:t.startedAt,endedAt:null,sourceRecord:{name:t.sourceRecord.name,anchorName:t.anchorName}}}))].sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime()||a.id.localeCompare(b.id));
+  return { specialist, manager, asOf: Date.now(), count: combined.length, sessions: [], tasks:combined.slice(skip,skip+20) };
 }
 export async function readLeadTask(tx: Prisma.TransactionClient, token: string, id: string) {
-  const actor = await requireAccountActor(tx, token);
+  const actor = await requireReadAccountActor(tx, token);
   const task = await tx.leadTask.findFirst({ where: { AND: [leadScope(actor), { id }] }, include: { branch: true, session: { include: { sourceRecord: true, report: { select: { longPressCount: true, hasSales: true, salesGmv: true } } } } } });
   if (!task) return null;
   const manager = canManageLiveReports(actor, task.branch);
