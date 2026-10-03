@@ -4,7 +4,7 @@
 
 ## 当前任务：D060 配置管理侧栏（2026-10-04）
 
-状态：已上线（2026-10-04 03:34），正在完成Git同步。底部配置管理统一三个入口，路由/权限保持，无迁移。菜单单测7/7、类型/相关lint/构建、桌面与窄屏浏览器22项通过；测试夹具及临时进程已清理。数据库/截图备份可读，25表旧数据守恒，269部署文件SHA一致，线上服务健康。详细见[tasks/config-navigation-verification.md](tasks/config-navigation-verification.md)。
+状态：已上线（2026-10-04 03:34），功能提交5b8446005f5d88810236425a3bad2b6eb181c8f8已推送origin/main并核对远程一致。底部配置管理统一三个入口，路由/权限保持，无迁移。菜单单测7/7、类型/相关lint/构建、桌面与窄屏浏览器22项通过；测试夹具及临时进程已清理。数据库/截图备份可读，25表旧数据守恒，269部署文件SHA一致，线上服务健康。详细见[tasks/config-navigation-verification.md](tasks/config-navigation-verification.md)。
 
 ## 上一任务：D059 收尾流程与导粉认领（2026-10-03）
 
