@@ -699,3 +699,6 @@ reportFilterSchema新增可选leadMode：all/yes/no/legacy；yes保留历史未�
 ## D056新增字段（2026-10-03）
 ReportingSetting：id（固定company）、role（CONTROLLER/LEAD_SPECIALIST，SQL检查）、version、updatedAt。
 WorkSession：liveDataRole String?（SQL检查，可空历史兼容）；liveDataDraft Json默认{}；liveDataSubmittedAt DateTime?（首次直播提交）；liveDataVersion Int默认0（独立于执行版本）。不新增打粉权限，不改旧报表原值。
+
+## D057 展示口径（无迁移）
+老板首页总收入=ConfirmedLead.effectiveCount×backendUnitCents，整数分汇总后转元；不是anchorUnitCents提成。主播筛选沿用anchorId或external:externalAnchorId。账号筛选controllerId、anchorId、status仅为URL查询参数，未分配用unassigned，status为active/inactive/banned。

@@ -132,3 +132,6 @@ Prisma generate在stage生成；应用包需要public和.next/static一同放进
 
 ## D056预览发布核验
 必须覆盖完整重写地址/boss/preview/controller/<员工ID>/view/controller（以及leads/anchor），仅检查员工选择页307不足以验证。生产不得建立测试员工；无会话使用不存在目标的完整路径应安全跳登录而非500，真实权限与交互在隔离库HTTPS反代验收。公网TLS仍正常校验证书，不使用-k。keep skipProxyUrlNormalize与proxy原始URL重写成对维护，避免127.0.0.1规范化为localhost使Next误判外部代理。
+
+### D057构建资源观察
+2026-10-03构建期间出现短时网页/SSH超时，恢复后本次临时构建单元调整CPUQuota=50%、CPUWeight=10。内存上限1100M、swap上限300M；这些限制不能保证线上延迟，仍须独立检查HTTPS健康。没有调整应用服务的资源或数据库配置。

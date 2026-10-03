@@ -73,3 +73,5 @@
 - [D055外部主播与预览验收](tasks/external-preview-verification.md)。
 
 - [D056填写岗位、提醒及预览验收](tasks/reporting-role-verification.md)。
+
+- [D057老板收入与账号筛选验收](tasks/boss-income-verification.md)。

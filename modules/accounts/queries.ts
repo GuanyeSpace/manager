@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentSessionToken } from "@/lib/auth/session";
-import { readAccountList, readAccountDetail, readAccountHistory, readAccountOptions } from "./data";
+import { type AccountListFilters, readAccountList, readAccountDetail, readAccountHistory, readAccountOptions } from "./data";
 
 async function token() {
   const value = await getCurrentSessionToken();
@@ -10,9 +10,9 @@ async function token() {
   return value;
 }
 
-export async function listAccounts(q: string) {
+export async function listAccounts(q: string, filters: AccountListFilters = {}) {
   const sessionToken = await token();
-  return prisma.$transaction((tx) => readAccountList(tx, sessionToken, q.slice(0, 100)), { isolationLevel: "RepeatableRead" });
+  return prisma.$transaction((tx) => readAccountList(tx, sessionToken, q.slice(0, 100), filters), { isolationLevel: "RepeatableRead" });
 }
 export async function getAccountDetail(id: string) {
   const sessionToken = await token();

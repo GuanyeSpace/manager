@@ -73,3 +73,14 @@ export async function readAnchorIncome(tx:Prisma.TransactionClient,token:string,
   const totals=[...grouped.values()].reduce((a,r)=>({joins:a.joins+r.joins,effective:a.effective+r.effective,cents:a.cents+r.cents}),{joins:0,effective:0,cents:BigInt(0)});
   return {filters:{from:filters.from,to:filters.to,group:filters.group,preset:filters.preset},rows:[...grouped.values()].map(({cents,...r})=>({...r,income:moneyText(cents)})),totals:{joins:totals.joins,effective:totals.effective,income:moneyText(totals.cents)}};
 }
+
+export async function readBossIncome(tx:Prisma.TransactionClient,token:string,raw:unknown) {
+  await requireSettlementBoss(tx,token);
+  const filters=resolveFilters(raw,new Date(),true);
+  const rows=await tx.confirmedLead.findMany({where:{deletedAt:null,...(filters.anchorId?anchorIds(filters.anchorId):{}),day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})}},select:{day:true,joinCount:true,effectiveCount:true,backendUnitCents:true},orderBy:{day:"desc"}});
+  const grouped=new Map<string,{period:string;joins:number;effective:number;cents:bigint}>();
+  for(const r of rows){const key=period(r.day,filters.group),g=grouped.get(key)??{period:key,joins:0,effective:0,cents:BigInt(0)};g.joins+=r.joinCount;g.effective+=r.effectiveCount;g.cents+=totalCents(r.effectiveCount,r.backendUnitCents);grouped.set(key,g);}
+  const totals=[...grouped.values()].reduce((a,r)=>({joins:a.joins+r.joins,effective:a.effective+r.effective,cents:a.cents+r.cents}),{joins:0,effective:0,cents:BigInt(0)});
+  const {anchors}=await settlementOptions(tx,token);
+  return {filters:{from:filters.from,to:filters.to,group:filters.group,anchorId:filters.anchorId},anchors,rows:[...grouped.values()].map(({cents,...r})=>({...r,income:moneyText(cents)})),totals:{joins:totals.joins,effective:totals.effective,income:moneyText(totals.cents)}};
+}

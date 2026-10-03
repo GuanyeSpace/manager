@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {validateTestEnv,resolveTestClient,assertTestDatabase,newRunId,cleanupRun} from "./lib/test-db";
-import {saveBackend,saveConfirmed,recycleConfirmed,readConfirmed,readAnchorIncome} from "../modules/settlements/service";
+import {saveBackend,saveConfirmed,recycleConfirmed,readConfirmed,readAnchorIncome,readBossIncome} from "../modules/settlements/service";
 import {readComparison} from "../modules/settlements/comparison";
 import {dateRange} from "../modules/live-reports/date-range";
 import {moneyText,totalCents,period} from "../modules/settlements/schema";
@@ -21,7 +21,7 @@ async function main(){
  await db.branch.update({where:{id:a.id},data:{managerId:manager.id}});
  const tx=<T>(fn:(t:Parameters<Parameters<typeof db.$transaction>[0]>[0])=>Promise<T>)=>db.$transaction(fn);
  const backendRaw={id:"",version:0,name:marker+"backend",active:"true"};
- for(const u of [anchor,lead,control,operator,manager]){await assert.rejects(tx(t=>saveBackend(t,u.token,backendRaw,"test")),/仅老板/);await assert.rejects(tx(t=>readConfirmed(t,u.token,{})),/仅老板/);await assert.rejects(tx(t=>readComparison(t,u.token,{})),/仅老板/);}
+ for(const u of [anchor,lead,control,operator,manager]){await assert.rejects(tx(t=>saveBackend(t,u.token,backendRaw,"test")),/仅老板/);await assert.rejects(tx(t=>readConfirmed(t,u.token,{})),/仅老板/);await assert.rejects(tx(t=>readBossIncome(t,u.token,{})),/仅老板/);await assert.rejects(tx(t=>readComparison(t,u.token,{})),/仅老板/);}
  const b=await tx(t=>saveBackend(t,boss.token,backendRaw,"test")),b2=await tx(t=>saveBackend(t,boss.token,{...backendRaw,name:marker+"backend2"},"test"));
  assert.equal((await db.leadBackend.findUniqueOrThrow({where:{id:b}})).url,"");
  await db.leadBackend.update({where:{id:b},data:{url:"https://example.com/legacy"}});
@@ -34,6 +34,9 @@ async function main(){
  await db.confirmedLead.update({where:{id},data:{backendUrl:"https://example.com/historical-snapshot"}});
  const id2=await tx(t=>saveConfirmed(t,boss.token,{...raw,backendId:b2,joinCount:"8",effectiveCount:"5",anchorUnit:"3.00"},"test"));
  await tx(t=>saveConfirmed(t,boss.token,{...raw,anchorId:other.id},"test"));
+ const allIncome=await tx(t=>readBossIncome(t,boss.token,{from:day,to:day}));assert.deepEqual(allIncome.totals,{joins:32,effective:25,income:"308.75"});
+ for(const group of ["day","week","month"]){const income=await tx(t=>readBossIncome(t,boss.token,{from:day,to:day,anchorId:anchor.id,group}));assert.deepEqual(income.totals,{joins:20,effective:15,income:"185.25"});assert.equal(income.rows.length,1);}
+ assert.equal((await tx(t=>readBossIncome(t,boss.token,{from:day,to:day,anchorId:"missing"}))).rows.length,0);
  const own=await tx(t=>readAnchorIncome(t,anchor.token,{from:day,to:day}));assert.deepEqual(own.totals,{joins:20,effective:15,income:"40.60"});assert.equal(own.rows.length,1);assert(!JSON.stringify(own).includes("backend"));assert(!JSON.stringify(own).includes(other.id));
  for(const group of ["week","month"]){const grouped=await tx(t=>readAnchorIncome(t,anchor.token,{from:day,to:day,group}));assert.equal(grouped.rows[0].income,"40.60");}
  assert.equal((await tx(t=>readAnchorIncome(t,other.token,{from:day,to:day}))).totals.income,"25.60");
@@ -45,6 +48,7 @@ async function main(){
  const row=await db.confirmedLead.findUniqueOrThrow({where:{id}});assert.equal(row.backendUrl,"https://example.com/historical-snapshot");await assert.rejects(tx(t=>saveConfirmed(t,boss.token,{...edit,version:row.version,reason:""},"test")),/更正原因/);
  await assert.rejects(tx(async t=>{await saveConfirmed(t,boss.token,{...edit,version:row.version,joinCount:"99"},"test");throw Error("rollback");}),/rollback/);assert.equal((await db.confirmedLead.findUniqueOrThrow({where:{id}})).joinCount,12);
  await tx(t=>recycleConfirmed(t,boss.token,{id:id2,version:1,operation:"delete",reason:"误录"},"test"));assert.equal((await tx(t=>readAnchorIncome(t,anchor.token,{from:day,to:day}))).totals.joins,12);
+ assert.equal((await tx(t=>readBossIncome(t,boss.token,{from:day,to:day,anchorId:anchor.id}))).totals.income,"123.50");
  await assert.rejects(tx(t=>saveConfirmed(t,boss.token,{...raw,backendId:b2},"test")),/回收站/);
  await tx(t=>recycleConfirmed(t,boss.token,{id:id2,version:2,operation:"restore",reason:"恢复"},"test"));
  assert.equal((await tx(t=>readAnchorIncome(t,anchor.token,{from:day,to:day}))).totals.joins,20);

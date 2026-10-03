@@ -174,3 +174,6 @@ D054：导粉表单状态用LeadTask.data.leadMode保存，提交事务同步Liv
 /boss/reporting与modules/reporting保存公司设置/直播数据，复用指标组件；WorkStageTabs按中控模式增加data标签。LeadTask写入严格分字段，仍锁内复核权限、版本和审计；SessionLiveData审计只含直播字段，可供中控查看。
 预览重写使用原始request.url，next.config的skipProxyUrlNormalize=true保留回环origin；禁止用nextUrl规范化后的localhost代替127.0.0.1。Next将不同origin视为外部代理，HTTPS反代时会错误连接内部HTTP端口。该修复取代仅验证直连环境的假设；所有签名/读写鉴权保留。
 WorkLiveClock使用中央Dialog；页面打开时定时和focus/visibility重新计算，localStorage按场次/事项去重，支持Web Locks时串行争取提醒，Notification由用户主动授权。只读预览显式禁用提醒。
+
+## D057 首页查询（2026-10-03）
+`readBossIncome`在服务端核验老板，读取ConfirmedLead未删除数据，使用现有日期、期间和整数分工具汇总后端收入；`/boss`复用SettlementFilters并同时显示主播与期间筛选。`readAccountList`从当前权限可见账号生成去重选项并组合过滤，返回链接沿用上下文导航。不变更写服务和数据结构。

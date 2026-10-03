@@ -6,22 +6,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-export default async function AccountsPage({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
+export default async function AccountsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requirePageUser();
   await requirePasswordChanged(user);
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q.trim().slice(0, 100) : "";
-  const { accounts, canCreate } = await listAccounts(q);
+  const value = (key: string) => typeof params[key] === "string" ? params[key].slice(0,100) : "";
+  const filters = {controllerId:value("controllerId"),anchorId:value("anchorId"),status:value("status")};
+  const { accounts, canCreate, controllers, anchors } = await listAccounts(q, filters);
   return <>
     <div className="flex items-center justify-between gap-4">
       <h1 className="text-2xl font-semibold">抖音账号</h1>
       {canCreate && <Button asChild><Link href="/accounts/new">新增账号</Link></Button>}
     </div>
     <p className="text-sm text-muted-foreground">展示你当前有权查看的账号。交接前的记录可在「历史记录」中查看。</p>
-    <form method="GET" action="/accounts" className="flex gap-3">
+    <form method="GET" action="/accounts" className="flex flex-wrap items-end gap-3">
       <Input aria-label="搜索账号名称或抖音号" name="q" defaultValue={q} placeholder="搜索账号名称或抖音号" maxLength={100} className="max-w-sm" />
-      <Button variant="secondary">搜索</Button>
-      {q && <Link href="/accounts" className="self-center text-sm">清除</Link>}
+      <label className="text-sm">直播中控<select aria-label="直播中控" name="controllerId" defaultValue={filters.controllerId} className="block rounded border bg-white p-2"><option value="">全部中控</option><option value="unassigned">未分配</option>{controllers.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+      <label className="text-sm">主播<select aria-label="主播" name="anchorId" defaultValue={filters.anchorId} className="block rounded border bg-white p-2"><option value="">全部主播</option><option value="unassigned">未分配</option>{anchors.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+      <label className="text-sm">状态<select aria-label="状态" name="status" defaultValue={filters.status} className="block rounded border bg-white p-2"><option value="">全部状态</option><option value="active">启用</option><option value="inactive">停用</option><option value="banned">封禁</option></select></label>
+      <Button variant="secondary">筛选</Button>
+      {(q || filters.controllerId || filters.anchorId || filters.status) && <Link href="/accounts" className="self-center text-sm">清除</Link>}
     </form>
     <div className="overflow-x-auto rounded-lg border"><Table>
       <TableHeader><TableRow>{["账号名称", "抖音号", "实名人", "绑定手机号", "所在手机", "直播间", "直播中控", "主播", "状态", "操作"].map((v) => <TableHead key={v}>{v}</TableHead>)}</TableRow></TableHeader>
