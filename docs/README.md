@@ -75,3 +75,5 @@
 - [D056填写岗位、提醒及预览验收](tasks/reporting-role-verification.md)。
 
 - [D057老板收入与账号筛选验收](tasks/boss-income-verification.md)。
+
+- [2026-10-03全链路梳理（进行中）](system-review-20261003.md)：业务地图、复现问题、分批确认与未验证边界。
