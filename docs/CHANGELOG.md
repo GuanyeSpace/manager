@@ -318,3 +318,5 @@ D056最终交接：功能源码08e6221ee8937e79cc28e5465f8ec624746211d0已推送
 ## D057 发布完成（2026-10-03 14:31 北京时间）
 老板首页收入概览与账号中控/主播/状态筛选已上线。无新增迁移（仍29个）；25张业务表原列摘要一致，267部署文件SHA一致。备份manager-20261003T063037Z.dump及同名截图归档可读，旧程序standalone-before-d057-20261003保留，数据摘要data-before-d057-20261003.json。HTTPS登录200、老板页无会话307；manager/nginx/docker及备份/续期timer active，截图读写探针通过。
 本地专项、账号/结算回归、类型/lint/构建和桌面15项通过；服务器构建通过（5分57秒，峰值866.4MiB）。构建期间曾短时网页/SSH超时，恢复后降低构建CPU配额并完成发布，见known-issues。无正式测试业务记录；隔离test-%员工剩余0，本地3103/9334停止，临时会话和Chrome profile删除。正在审查并同步GitHub，详细证据见tasks/boss-income-verification.md。
+
+D057最终交接：功能提交eb6e12be0ac7b8d481b6e73768fc5af094cf7e36已推送origin/main并核对远程一致；生产267文件与该源码一致。功能、验证、备份发布和Git同步完成，无本轮待办；仅保留明确排除的.claude/launch.json删除。
