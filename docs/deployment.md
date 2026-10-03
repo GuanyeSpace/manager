@@ -423,3 +423,8 @@ D056最终交接：功能源码08e6221ee8937e79cc28e5465f8ec624746211d0已推送
 桌面浏览器13项、隔离迁移和相关业务回归通过，详情见tasks/lead-claim-wrap-verification.md。测试残留员工0，3103/9334停止，临时Cookie/profile/上传文件已删除。正式数据库未建立测试业务；生产只做无会话健康探针，不宣称正式员工逐一浏览器验收。正在完成Git同步。
 
 D059最终交接：功能源码74e2d230f5b796c831f92444c9c4715d0eb1f839已同步origin/main，远程SHA一致；备份pg_restore目录和截图tar可读，旧程序server.js存在。仅验证备份可读，不代表完整恢复演练。后续纯文档交接提交不改变生产269文件。
+
+## D060 发布完成（2026-10-04 03:34 北京时间）
+管理侧栏配置管理已上线，三入口集中、顶部位置/唯一选中及权限显示已验证，无新增迁移，累计30。受限stage build-d060-20261004构建4分38.004秒、峰值912.3MiB，退出0及marker确认后发布。
+暂停应用写入后备份/var/backups/manager/manager-20261003T193403Z.dump及同名.screenshots.tar.gz，pg_restore目录及截图tar可读，未做完整恢复演练。25表旧列摘要data-before-d060-20261004.json核对一致；269部署文件SHA一致。保留/opt/manager/standalone-before-d060-20261004及source-before-d060-20261004.tar.gz。截图应用用户读写探针通过，standalone无.env。manager/nginx/docker及备份/续期timer active，HTTPS登录200，三个配置地址未登录307；timer active不等同本次续期成功。
+本地菜单7/7、类型/lint/构建及桌面/窄屏22项通过，详见[tasks/config-navigation-verification.md](tasks/config-navigation-verification.md)。隔离test-%员工0，3103/9334停止，测试会话JSON与profile删除；未在生产建立测试业务。正在审查提交并推送。

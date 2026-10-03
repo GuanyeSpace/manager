@@ -4,15 +4,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MENU_GROUPS, MENU_ITEMS, TOP_ITEM, currentLocation, isMenuActive } from "./navigation-menu";
 
-// 任务确认的 19 个入口（置顶 1 项 + 4 组 18 项），路由与展示名以 D043 任务文档为准。
+// 任务确认的 20 个入口（置顶 1 项 + 5 组 19 项），配置入口按 D060 分组。
 const expectedEntries: [string, string][] = [
   ["/boss", "工作台"],
   ["/accounts", "抖音账号"],
-  ["/account-config", "账号流程与话术"],
   ["/resources/rooms", "直播间"],
   ["/workbench/history", "场次执行记录"],
   ["/workbench/shifts", "上班检查记录"],
-  ["/boss/reporting", "直播数据填写设置"],
   ["/live-reports", "直播数据"],
   ["/live-reports?view=monetization", "打粉数据"],
   ["/leads", "导粉任务"],
@@ -25,6 +23,9 @@ const expectedEntries: [string, string][] = [
   ["/boss/users", "员工"],
   ["/resources/anchors", "主播"],
   ["/boss/branches", "分公司"],
+  ["/account-config", "账号流程与话术"],
+  ["/boss/reporting", "直播数据填写设置"],
+  ["/settlements/backends", "后端资料"],
 ];
 
 function splitHref(href: string): { pathname: string; view: string | null } {
@@ -36,11 +37,11 @@ function activeHrefs(pathname: string, view: string | null): string[] {
   return MENU_ITEMS.filter(item => isMenuActive(item.href, pathname, view)).map(item => item.href);
 }
 
-test("菜单就是确认的 19 个入口，展示名与路由没有漂移", () => {
-  assert.equal(MENU_ITEMS.length, 19);
+test("菜单就是确认的 20 个入口，展示名与路由没有漂移", () => {
+  assert.equal(MENU_ITEMS.length, 20);
   assert.deepEqual(MENU_ITEMS.map(item => [item.href, item.label]), expectedEntries);
-  assert.deepEqual(MENU_GROUPS.map(group => group.title), ["直播业务", "数据统计", "设备与物资", "组织人员"]);
-  assert.deepEqual(MENU_GROUPS.map(group => group.items.length), [5, 6, 4, 3]);
+  assert.deepEqual(MENU_GROUPS.map(group => group.title), ["直播业务", "数据统计", "设备与物资", "组织人员", "配置管理"]);
+  assert.deepEqual(MENU_GROUPS.map(group => group.items.length), [4, 5, 4, 3, 3]);
   assert.equal(TOP_ITEM.href, "/boss");
 });
 
@@ -81,6 +82,11 @@ const cases: [string, string | null, string][] = [
   ["/live-reports/r1", null, "/live-reports"],
   ["/live-reports", "monetization", "/live-reports?view=monetization"],
   ["/live-reports/r1", "monetization", "/live-reports?view=monetization"],
+  ["/settlements/backends", null, "/settlements/backends"],
+  ["/settlements/backends/b1", null, "/settlements/backends"],
+  ["/settlements/comparison", null, "/settlements/comparison"],
+  ["/settlements/s1", null, "/settlements"],
+  ["/boss/reporting", null, "/boss/reporting"],
   ["/leads", null, "/leads"],
   ["/leads/l1", null, "/leads"],
 ];
@@ -115,6 +121,7 @@ test("位置文案带所在分组，未匹配时不臆造分组", () => {
   assert.deepEqual(currentLocation("/live-reports/r1", "monetization"), { group: "数据统计", label: "打粉数据" });
   assert.deepEqual(currentLocation("/resources/numbers/n1", null), { group: "设备与物资", label: "手机号" });
   assert.deepEqual(currentLocation("/boss/users/new", null), { group: "组织人员", label: "员工" });
+  for (const [path, label] of [["/account-config/c1", "账号流程与话术"], ["/boss/reporting", "直播数据填写设置"], ["/settlements/backends", "后端资料"]]) assert.deepEqual(currentLocation(path, null), {group:"配置管理",label});
   assert.deepEqual(currentLocation("/unknown-page", null), { group: null, label: "管理系统" });
 });
 

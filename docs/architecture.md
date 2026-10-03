@@ -181,3 +181,6 @@ WorkLiveClock使用中央Dialog；页面打开时定时和focus/visibility重新
 
 ## D059（2026-10-04）
 新增只读确认路由 /leads/claim/[id]，getLeadClaim沿用可认领范围。leadAction增加release、correctActual和actualLeadId参数；runLeadCommand事务锁内验证人员/权限/版本，reportPeople统一解析实际人员，查询权限仍按userId。直接任务拒绝新认领命令。
+
+## D060 配置导航（2026-10-04）
+`lib/navigation-menu.ts`统一五组20入口，底部配置管理含/account-config、/boss/reporting、/settlements/backends；settlements匹配排除comparison和backends子树。`management-shell-chrome`共用桌面/抽屠菜单，过滤老板专属设置及后端入口；原路由、服务端鉴权和数据库结构不变。

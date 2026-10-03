@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { activeGroupTitle, currentLocation, isMenuActive, MENU_GROUPS, TOP_ITEM, type MenuItem } from "@/lib/navigation-menu";
 import {
   AlarmClock, Building2, ChartColumn, ChevronDown, Circle, ClipboardList, Hash, LayoutDashboard,
-  ListChecks, Megaphone, Menu as MenuIcon, Monitor, Package, Radio, Send, Smartphone, UserRound, Users, Video, X,
+  ListChecks, Megaphone, Menu as MenuIcon, Monitor, Package, Radio, Send, Settings, Smartphone, UserRound, Users, Video, X,
 } from "lucide-react";
 
 type WorkspaceLink = { href: string; label: string };
@@ -19,6 +19,8 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/boss": LayoutDashboard,
   "/accounts": Radio,
   "/account-config": ClipboardList,
+  "/boss/reporting": Settings,
+  "/settlements/backends": Users,
   "/resources/rooms": Video,
   "/workbench/history": ListChecks,
   "/workbench/shifts": AlarmClock,
@@ -75,7 +77,7 @@ function MenuList({ pathname, view, collapsed, onToggle, onNavigate, idPrefix, b
               <ChevronDown aria-hidden className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
             </button>
             <div id={panelId} hidden={!open} className="mt-1 space-y-0.5">
-                {group.items.filter(item => item.href !== "/boss/reporting" || boss).map(item => (
+                {group.items.filter(item => !["/boss/reporting", "/settlements/backends"].includes(item.href) || boss).map(item => (
                   <MenuRow key={item.href} item={item} active={isMenuActive(item.href, pathname, view)} onNavigate={onNavigate} />
                 ))}
               </div>

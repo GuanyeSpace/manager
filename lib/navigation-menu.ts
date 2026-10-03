@@ -9,13 +9,11 @@ export const TOP_ITEM: MenuItem = { href: "/boss", label: "工作台" };
 export const MENU_GROUPS: MenuGroup[] = [
   { title: "直播业务", items: [
     { href: "/accounts", label: "抖音账号" },
-    { href: "/account-config", label: "账号流程与话术" },
     { href: "/resources/rooms", label: "直播间" },
     { href: "/workbench/history", label: "场次执行记录" },
     { href: "/workbench/shifts", label: "上班检查记录" },
   ] },
   { title: "数据统计", items: [
-    { href: "/boss/reporting", label: "直播数据填写设置" },
     { href: "/live-reports", label: "直播数据" },
     { href: "/live-reports?view=monetization", label: "打粉数据" },
     { href: "/leads", label: "导粉任务" },
@@ -33,6 +31,11 @@ export const MENU_GROUPS: MenuGroup[] = [
     { href: "/resources/anchors", label: "主播" },
     { href: "/boss/branches", label: "分公司" },
   ] },
+  { title: "配置管理", items: [
+    { href: "/account-config", label: "账号流程与话术" },
+    { href: "/boss/reporting", label: "直播数据填写设置" },
+    { href: "/settlements/backends", label: "后端资料" },
+  ] },
 ];
 
 export const MENU_ITEMS: MenuItem[] = [TOP_ITEM, ...MENU_GROUPS.flatMap(group => group.items)];
@@ -46,7 +49,7 @@ export function isMenuActive(href: string, pathname: string, view: string | null
     const inReports = pathname === "/live-reports" || pathname.startsWith("/live-reports/");
     return inReports && (view === "monetization") === href.includes("view=monetization");
   }
-  if (href === "/settlements") return (pathname === href || pathname.startsWith(`${href}/`)) && pathname !== "/settlements/comparison";
+  if (href === "/settlements") return (pathname === href || pathname.startsWith(`${href}/`)) && !["/settlements/comparison", "/settlements/backends"].some(path => pathname === path || pathname.startsWith(`${path}/`));
   if (href === "/boss") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
