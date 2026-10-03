@@ -421,3 +421,5 @@ D056最终交接：功能源码08e6221ee8937e79cc28e5465f8ec624746211d0已推送
 备份/截图：/var/backups/manager/manager-20261003T191524Z.dump及同名.screenshots.tar.gz；旧程序/opt/manager/standalone-before-d059-20261004；旧源码source-before-d059-20261004.tar.gz，摘要data-before-d059-20261004.json。应用用户截图读写探针通过。
 独立stage build-d059-20261004，CPU50%/权重10/Nice15、内存1100M/swap300M；最终构建3分59.126秒、峰值826.7MiB。第一次stage构建因本地浏览器发现保存后撤销版本问题被主动停止，修正后重新打包构建成功，未切换未完成程序。发布暂停写入约7秒；服务manager/nginx/docker及两timer active，HTTPS登录200、新认领页未登录307，standalone不带.env。
 桌面浏览器13项、隔离迁移和相关业务回归通过，详情见tasks/lead-claim-wrap-verification.md。测试残留员工0，3103/9334停止，临时Cookie/profile/上传文件已删除。正式数据库未建立测试业务；生产只做无会话健康探针，不宣称正式员工逐一浏览器验收。正在完成Git同步。
+
+D059最终交接：功能源码74e2d230f5b796c831f92444c9c4715d0eb1f839已同步origin/main，远程SHA一致；备份pg_restore目录和截图tar可读，旧程序server.js存在。仅验证备份可读，不代表完整恢复演练。后续纯文档交接提交不改变生产269文件。
