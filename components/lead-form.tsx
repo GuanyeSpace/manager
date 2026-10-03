@@ -11,9 +11,9 @@ export const leadInputClass = "w-full rounded-lg border bg-white px-3 py-2 text-
 export function LeadCommandForm({ id, version, command, children, label, source }: { source?: "direct"; id: string; version: number; command: string; children?: React.ReactNode; label: string }) {
   const router = useRouter(), path = usePathname(), search = useSearchParams();
   const [initialVersion] = useState(version);
-  const [state, action, pending] = useActionState(async (previous: Awaited<ReturnType<typeof leadAction>>, form: FormData) => { const result = await leadAction(previous, form); if (result.success) { if (command === "claim") router.push(followHref(`/leads/${result.id}`, `${path}?${search}`)); else router.refresh(); } return result; }, {});
+  const [state, action, pending] = useActionState(async (previous: Awaited<ReturnType<typeof leadAction>>, form: FormData) => { const result = await leadAction(previous, form); if (result.success) { if (command === "claim") router.push(followHref(`/leads/${result.id}`, `${path}?${search}`)); else if (command === "release") router.push("/leads?view=available"); else router.refresh(); } return result; }, {});
   const stale = command !== "claim" && version !== (state.savedVersion ?? initialVersion);
-  return <form className="space-y-3" onSubmit={e => { e.preventDefault(); const form = new FormData(e.currentTarget); startTransition(() => action(form)); }}>
+  return <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (command === "release" && !window.confirm("确认撤销本场导粉？已保存草稿将留作历史，重新认领需重新填写导粉数据。")) return; const form = new FormData(e.currentTarget); startTransition(() => action(form)); }}>
     {source && <input type="hidden" name="source" value={source}/>}<input type="hidden" name="id" value={id} /><input type="hidden" name="version" value={state.savedVersion ?? initialVersion} /><input type="hidden" name="command" value={command} />{children}
     {stale && <p role="alert" className="text-sm text-amber-800">记录已有更新。请保留草稿后<button type="button" className="underline" onClick={() => window.location.reload()}>刷新页面</button>核对。</p>}
     {state.error && <p role="alert" className="text-sm text-red-700">{state.error}</p>}{state.success && <p role="status" className="text-sm text-emerald-800">{state.success}</p>}

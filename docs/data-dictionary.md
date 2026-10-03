@@ -702,3 +702,7 @@ WorkSession：liveDataRole String?（SQL检查，可空历史兼容）；liveDat
 
 ## D057 展示口径（无迁移）
 老板首页总收入=ConfirmedLead.effectiveCount×backendUnitCents，整数分汇总后转元；不是anchorUnitCents提成。主播筛选沿用anchorId或external:externalAnchorId。账号筛选controllerId、anchorId、status仅为URL查询参数，未分配用unassigned，status为active/inactive/banned。
+
+
+## D059（2026-10-04）
+LeadTask.actualLeadId：实际导粉员工ID，可空、User外键；actualLeadName：实际人员姓名快照，可空；releasedAt：认领撤销时间，可空。旧actualLeadId为空时统计沿用userId；撤销时不显示原实际人员。

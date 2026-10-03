@@ -114,6 +114,7 @@ model User {
   operatedDevices AssetDevice[] @relation("DeviceOperator")
   controlledDevices AssetDevice[] @relation("DeviceController")
   usedDevices AssetDevice[] @relation("DeviceUser")
+  actualLeadTasks LeadTask[] @relation("ActualLead")
   leadTasks          LeadTask[]
   sessions           Session[]
   auditLogs          AuditLog[]       @relation("ActorLogs")
@@ -614,6 +615,10 @@ model LeadTask {
   userId String
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
   userName String
+  actualLeadId String?
+  actualLead User? @relation("ActualLead", fields: [actualLeadId], references: [id], onDelete: Restrict)
+  actualLeadName String?
+  releasedAt DateTime?
   data Json @default("{}")
   completedAt DateTime?
   deletedAt DateTime?

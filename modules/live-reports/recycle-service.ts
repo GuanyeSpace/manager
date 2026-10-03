@@ -9,10 +9,10 @@ export async function recycleLiveReport(tx: Prisma.TransactionClient, token: str
   const input = recycleSchema.parse(raw);
   await acquireUserMutationLock(tx);
   const actor = await requireAccountActor(tx, token);
-  const report = await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { liveDataRole:true, deletedAt: true, leadTask: { select: { id: true,deletedAt:true } } } } } });
+  const report = await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { liveDataRole:true, deletedAt: true, leadTask: { select: { id: true,deletedAt:true,releasedAt:true } } } } } });
   if (!report || !canManageLiveReports(actor, report.branch)) throw new UserActionError("记录不存在或无操作权限");
   if (report.workSession?.deletedAt) throw new UserActionError("请先恢复关联场次");
-  if (report.directTaskId || (report.workSession?.leadTask && !(report.workSession.liveDataRole === "CONTROLLER" && report.workSession.leadTask.deletedAt))) throw new UserActionError("请在导粉场次页面删除或恢复本场数据");
+  if (report.directTaskId || (report.workSession?.leadTask && !report.workSession.leadTask.releasedAt && !(report.workSession.liveDataRole === "CONTROLLER" && report.workSession.leadTask.deletedAt))) throw new UserActionError("请在导粉场次页面删除或恢复本场数据");
   if (report.version !== input.version) throw new UserActionError("数据已被修改，请刷新后重新核对");
   if (input.section === "monetization" && report.deletedAt) throw new UserActionError("请先恢复本场直播数据，再处理打粉数据");
   if (input.section === "monetization" && !report.monetizationUpdatedAt) throw new UserActionError("本场尚未填写打粉数据，无需删除");

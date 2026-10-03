@@ -177,3 +177,7 @@ WorkLiveClock使用中央Dialog；页面打开时定时和focus/visibility重新
 
 ## D057 首页查询（2026-10-03）
 `readBossIncome`在服务端核验老板，读取ConfirmedLead未删除数据，使用现有日期、期间和整数分工具汇总后端收入；`/boss`复用SettlementFilters并同时显示主播与期间筛选。`readAccountList`从当前权限可见账号生成去重选项并组合过滤，返回链接沿用上下文导航。不变更写服务和数据结构。
+
+
+## D059（2026-10-04）
+新增只读确认路由 /leads/claim/[id]，getLeadClaim沿用可认领范围。leadAction增加release、correctActual和actualLeadId参数；runLeadCommand事务锁内验证人员/权限/版本，reportPeople统一解析实际人员，查询权限仍按userId。直接任务拒绝新认领命令。

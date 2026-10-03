@@ -77,3 +77,5 @@
 - [D057老板收入与账号筛选验收](tasks/boss-income-verification.md)。
 
 - [2026-10-03全链路梳理（进行中）](system-review-20261003.md)：业务地图、复现问题、分批确认与未验证边界。
+
+- [D059收尾与导粉认领验收](tasks/lead-claim-wrap-verification.md)：实际导粉人员、未完成撤销、截图复用与数据页收尾。

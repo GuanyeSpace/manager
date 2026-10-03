@@ -70,7 +70,7 @@ export async function recycleSession(tx: Prisma.TransactionClient, token: string
   if (!["COMPLETE", "CANCELLED"].includes(session.phase)) throw new UserActionError("请先结束并归档场次，再删除");
   const deleting = input.operation === "delete";
   if (deleting === !!session.deletedAt) throw new UserActionError("场次状态已变化，请刷新");
-  if (deleting && (session.leadTask && !session.leadTask.deletedAt || session.report && !session.report.deletedAt)) throw new UserActionError("请先处理本场关联的导粉认领或报表，再删除场次");
+  if (deleting && (session.leadTask && !session.leadTask.deletedAt && !session.leadTask.releasedAt || session.report && !session.report.deletedAt)) throw new UserActionError("请先处理本场关联的导粉认领或报表，再删除场次");
   if (!deleting && session.shift && (session.createdAt < session.shift.startedAt || session.startedAt && session.startedAt < session.shift.startedAt || session.shift.endedAt && session.endedAt && session.endedAt > session.shift.endedAt)) throw new UserActionError("场次时间已不在关联上班范围内，请先核对上班记录后恢复");
   if (!deleting && session.startedAt && session.endedAt) await assertSessionInterval(tx, session, session.actualControllerId ?? session.controllerId, session.startedAt, session.endedAt);
   const deletedAt = deleting ? new Date() : null;
@@ -94,7 +94,7 @@ export async function readManagedSessions(tx: Prisma.TransactionClient, token: s
     ...(Object.keys(range).length ? [{ OR: [{ startedAt: range }, { startedAt: null, occurredAt: range }, { startedAt: null, occurredAt: null, createdAt: range }] }] : []),
   ] };
   if (["PREPARING","LIVE","WRAP","COMPLETE","CANCELLED"].includes(p.status ?? "")) where.phase = p.status as "COMPLETE";
-  const rows = await tx.workSession.findMany({ where, include: { sourceRecord: true, leadTask: { select: { id: true, deletedAt: true } }, report: { select: { id: true, deletedAt: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: pageSize, skip: (page - 1) * pageSize });
+  const rows = await tx.workSession.findMany({ where, include: { sourceRecord: true, leadTask: { select: { id: true, deletedAt: true, releasedAt: true } }, report: { select: { id: true, deletedAt: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: pageSize, skip: (page - 1) * pageSize });
   const accounts = await tx.douyinAccount.findMany({ select: { id: true, name: true, douyinId: true }, orderBy: { name: "asc" } });
   const people = await tx.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
   return { rows, count: await tx.workSession.count({ where }), accounts, people, page, pageSize };

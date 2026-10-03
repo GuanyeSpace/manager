@@ -28,6 +28,7 @@ export const leadDataSchema = z.object({ ...fields,
 });
 export const leadCommandSchema = z.object({
   id: z.string().min(1), version: z.coerce.number().int().min(0),
-  command: z.enum(["claim", "save", "complete", "correctOwner", "delete", "restore"]),
+  command: z.enum(["claim", "release", "correctActual", "save", "complete", "correctOwner", "delete", "restore"]),
+  actualLeadId: z.string().default(""),
   reason: z.string().trim().max(2000).default(""), userId: z.string().default(""), data: leadDataSchema.optional(),
 });

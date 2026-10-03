@@ -414,3 +414,10 @@ D056最终交接：功能源码08e6221ee8937e79cc28e5465f8ec624746211d0已推送
 ## D057 发布完成（2026-10-03 14:31 北京时间）
 老板首页收入概览与账号中控/主播/状态筛选已上线。无新增迁移（仍29个）；25张业务表原列摘要一致，267部署文件SHA一致。备份manager-20261003T063037Z.dump及同名截图归档可读，旧程序standalone-before-d057-20261003保留，数据摘要data-before-d057-20261003.json。HTTPS登录200、老板页无会话307；manager/nginx/docker及备份/续期timer active，截图读写探针通过。
 本地专项、账号/结算回归、类型/lint/构建和桌面15项通过；服务器构建通过（5分57秒，峰值866.4MiB）。构建期间曾短时网页/SSH超时，恢复后降低构建CPU配额并完成发布，见known-issues。无正式测试业务记录；隔离test-%员工剩余0，本地3103/9334停止，临时会话和Chrome profile删除。正在审查并同步GitHub，详细证据见tasks/boss-income-verification.md。
+
+
+## D059 发布完成（2026-10-04 03:15 北京时间）
+收尾移至中控直播数据页、异常截图复用、实际导粉人员确认、未完成任务撤销已上线。新增20261003110000_lead_claim_release，累计30迁移；25张原业务表全部旧列摘要一致，269个部署文件SHA与本地一致。
+备份/截图：/var/backups/manager/manager-20261003T191524Z.dump及同名.screenshots.tar.gz；旧程序/opt/manager/standalone-before-d059-20261004；旧源码source-before-d059-20261004.tar.gz，摘要data-before-d059-20261004.json。应用用户截图读写探针通过。
+独立stage build-d059-20261004，CPU50%/权重10/Nice15、内存1100M/swap300M；最终构建3分59.126秒、峰值826.7MiB。第一次stage构建因本地浏览器发现保存后撤销版本问题被主动停止，修正后重新打包构建成功，未切换未完成程序。发布暂停写入约7秒；服务manager/nginx/docker及两timer active，HTTPS登录200、新认领页未登录307，standalone不带.env。
+桌面浏览器13项、隔离迁移和相关业务回归通过，详情见tasks/lead-claim-wrap-verification.md。测试残留员工0，3103/9334停止，临时Cookie/profile/上传文件已删除。正式数据库未建立测试业务；生产只做无会话健康探针，不宣称正式员工逐一浏览器验收。正在完成Git同步。

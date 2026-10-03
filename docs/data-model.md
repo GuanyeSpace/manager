@@ -186,3 +186,7 @@ D055生产已于2026-10-02完成第28次迁移；24个业务模型，22张原表
 新增ReportingSetting单行company配置：role、version、updatedAt；默认无记录时LEAD_SPECIALIST。WorkSession增加liveDataRole可空、liveDataDraft JSON、liveDataSubmittedAt可空、liveDataVersion独立版本；原version仍管理执行任务。旧role空值不回填，按导粉模式。直播草稿只存直播字段；提交在事务内更新报表及草稿完成状态，不更改打粉字段。LeadTask在中控模式只写自己的导粉字段，读取最新直播草稿显示；原有JSON字段保留。
 
 D056第29次迁移已发布，25个业务模型；24张原表原列摘要一致。
+
+
+## D059（2026-10-04）
+LeadTask新增可空actualLeadId（User外键）、actualLeadName（姓名快照）、releasedAt。userId仍为权限所属认领账号。releasedAt非空表示无有效认领，不属于回收站；重新认领清空当前data并保存完整前态审计、更新人员、递增version。无旧行回填。

@@ -1,0 +1,4 @@
+ALTER TABLE "LeadTask" ADD COLUMN "actualLeadId" TEXT,
+ADD COLUMN "actualLeadName" TEXT,
+ADD COLUMN "releasedAt" TIMESTAMP(3);
+ALTER TABLE "LeadTask" ADD CONSTRAINT "LeadTask_actualLeadId_fkey" FOREIGN KEY ("actualLeadId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

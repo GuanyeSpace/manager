@@ -51,7 +51,7 @@ export async function readDirectTask(tx:Prisma.TransactionClient,token:string,id
  return {task,manager,editable,history,people};
 }
 export async function runDirectCommand(tx:Prisma.TransactionClient,token:string,raw:unknown,ip:string){
- const v=leadCommandSchema.parse(raw);await acquireUserMutationLock(tx);const actor=await requireAccountActor(tx,token);
+ const v=leadCommandSchema.parse(raw);if(["claim","release","correctActual"].includes(v.command))throw new UserActionError("直接录入不支持此认领操作");await acquireUserMutationLock(tx);const actor=await requireAccountActor(tx,token);
  const detail=await readDirectTask(tx,token,v.id);if(!detail||!detail.editable)throw new UserActionError("记录不存在或无修改权限");
  const {task,manager}=detail;if(task.version!==v.version)throw new UserActionError("数据已被修改，请保留输入并刷新核对后重试");
  let update:Prisma.DirectLeadTaskUncheckedUpdateInput={version:{increment:1}};
