@@ -317,7 +317,18 @@ enum WorkPhase {
   CANCELLED
 }
 
+model ReportingSetting {
+  id String @id
+  role String @default("LEAD_SPECIALIST")
+  version Int @default(1)
+  updatedAt DateTime @updatedAt
+}
+
 model WorkSession {
+  liveDataRole String?
+  liveDataDraft Json @default("{}")
+  liveDataSubmittedAt DateTime?
+  liveDataVersion Int @default(0)
   actualAnchorId String?
   actualAnchorName String?
   actualAnchor User? @relation("SessionAnchor", fields: [actualAnchorId], references: [id], onDelete: Restrict)

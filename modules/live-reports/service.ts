@@ -12,9 +12,10 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   const input = reportSchema.parse(raw);
   await acquireUserMutationLock(tx);
   const actor = await requireAccountActor(tx, token);
-  const before = input.id ? await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { deletedAt: true, leadTask: { select: { id: true } } } } } }) : null;
+  const before = input.id ? await tx.liveReport.findUnique({ where: { id: input.id }, include: { branch: true, workSession: { select: { liveDataRole:true, deletedAt: true, leadTask: { select: { id: true } } } } } }) : null;
   if (input.id && (!before || !canManageLiveReports(actor, before.branch))) throw new UserActionError("记录不存在或无修改权限");
   if (before?.workSession?.deletedAt) throw new UserActionError("请先恢复关联场次");
+  if(before?.workSession?.liveDataRole === "CONTROLLER")throw new UserActionError("请在本场工作空间的直播数据填写中更正");
   if (before?.directTaskId || before?.workSession?.leadTask) throw new UserActionError("请在导粉场次页面更正本场数据");
   if (before && !input.reason) throw new UserActionError("请填写更正原因");
   if (before?.deletedAt) throw new UserActionError("该记录已删除，请先在回收站恢复");

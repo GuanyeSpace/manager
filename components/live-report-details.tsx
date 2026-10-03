@@ -1,3 +1,7 @@
+import { ReportingForm } from "./reporting-form";
+import { readSessionLiveData } from "@/modules/reporting/service";
+import { prisma } from "@/lib/db";
+import { getCurrentSessionToken } from "@/lib/auth/session";
 import { previewHref } from "@/lib/auth/preview-navigation";
 import { ReportPeopleForm } from "./report-people-form";
 import { HistoricalReportFields } from "./report-metric-sections";
@@ -24,6 +28,8 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
   if (data.directTaskId) redirect(await previewHref(withTrail(`/leads/direct/${data.directTaskId}`, parseTrail(via))));
   if (data.leadTaskId) redirect(await previewHref(withTrail(`/leads/${data.leadTaskId}`, parseTrail(via))));
   const { report: r } = data;
+  const split=r.workSession?.liveDataRole === "CONTROLLER";
+  const live=split&&r.workSessionId?await prisma.$transaction(async tx=>readSessionLiveData(tx,(await getCurrentSessionToken())??"",r.workSessionId!)):null;
   const labels: Record<string, string> = Object.fromEntries([...metricFields, ...monetizationFields, ["femaleHundredths", "女性比例（百分之一百分点）"], ["age31To40Hundredths", "31–40岁比例（百分之一百分点）"], ["isLeadGeneration", "是否导粉"], ["durationSeconds", "直播时长（秒）"], ["sessionLabel", "场次"], ["averageStayHundredths", "人均停留（百分之一分钟）"], ["updatedByName", "修改人"], ["hasSales", "历史带货情况"], ["salesGmv", "历史带货GMV"]]);
   const history = <details className="space-y-3 rounded-xl border p-4"><summary className="cursor-pointer">数据修改记录</summary><CorrectionHistory rows={data.history.map(row => {
     const d = row.detail as { actorName?: string; reason?: string; operation?: string; before?: unknown; after?: unknown };
@@ -55,11 +61,11 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
       }} /> : <p className="text-sm text-muted-foreground">打粉数据仅可查看，如需补填或更正请联系老板。</p>}
       {!r.monetizationDeletedAt && r.monetizationUpdatedAt && canEditMoney && <ReportRecycleForm key={`money-${r.version}`} id={r.id} version={r.version} section="monetization" />}
     </section>
-    {canEdit ? <><h2 className="text-lg font-semibold">更正数据</h2><LiveReportForm embedded={embedded} accounts={[{ id: r.accountId, name: r.accountName, douyinId: r.douyinId }]} initial={{
+    {canEdit ? <><h2 className="text-lg font-semibold">更正数据</h2>{live ? <ReportingForm id={live.id} version={live.version} initial={live.values} submitted={live.submitted} editable={live.editable} ended={live.ended}/> : <LiveReportForm embedded={embedded} accounts={[{ id: r.accountId, name: r.accountName, douyinId: r.douyinId }]} initial={{
       ...metrics, femalePercent: r.femaleHundredths === null ? "" : String(r.femaleHundredths / 100), age31To40Percent: r.age31To40Hundredths === null ? "" : String(r.age31To40Hundredths / 100), reason: "", id: r.id, version: String(r.version), accountId: r.accountId, startedAt: shanghaiInput(r.originalStartedAt),
       durationHours: String(Math.floor(r.durationSeconds / 3600)), durationMinutes: String(Math.floor(r.durationSeconds % 3600 / 60)), durationSeconds: String(r.durationSeconds % 60),
       sessionLabel: r.sessionLabel, averageStayMinutes: String(r.averageStayHundredths / 100), confirmBackfill: "false",
-    }} /></> : <p className="text-sm text-muted-foreground">此记录仅可查看。如需纠错，请联系老板。</p>}
+    }} />}</> : <p className="text-sm text-muted-foreground">此记录仅可查看。如需纠错，请联系老板。</p>}
     <HistoricalReportFields data={{ longPressCount: r.longPressCount, hasSales: r.hasSales, salesGmv: r.salesGmv?.toString() }} />
     {data.people.length>0 && <ReportPeopleForm key={`people-${r.version}`} report={r} people={data.people}/>}
     {history}

@@ -181,3 +181,8 @@ DouyinAccount、AccountRecord、LiveReport、ConfirmedLead新增可空externalAn
 迁移20261002110000_external_direct_leads为第28个迁移；独立空临时库从旧结构升级，22张旧表原列摘要一致，含旧结算金额及后端链接，两张新表为空。正式尚未迁移。
 
 D055生产已于2026-10-02完成第28次迁移；24个业务模型，22张原表原列摘要一致，无旧数据回填。
+
+## D056 填写岗位（29迁移）
+新增ReportingSetting单行company配置：role、version、updatedAt；默认无记录时LEAD_SPECIALIST。WorkSession增加liveDataRole可空、liveDataDraft JSON、liveDataSubmittedAt可空、liveDataVersion独立版本；原version仍管理执行任务。旧role空值不回填，按导粉模式。直播草稿只存直播字段；提交在事务内更新报表及草稿完成状态，不更改打粉字段。LeadTask在中控模式只写自己的导粉字段，读取最新直播草稿显示；原有JSON字段保留。
+
+D056第29次迁移已发布，25个业务模型；24张原表原列摘要一致。

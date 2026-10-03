@@ -4,6 +4,7 @@ import {NextRequest} from "next/server";
 import {proxy} from "../proxy";
 import {PREVIEW_HEADER} from "../lib/auth/preview-path";
 import {verifiedPreviewContext} from "../lib/auth/preview-context";
+process.env.__NEXT_NO_MIDDLEWARE_URL_NORMALIZE="true";
 const path="/boss/preview/controller/employee/view/controller",first=proxy(new NextRequest("http://localhost"+path));
 const context=first.headers.get("x-middleware-request-"+PREVIEW_HEADER)!;
 assert.equal(verifiedPreviewContext(context)?.userId,"employee");
@@ -14,3 +15,7 @@ assert.equal(proxy(new NextRequest("http://localhost/controller",{method:"POST",
 assert.equal(verifiedPreviewContext(path),null);assert.equal(verifiedPreviewContext(context+"tamper"),null);
 assert.equal(proxy(new NextRequest("http://localhost/controller",{headers:{[PREVIEW_HEADER]:path}})).headers.get("location"),"http://localhost/login");
 console.log("PASS: signed internal rewrite context, forged header rejection, preview POST and referer write guard");
+
+const tls=proxy(new NextRequest("https://127.0.0.1:3000"+path+"?page=2",{headers:{"x-forwarded-proto":"https"}}));
+assert.equal(tls.headers.get("x-middleware-rewrite"),"https://127.0.0.1:3000/controller?page=2");
+assert.equal(first.headers.get("x-middleware-rewrite"),"http://localhost/controller");

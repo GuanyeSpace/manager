@@ -52,9 +52,9 @@ function MenuRow({ item, active, onNavigate }: { item: MenuItem; active: boolean
   );
 }
 
-function MenuList({ pathname, view, collapsed, onToggle, onNavigate, idPrefix }: {
+function MenuList({ pathname, view, collapsed, onToggle, onNavigate, idPrefix, boss }: {
   pathname: string; view: string | null; collapsed: Record<string, boolean>;
-  onToggle: (title: string) => void; onNavigate?: () => void; idPrefix: string;
+  onToggle: (title: string) => void; onNavigate?: () => void; idPrefix: string; boss: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -75,7 +75,7 @@ function MenuList({ pathname, view, collapsed, onToggle, onNavigate, idPrefix }:
               <ChevronDown aria-hidden className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
             </button>
             <div id={panelId} hidden={!open} className="mt-1 space-y-0.5">
-                {group.items.map(item => (
+                {group.items.filter(item => item.href !== "/boss/reporting" || boss).map(item => (
                   <MenuRow key={item.href} item={item} active={isMenuActive(item.href, pathname, view)} onNavigate={onNavigate} />
                 ))}
               </div>
@@ -150,7 +150,7 @@ export function ManagementShellChrome({ name, workspaces, children }: {
             <p className="mt-0.5 text-[11px] text-slate-400">业务管理系统</p>
           </div>
           <nav aria-label="管理菜单" className="flex-1 overflow-y-auto px-2 pb-6">
-            <MenuList pathname={pathname} view={view} collapsed={collapsed} onToggle={toggle} idPrefix="desktop" />
+            <MenuList boss={workspaces.some(w=>w.href === "/boss")} pathname={pathname} view={view} collapsed={collapsed} onToggle={toggle} idPrefix="desktop" />
           </nav>
         </aside>
 
@@ -174,7 +174,7 @@ export function ManagementShellChrome({ name, workspaces, children }: {
                       <Button variant="ghost" size="icon-sm" aria-label="关闭管理菜单"><X aria-hidden /></Button>
                     </DialogPrimitive.Close>
                   </div>
-                  <MenuList pathname={pathname} view={view} collapsed={collapsed} onToggle={toggle} onNavigate={() => setMobileOpen(false)} idPrefix="mobile" />
+                  <MenuList boss={workspaces.some(w=>w.href === "/boss")} pathname={pathname} view={view} collapsed={collapsed} onToggle={toggle} onNavigate={() => setMobileOpen(false)} idPrefix="mobile" />
                 </DialogPrimitive.Content>
               </DialogPrimitive.Portal>
             </DialogPrimitive.Root>

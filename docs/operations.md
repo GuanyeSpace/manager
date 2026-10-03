@@ -129,3 +129,6 @@ Prisma generate在stage生成；应用包需要public和.next/static一同放进
 ## D055 发布经验
 执行包含docker compose exec -T的发布脚本时，先上传独立脚本再执行，不以ssh bash -s传整段脚本：子进程可能消费脚本标准输入，导致备份后剩余步骤未执行。本次首次执行停在备份后，立即恢复旧服务，再使用独立脚本完成迁移发布。发布后必须独立核对服务、迁移、源码，不能仅凭SSH退出码。
 预览回归需覆盖Next内部重写二次经过proxy的签名上下文，以及直接POST、失效会话和截图落盘前的写鉴权。
+
+## D056预览发布核验
+必须覆盖完整重写地址/boss/preview/controller/<员工ID>/view/controller（以及leads/anchor），仅检查员工选择页307不足以验证。生产不得建立测试员工；无会话使用不存在目标的完整路径应安全跳登录而非500，真实权限与交互在隔离库HTTPS反代验收。公网TLS仍正常校验证书，不使用-k。keep skipProxyUrlNormalize与proxy原始URL重写成对维护，避免127.0.0.1规范化为localhost使Next误判外部代理。

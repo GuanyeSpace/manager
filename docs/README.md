@@ -71,3 +71,5 @@
 没有自动读取聊天并改写文档的后台程序。后续 AI 必须在同一次任务内按 AGENTS.md 和 development-guide.md 同步文件；不能只在聊天里回答“已记住”。未完成时也要记录具体停点、运行进程、剩余验证及部署状态。禁止在文档存入密码、私钥、Cookie、真实会话 token 或完整数据库连接串。
 
 - [D055外部主播与预览验收](tasks/external-preview-verification.md)。
+
+- [D056填写岗位、提醒及预览验收](tasks/reporting-role-verification.md)。

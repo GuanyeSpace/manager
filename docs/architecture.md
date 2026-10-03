@@ -169,3 +169,8 @@ D054：导粉表单状态用LeadTask.data.leadMode保存，提交事务同步Liv
 - lib/anchor-identity.ts区分内部/外部ID；reportPeople、报表筛选、确定数据和comparison同一标识；直接记录不依赖中控WorkSession。
 - /boss/preview/[role]选择员工；/boss/preview/{role}/{employee}/view/{原路径}在proxy内部重写到原员工页。proxy拒绝未签名外来预览头，仅从专属路径生成签名上下文；内部重写再次经过proxy时只保留签名有效且路径匹配的上下文；真实老板会话不变。read-actor对每个读事务重新确认老板及目标员工，再应用原员工scope；普通写鉴权拒绝readonly-preview凭据，预览POST在proxy额外拒绝，截图落盘前再次写鉴权。
 - WorkspacePreviewFrame显示固定只读身份，内部链接/GET筛选保持上下文并禁止业务表单；服务端保护不依赖前端禁用。previewHref保持服务器重定向上下文。不得把只读凭据传给客户端或写服务。
+
+## D056 模块与代理
+/boss/reporting与modules/reporting保存公司设置/直播数据，复用指标组件；WorkStageTabs按中控模式增加data标签。LeadTask写入严格分字段，仍锁内复核权限、版本和审计；SessionLiveData审计只含直播字段，可供中控查看。
+预览重写使用原始request.url，next.config的skipProxyUrlNormalize=true保留回环origin；禁止用nextUrl规范化后的localhost代替127.0.0.1。Next将不同origin视为外部代理，HTTPS反代时会错误连接内部HTTP端口。该修复取代仅验证直连环境的假设；所有签名/读写鉴权保留。
+WorkLiveClock使用中央Dialog；页面打开时定时和focus/visibility重新计算，localStorage按场次/事项去重，支持Web Locks时串行争取提醒，Notification由用户主动授权。只读预览显式禁用提醒。

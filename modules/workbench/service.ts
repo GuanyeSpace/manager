@@ -54,7 +54,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
     const existing = await tx.workSession.findFirst({ where: { accountId: account.id, phase: { in: ["PREPARING", "LIVE"] } } });
     if (existing) throw new UserActionError("此账号已有准备或直播中的场次，请先继续该场次");
     const source = await tx.accountRecord.findFirstOrThrow({ where: { accountId: account.id, endedAt: null } });
-    const session = await tx.workSession.create({ data: { actualAnchorId: anchor?.id, actualAnchorName: anchor?.name, accountId: account.id, sourceRecordId: source.id, controllerId: account.controllerId, shiftId: shift.id, loginUserId: actor.id, loginUserName: actor.name, actualControllerId: actual.id, actualControllerName: actual.name, label: `${shanghaiInput(new Date()).replace("T", " ")} 场`, workflow: workflowSchema.parse(account.workflow.content), workflowVersion: account.workflow.version } });
+    const session = await tx.workSession.create({ data: { liveDataRole: (await tx.reportingSetting.findUnique({where:{id:"company"}}))?.role ?? "LEAD_SPECIALIST", actualAnchorId: anchor?.id, actualAnchorName: anchor?.name, accountId: account.id, sourceRecordId: source.id, controllerId: account.controllerId, shiftId: shift.id, loginUserId: actor.id, loginUserName: actor.name, actualControllerId: actual.id, actualControllerName: actual.name, label: `${shanghaiInput(new Date()).replace("T", " ")} 场`, workflow: workflowSchema.parse(account.workflow.content), workflowVersion: account.workflow.version } });
     await writeAudit({ db: tx, actorId: actor.id, action: "WORK_SESSION_UPDATE", targetType: "WorkSession", targetId: session.id, detail: { command: "create", controllerId: account.controllerId }, ip });
     return session.id;
   }
@@ -117,6 +117,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
     body = `${input.time.replace("T", " ")}（北京时间）${input.note ? ` · ${input.note}` : ""}${input.reason ? ` · 补填原因：${input.reason}` : ""}`;
   } else if (input.command === "complete") {
     if (session.phase !== "WRAP") throw new UserActionError("请先确认下播");
+    if(session.liveDataRole === "CONTROLLER" && (!session.liveDataSubmittedAt || !await tx.liveReport.findFirst({where:{workSessionId:session.id,deletedAt:null},select:{id:true}}))) throw new UserActionError("请先提交完整的本场直播数据");
     if (workflow.after.some((_, i) => progress[`after:${i}`]?.status !== "done")) throw new UserActionError("请先勾选完成全部下播后事项");
     if (!["yes", "no"].includes(input.incident)) throw new UserActionError("请选择本场有异常或无异常");
     const violation = input.violation === "yes", other = input.otherIncident === "yes";

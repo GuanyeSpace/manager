@@ -15,6 +15,7 @@ export const MENU_GROUPS: MenuGroup[] = [
     { href: "/workbench/shifts", label: "上班检查记录" },
   ] },
   { title: "数据统计", items: [
+    { href: "/boss/reporting", label: "直播数据填写设置" },
     { href: "/live-reports", label: "直播数据" },
     { href: "/live-reports?view=monetization", label: "打粉数据" },
     { href: "/leads", label: "导粉任务" },

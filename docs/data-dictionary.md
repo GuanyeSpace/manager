@@ -695,3 +695,7 @@ reportFilterSchema新增可选leadMode：all/yes/no/legacy；yes保留历史未�
 - ExternalAnchor：id、name、branchId、active、notes、version、createdAt、updatedAt；所有业务外键onDelete Restrict，无登录凭证。
 - DirectLeadTask：id、accountId、sourceRecordId、branchId、externalAnchorId、anchorName、userId、userName、startedAt、label、data(JSON)、completedAt?、deletedAt?、version、createdAt、updatedAt。JSON指标沿用LeadTask和D054导粉模式，保留空值与0差异。
 - DouyinAccount.externalAnchorId?；AccountRecord.externalAnchorId? / externalAnchorName?；LiveReport.externalAnchorId? / directTaskId?（unique）；ConfirmedLead.externalAnchorId?，原anchorId可空。人数/分单位不变，不使用姓名作为唯一标识。
+
+## D056新增字段（2026-10-03）
+ReportingSetting：id（固定company）、role（CONTROLLER/LEAD_SPECIALIST，SQL检查）、version、updatedAt。
+WorkSession：liveDataRole String?（SQL检查，可空历史兼容）；liveDataDraft Json默认{}；liveDataSubmittedAt DateTime?（首次直播提交）；liveDataVersion Int默认0（独立于执行版本）。不新增打粉权限，不改旧报表原值。

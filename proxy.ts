@@ -24,7 +24,8 @@ export function proxy(request: NextRequest) {
   if(preview){
     if(!allowedPreviewPath(preview.path))return new NextResponse("预览路径不可用",{status:404});
     requestHeaders.set(PREVIEW_HEADER,signPreviewContext(pathname));
-    const url=request.nextUrl.clone();url.pathname=preview.path;
+    // 必须使用原始URL；nextUrl会把127.0.0.1规范化为localhost，导致反代下误走外部HTTPS代理。
+    const url=new URL(request.url);url.pathname=preview.path;
     return NextResponse.rewrite(url,{request:{headers:requestHeaders}});
   }
   // 普通链接、预取和截图请求也保持预览上下文；退出老板页不在可预览路径内。

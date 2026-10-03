@@ -53,5 +53,5 @@ export async function readLiveReport(tx: Prisma.TransactionClient, token: string
   if (!report) return null;
   const history = await tx.auditLog.findMany({ where: { targetType: "LiveReport", targetId: id }, include: { actor: { select: { name: true } } }, orderBy: { createdAt: "desc" } });
   const people = isAccountBoss(actor) ? (await tx.user.findMany({select:{id:true,name:true,role:true,roles:true},orderBy:{name:"asc"}})).map(p=>({id:p.id,name:p.name,anchor:hasRole(p,"ANCHOR"),lead:hasRole(p,"LEAD_SPECIALIST")})) : [];
-  return { people, report: reportPeople(report), history, directTaskId: report.directTaskId, leadTaskId: report.workSession?.leadTask?.id, canEdit: canManageLiveReports(actor, report.branch), canEditMonetization: canManageLiveReports(actor, report.branch) };
+  return { people, report: reportPeople(report), history, directTaskId: report.directTaskId, leadTaskId: report.workSession?.liveDataRole === "CONTROLLER" && report.deletedAt ? undefined : report.workSession?.leadTask?.id, canEdit: canManageLiveReports(actor, report.branch), canEditMonetization: canManageLiveReports(actor, report.branch) };
 }
