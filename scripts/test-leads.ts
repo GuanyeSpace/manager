@@ -1,3 +1,4 @@
+import { previewReadToken } from "../lib/auth/read-actor";
 import { readComparison } from "../modules/settlements/comparison";
 import assert from "node:assert/strict";
 import { validateTestEnv, resolveTestClient, assertTestDatabase, newRunId, cleanupRun } from "./lib/test-db";
@@ -39,6 +40,21 @@ async function main() {
     assert.deepEqual((await list(lead.token, "available")).sessions.map(s => s.id).sort(), [live.id, done.id].sort());
     assert.equal((await list(remote.token, "available")).count, 0);
     for (const s of [old, cancelled, preparing]) await assert.rejects(claim(lead.token, s.id), /不能认领/);
+    // D063: a controller with a secondary lead role sees every controller's eligible sessions.
+    await db.user.update({ where: { id: lead.id }, data: { role: "CONTROLLER", roles: ["LEAD_SPECIALIST"] } });
+    const preview = previewReadToken(boss.token, "leads", lead.id);
+    for (const phase of ["LIVE", "WRAP", "COMPLETE"] as const) {
+      for (const outcome of [null, "NORMAL", "VIOLATION_STOP", "VIOLATION_BAN", "EQUIPMENT", "OTHER_INTERRUPTION", "INTERRUPTED"]) {
+        await db.workSession.update({ where: { id: done.id }, data: { phase, outcome } });
+        const actual = await list(lead.token, "available"), viewed = await list(preview, "available");
+        assert.deepEqual(viewed.sessions.map(s => s.id), actual.sessions.map(s => s.id));
+        assert(actual.sessions.some(s => s.id === done.id));
+        assert(await db.$transaction(tx => readLeadClaim(tx, preview, done.id)));
+      }
+    }
+    await db.workSession.update({ where: { id: done.id }, data: { phase: "LIVE", outcome: null } });
+    await assert.rejects(claim(preview, done.id), /只读预览/);
+    await db.user.update({ where: { id: lead.id }, data: { role: "LEAD_SPECIALIST", roles: [] } });
     await assert.rejects(claim(remote.token, live.id), /不能认领/);
     await assert.rejects(claim(controller.token, live.id), /仅导粉/);
     const concurrent = await Promise.allSettled([claim(lead.token, live.id), claim(lead2.token, live.id)]);

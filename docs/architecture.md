@@ -191,3 +191,6 @@ WorkLiveClock使用中央Dialog；页面打开时定时和focus/visibility重新
 ## D062 班次与流程引导
 
 schema.ts提供isShiftExpired，开始准备和确认开播在全局写锁内复核；shifts.ts实现shiftMissedEnd及补登记录更正的实际时间边界、版本/事务/审计。WorkShiftPanel及ShiftExpiryNotice提示超时而不显示时长，历史详情区分实际下班与操作时间。WorkStageTabs通过局部Context向WorkTaskTable提供纯导航，后者按成功保存的本地快照与pending/error控制按钮，未改服务端收尾门槛。导粉仅改展示名称及次要回收站样式，原查询参数/状态不变。
+
+### D063 预览导航修复
+员工选择页用完整文档导航进入预览，避免 Next 根布局缓存保留老板身份。根布局校验签名预览上下文后提供 PreviewNavigationProvider；ContextLink、ReturnLink 和路径导航在首次渲染即带预览前缀，防止裸链接预取丢失身份。服务端预览权限及写入拒绝沿用原实现。

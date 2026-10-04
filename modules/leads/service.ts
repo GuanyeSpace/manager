@@ -17,8 +17,11 @@ export function leadScope(actor: AccountActor): Prisma.LeadTaskWhereInput {
   return { OR: [{ branch: reportManagementScope(actor) }, ...(isLeadSpecialist(actor) ? [{ userId: actor.id, branchId: actor.branchId ?? "" }] : []), ...(isReportOperator(actor) ? [{ branchId: actor.branchId ?? "", session: { account: { operatorId: actor.id } } }] : [])] };
 }
 const eligible = { deletedAt: null, leadEligible: true, startedAt: { not: null }, phase: { in: ["LIVE", "WRAP", "COMPLETE"] as ("LIVE" | "WRAP" | "COMPLETE")[] } };
+function eligibleScope(actor: AccountActor): Prisma.WorkSessionWhereInput {
+  return { ...eligible, sourceRecord: { ...(isLeadSpecialist(actor) && isAccountBoss(actor) ? {} : { branchId: isLeadSpecialist(actor) ? actor.branchId ?? "" : "" }), branch: { status: "ACTIVE" } } };
+}
 function availableScope(actor: AccountActor): Prisma.WorkSessionWhereInput {
-  return { ...eligible, AND: [{ OR: [{leadTask:null}, {leadTask:{releasedAt:{not:null},deletedAt:null}}] }, { OR: [{report:null},{liveDataRole:"CONTROLLER",report:{deletedAt:null}}] }], sourceRecord: { ...(isLeadSpecialist(actor) && isAccountBoss(actor) ? {} : {branchId:isLeadSpecialist(actor) ? actor.branchId ?? "" : ""}), branch:{status:"ACTIVE"} } };
+  return { ...eligibleScope(actor), AND: [{ OR: [{leadTask:null}, {leadTask:{releasedAt:{not:null},deletedAt:null}}] }, { OR: [{report:null},{liveDataRole:"CONTROLLER",report:{deletedAt:null}}] }] };
 }
 export async function readLeadClaim(tx: Prisma.TransactionClient, token: string, id: string) {
   const actor = await requireReadAccountActor(tx, token);
@@ -65,7 +68,7 @@ export async function runLeadCommand(tx: Prisma.TransactionClient, token: string
   const actor = await requireAccountActor(tx, token);
   if (input.command === "claim") {
     if (!isLeadSpecialist(actor)) throw new UserActionError("仅导粉专员可以认领场次");
-    const session = await tx.workSession.findFirst({ where: { ...eligible, id: input.id, sourceRecord: { ...(isAccountBoss(actor) ? {} : { branchId: actor.branchId ?? "" }), branch: { status: "ACTIVE" } } }, include: { leadTask: true, report: true, sourceRecord: true } });
+    const session = await tx.workSession.findFirst({ where: { ...eligibleScope(actor), id: input.id }, include: { leadTask: true, report: true, sourceRecord: true } });
     if (!session || !session.sourceRecord.branchId) throw new UserActionError("场次不存在或尚未实际开播，不能认领");
     if (session.leadTask && (!session.leadTask.releasedAt || session.leadTask.deletedAt)) throw new UserActionError(`本场已由${session.leadTask.userName}认领，请刷新列表`);
     if (session.report && (session.liveDataRole !== "CONTROLLER" || session.report.deletedAt)) throw new UserActionError("本场已有历史数据，请联系负责人维护");
