@@ -19,4 +19,14 @@
 
 ## 发布
 
-本地Linux amd64构建第一次依赖下载ECONNRESET失败，重试中。待备份、旧数据核对、源码核对和健康验证后补发布结果。当前未修改生产数据，无迁移。
+2026-10-05 03:41完成发布，功能提交0cd2b5499a7a007bbb91b7f9f277348abde55cd4已推送并核对远程一致。
+
+本地Linux amd64构建首次npm下载ECONNRESET；重试剩elkjs/pglite下载停滞，经本机下载并加入缓存，以原锁文件离线npm ci安装成功，编译/类型检查/standalone打包退出0。未在生产构建、未升级依赖。
+
+- 数据库及截图备份：`/var/backups/manager/manager-20261004T194054Z.dump`及同名`.screenshots.tar.gz`，pg_restore目录与tar均可读。
+- 旧程序：`/opt/manager/standalone-before-d063-20261005`；旧源码：`/opt/manager/source-before-d063-20261005.tar.gz`。
+- 25表全部原列数据核对一致：`/opt/manager/data-before-d063-20261005.json`；273部署文件SHA一致，无迁移，仍32次迁移。
+- 截图应用用户读写探针通过；manager/nginx/docker及备份/续期timer active；公网HTTPS登录200、无会话导粉页307。
+- 使用已有有效老板会话在服务器内发起公网HTTPS只读请求，两个真实导粉员工预览均显示18场，与只读SQL条件一致。无新增会话/业务测试记录，不输出Cookie或员工个人资料。该项是线上HTTP核验；真实浏览器交互验收在上述隔离HTTPS反代环境完成。
+- 隔离test用户残留0；3103/3443/9334测试服务与浏览器已停止，临时签名夹具、TLS私钥和Chrome profile清理。保留仓库外测试脚本、报告和本地构建缓存便于排查。
+- 预览仍只读，历史资料及业务指标未改；原.claude/launch.json删除继续排除。

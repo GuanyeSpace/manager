@@ -443,3 +443,9 @@ manager/nginx/docker和备份/续期timer active，standalone无.env，HTTPS登�
 第32次迁移20261004060000_shift_missed_end只新增可空补登字段；发布前数据库和截图备份manager-20261004T141631Z可读，25表原列摘要data-before-d062-20261004.json不变。旧程序standalone-before-d062-20261004及旧源码归档保留，272源码SHA一致。截图应用用户探针通过，manager/nginx/docker及timer active，公网登录200、未登录controller307。
 
 独立stage受限构建期间SSH/HTTPS曾超时，最终21:41构建成功（11分58秒，914.6MiB峰值），恢复后才备份、迁移和切换。根因尚未确认；没有无限制重试，没有用测试数据访问正式业务。详见tasks/shift-expiry-verification.md。
+
+## 2026-10-05 03:41 D063 导粉分类与预览修复
+
+本地Linux amd64 standalone构建发布，功能提交0cd2b54；无迁移（仍32）。构建下载失败后用原锁文件缓存离线安装，生产未构建。切换前暂停应用、备份数据库及截图，25表原列摘要一致、273部署文件SHA一致。
+备份`/var/backups/manager/manager-20261004T194054Z.dump`及同名`.screenshots.tar.gz`可读；旧程序`/opt/manager/standalone-before-d063-20261005`、旧源码`/opt/manager/source-before-d063-20261005.tar.gz`，摘要`/opt/manager/data-before-d063-20261005.json`。
+截图探针、服务和定时器正常，公网登录200、未登录导粉307。两个真实目标导粉员工的认证HTTPS预览各18场，匹配只读查询；未新建正式业务或员工会话。隔离浏览器17项及相关回归通过，详见[tasks/lead-availability-verification.md](tasks/lead-availability-verification.md)。
