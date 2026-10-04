@@ -29,3 +29,5 @@
 - manager/nginx/docker及备份、续期timer active；HTTPS登录200、未登录controller307；截图独立读写探针成功。timer active不代表本次验证了续期。
 - 隔离test-%员工残留0，3103服务/9334浏览器关闭，敏感cookie夹具和浏览器profile清理；7张非生产截图留/tmp供复核。
 - Git同步单独执行；未在正式系统创建测试员工或业务场次。
+
+Git：功能提交814f504ef106bfe4ebb359bb99201d24b10bac34已推送origin/main，ls-remote核对一致；仅保留排除的.claude/launch.json本地删除。
