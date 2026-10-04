@@ -26,21 +26,22 @@ async function assertNoExecutionDuplicate(tx:Prisma.TransactionClient,accountId:
  if(await tx.workSession.findFirst({where:{accountId,startedAt:time},select:{id:true}})||await tx.liveReport.findFirst({where:{accountId,startedAt:time,...(directId?{OR:[{directTaskId:null},{directTaskId:{not:directId}}]}:{})},select:{id:true}}))throw new UserActionError("该账号在同一开播分钟已有场次或报表，请继续原记录");
 }
 export async function readDirectOptions(tx:Prisma.TransactionClient,token:string){
- const actor=await requireReadAccountActor(tx,token);if(!isLeadSpecialist(actor)||!actor.branchId)return {accounts:[],anchors:[]};
- const accounts=await tx.douyinAccount.findMany({where:{branchId:actor.branchId,branch:{status:"ACTIVE"},externalAnchor:{active:true}},select:{id:true,name:true,douyinId:true,externalAnchorId:true},orderBy:{name:"asc"}});
- const anchors=await tx.externalAnchor.findMany({where:{branchId:actor.branchId,active:true},select:{id:true,name:true},orderBy:{name:"asc"}});return {accounts,anchors};
+ const actor=await requireReadAccountActor(tx,token);if(!isLeadSpecialist(actor)||!actor.branchId||!await tx.branch.findFirst({where:{id:actor.branchId,status:"ACTIVE"}}))return {accounts:[],anchors:[]};
+ const accounts=await tx.douyinAccount.findMany({where:{kind:"EXTERNAL",active:true,banned:false,externalAnchor:{active:true}},select:{id:true,name:true,douyinId:true,externalAnchorId:true},orderBy:{name:"asc"}});
+ const anchors=await tx.externalAnchor.findMany({where:{active:true},select:{id:true,name:true},orderBy:{name:"asc"}});return {accounts,anchors};
 }
 export async function createDirectTask(tx:Prisma.TransactionClient,token:string,raw:unknown,ip:string){
  const v=directCreateSchema.parse(raw);await acquireUserMutationLock(tx);const actor=await requireAccountActor(tx,token);
  if(!isLeadSpecialist(actor)||!actor.branchId)throw new UserActionError("仅本分公司导粉专员可以直接录入");
+ const branch=await tx.branch.findFirst({where:{id:actor.branchId,status:"ACTIVE"}});if(!branch)throw new UserActionError("所属分公司不可用");
  const startedAt=shanghaiDate(v.startedAt)!;if(startedAt.getTime()>Date.now())throw new UserActionError("开播时间不能晚于现在");
- const account=await tx.douyinAccount.findFirst({where:{id:v.accountId,branchId:actor.branchId,branch:{status:"ACTIVE"},externalAnchor:{active:true}}});
- const anchor=await tx.externalAnchor.findFirst({where:{id:v.externalAnchorId,branchId:actor.branchId,active:true}});
- if(!account||!anchor)throw new UserActionError("请选择本分公司外部主播账号及启用的外部主播");
+ const account=await tx.douyinAccount.findFirst({where:{id:v.accountId,kind:"EXTERNAL",active:true,banned:false,externalAnchor:{active:true}}});
+ const anchor=await tx.externalAnchor.findFirst({where:{id:v.externalAnchorId,active:true}});
+ if(!account||!anchor)throw new UserActionError("请选择启用的外部主播和外部账号");
  const records=await tx.accountRecord.findMany({where:{accountId:account.id,startedAt:{lte:startedAt},OR:[{endedAt:null},{endedAt:{gt:startedAt}}]}});
- if(records.length!==1||records[0].branchId!==actor.branchId||!records[0].externalAnchorId)throw new UserActionError("无法确定开播时的外部账号归属，请管理人员先处理账号历史资料");
+ if(records.length!==1||!records[0].externalAnchorId)throw new UserActionError("无法确定开播时的外部账号归属，请管理人员先处理账号历史资料");
  await assertNoExecutionDuplicate(tx,account.id,startedAt);
- const task=await tx.directLeadTask.create({data:{accountId:account.id,sourceRecordId:records[0].id,branchId:records[0].branchId,externalAnchorId:anchor.id,anchorName:anchor.name,userId:actor.id,userName:actor.name,startedAt,label:v.label}});
+ const task=await tx.directLeadTask.create({data:{accountId:account.id,sourceRecordId:records[0].id,branchId:branch.id,branchName:branch.name,externalAnchorId:anchor.id,anchorName:anchor.name,userId:actor.id,userName:actor.name,startedAt,label:v.label}});
  await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_CREATE",targetType:"DirectLeadTask",targetId:task.id,ip,detail:{command:"create",actorName:actor.name,accountId:account.id,sourceRecordId:records[0].id,externalAnchorId:anchor.id,anchorName:anchor.name,userId:actor.id,startedAt:startedAt.toISOString(),label:v.label}});return task.id;
 }
 export async function readDirectTask(tx:Prisma.TransactionClient,token:string,id:string){
@@ -78,7 +79,7 @@ export async function runDirectCommand(tx:Prisma.TransactionClient,token:string,
    await assertNoExecutionDuplicate(tx,task.accountId,task.startedAt,task.id);
    const metrics=Object.fromEntries([...metricFields,...(values.leadMode==="no"?[]:powderFields)].map(([key])=>[key,Number(values[key])])) as Record<typeof metricFields[number][0]|typeof powderFields[number][0],number>;
    const fields={...metrics,isLeadGeneration:values.leadMode==="yes",durationSeconds,averageStayHundredths:Math.round(Number(values.averageStayMinutes)*100),femaleHundredths:audienceHundredths(values.femalePercent),age31To40Hundredths:audienceHundredths(values.age31To40Percent),updatedByName:actor.name,monetizationUpdatedAt:new Date(),monetizationUpdatedBy:actor.name};
-   await tx.liveReport.upsert({where:{directTaskId:task.id},update:{...fields,version:{increment:1}},create:{...fields,directTaskId:task.id,accountId:task.accountId,sourceRecordId:task.sourceRecordId,branchId:task.branchId,branchName:task.sourceRecord.branchName,accountName:task.sourceRecord.name,douyinId:task.sourceRecord.douyinId,operatorId:task.sourceRecord.operatorId,externalAnchorId:task.externalAnchorId,anchorName:task.anchorName,leadUserId:task.userId,leadUserName:task.userName,startedAt:task.startedAt,sessionLabel:task.label,createdById:actor.id,createdByName:actor.name}});
+   await tx.liveReport.upsert({where:{directTaskId:task.id},update:{...fields,version:{increment:1}},create:{...fields,directTaskId:task.id,accountId:task.accountId,sourceRecordId:task.sourceRecordId,branchId:task.branchId,branchName:task.branchName??task.sourceRecord.branchName,accountName:task.sourceRecord.name,douyinId:task.sourceRecord.douyinId,operatorId:task.sourceRecord.operatorId,externalAnchorId:task.externalAnchorId,anchorName:task.anchorName,leadUserId:task.userId,leadUserName:task.userName,startedAt:task.startedAt,sessionLabel:task.label,createdById:actor.id,createdByName:actor.name}});
    if(!task.completedAt)update.completedAt=new Date();
   }
   update.data={...(task.data as Record<string,Prisma.InputJsonValue>),...Object.fromEntries(activeLeadFields.map(([key])=>[key,values[key]])),formVersion:2};

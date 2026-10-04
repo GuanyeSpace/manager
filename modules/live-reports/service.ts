@@ -26,7 +26,7 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
   }
   const account = await tx.douyinAccount.findUnique({ where: { id: input.accountId }, include: { branch: true } });
   if (!account || !canManageLiveReports(actor, before?.branch ?? account.branch)) throw new UserActionError("仅老板或所属分公司负责人可维护历史数据");
-  if (!before && (!account.active || account.branch.status !== "ACTIVE")) throw new UserActionError("账号或分公司已停用，不能新增数据");
+  if (!before && (!account.active || account.branch?.status !== "ACTIVE")) throw new UserActionError("账号或分公司已停用，不能新增数据");
   if (!before && account.externalAnchorId) throw new UserActionError("外部主播场次请由导粉专员通过直接录入场次数据建档");
   const startedAt = shanghaiDate(input.startedAt)!;
   await assertNoDirectDuplicate(tx,account.id,startedAt);
@@ -53,6 +53,7 @@ export async function saveLiveReport(tx: Prisma.TransactionClient, token: string
     source = first;
     historicalBackfill = true;
   }
+  if (!source.branchId) throw new UserActionError("外部账号数据请通过直接填报记录维护");
   if (!canManageLiveReports(actor, { id: source.branchId, managerId: (await tx.branch.findUnique({ where: { id: source.branchId } }))?.managerId ?? null })) throw new UserActionError("这场直播不属于你的负责期间，请由老板核对补录");
   const data = {
     femaleHundredths: audienceHundredths(input.femalePercent), age31To40Hundredths: audienceHundredths(input.age31To40Percent),

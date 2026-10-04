@@ -28,7 +28,8 @@ export const MENU_GROUPS: MenuGroup[] = [
   ] },
   { title: "组织人员", items: [
     { href: "/boss/users", label: "员工" },
-    { href: "/resources/anchors", label: "主播" },
+    { href: "/resources/anchors", label: "内部主播" },
+    { href: "/resources/external-anchors", label: "外部主播" },
     { href: "/boss/branches", label: "分公司" },
   ] },
   { title: "配置管理", items: [

@@ -46,6 +46,7 @@ export async function saveAccount(tx: Prisma.TransactionClient, token: string, r
   if (input.id && (!before || !canManageAccountBranch(actor, before.branch))) {
     throw new UserActionError("账号不存在或无管理权限");
   }
+  if (before?.kind === "EXTERNAL" || input.externalAnchorId) throw new UserActionError("外部账号请在外部主播资料中维护");
   if (before && before.version !== input.version) throw new UserActionError("账号已被其他人修改，请刷新后重新编辑");
   if (before && before.branchId !== input.branchId && !isAccountBoss(actor)) {
     throw new UserActionError("跨公司调拨仅限老板操作");

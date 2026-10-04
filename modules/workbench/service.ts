@@ -11,13 +11,13 @@ import { writeAudit } from "@/lib/audit";
 import { shanghaiDate, shanghaiInput } from "@/modules/live-reports/schema";
 import { endKinds, endOutcomes, isInterrupted, isViolationEnd, isOtherEnd, copyWorkflowSchema, commandSchema, dailyTasks, workflowSchema, type Progress, type EquipmentChecks } from "./schema";
 
-export function canEditWorkflow(actor: AccountActor, account: { branchId: string; controllerId: string | null; operatorId: string | null; branch: { id: string; managerId: string | null } }) {
-  return !isExecutionController(actor) && (canManageAccountBranch(actor, account.branch) || (actor.branchId === account.branchId && account.operatorId === actor.id));
+export function canEditWorkflow(actor: AccountActor, account: { kind?: string; branchId: string | null; controllerId: string | null; operatorId: string | null; branch: { id: string; managerId: string | null } | null }) {
+  return account.kind !== "EXTERNAL" && !isExecutionController(actor) && (canManageAccountBranch(actor, account.branch) || (actor.branchId === account.branchId && account.operatorId === actor.id));
 }
 export function canEditScripts(actor: AccountActor, account: Parameters<typeof canEditWorkflow>[1]) {
   return canEditWorkflow(actor, account) || (actor.branchId === account.branchId && actor.id === account.controllerId);
 }
-export function canExecute(actor: AccountActor, account: { controllerId: string | null; branchId: string }, originalController = account.controllerId) {
+export function canExecute(actor: AccountActor, account: { controllerId: string | null; branchId: string | null }, originalController = account.controllerId) {
   return isAccountBoss(actor) || (actor.id === account.controllerId && actor.id === originalController && actor.branchId === account.branchId);
 }
 export async function saveWorkflow(tx: Prisma.TransactionClient, token: string, accountId: string, version: number, raw: unknown, ip: string, scriptsOnly = false) {
@@ -25,7 +25,7 @@ export async function saveWorkflow(tx: Prisma.TransactionClient, token: string, 
   await acquireUserMutationLock(tx);
   const actor = await requireAccountActor(tx, token);
   const account = await tx.douyinAccount.findUnique({ where: { id: accountId }, include: { branch: true, workflow: true } });
-  if (!account || !(scriptsOnly ? canEditScripts(actor, account) : canEditWorkflow(actor, account))) throw new UserActionError("无权维护此账号流程和话术");
+  if (!account || account.kind !== "INTERNAL" || !(scriptsOnly ? canEditScripts(actor, account) : canEditWorkflow(actor, account))) throw new UserActionError("无权维护此账号流程和话术");
   if ((account.workflow?.version ?? 0) !== version) throw new UserActionError("流程已被其他人修改，请刷新后重试");
   if (scriptsOnly && !account.workflow) throw new UserActionError("请先由老板、分公司负责人或运营配置流程");
   const content = scriptsOnly ? { ...workflowSchema.parse(account!.workflow!.content), scripts: submitted as import("./schema").Workflow["scripts"] } : { ...submitted as import("./schema").Workflow, materials: account.workflow ? workflowSchema.parse(account.workflow.content).materials : "" };
@@ -40,10 +40,10 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
   const actor = await requireAccountActor(tx, token);
   if (input.command === "create") {
     const account = await tx.douyinAccount.findUnique({ where: { id: input.id }, include: { branch: true, workflow: true } });
-    if (!account || !canExecute(actor, account)) throw new UserActionError("仅负责直播中控或老板可以开始准备");
+    if (!account || account.kind !== "INTERNAL" || !account.branchId || !canExecute(actor, account)) throw new UserActionError("仅负责直播中控或老板可以开始准备");
     if (!account.controllerId) throw new UserActionError("请先为直播账号绑定直播中控，再开始准备");
     if (account.banned) throw new UserActionError("账号已封禁，请确认解封并启用后再开始准备");
-    if (!account.active || account.branch.status !== "ACTIVE") throw new UserActionError("请先启用账号与分公司");
+    if (!account.active || account.branch?.status !== "ACTIVE") throw new UserActionError("请先启用账号与分公司");
     if (!account.workflow) throw new UserActionError("请先保存账号流程");
     const shift = await tx.workShift.findFirst({ where: { userId: actor.id, endedAt: null } });
     if (!shift) throw new UserActionError("请先在工作台开始上班，再开始本场准备");
@@ -59,7 +59,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
     return session.id;
   }
   const session = await tx.workSession.findUnique({ where: { id: input.id }, include: { account: { include: { branch: true } }, sourceRecord: true } });
-  if (!session || session.deletedAt || (!canExecute(actor, session.account, session.controllerId) || (session.loginUserId && session.loginUserId !== actor.id && !isAccountBoss(actor)))) throw new UserActionError("场次不存在或无执行权限");
+  if (!session || !session.sourceRecord.branchId || session.deletedAt || (!canExecute(actor, session.account, session.controllerId) || (session.loginUserId && session.loginUserId !== actor.id && !isAccountBoss(actor)))) throw new UserActionError("场次不存在或无执行权限");
   if (session.version !== input.version) throw new UserActionError("本场进度已更新，请刷新后重试");
   if (["COMPLETE", "CANCELLED"].includes(session.phase)) throw new UserActionError("场次已归档，不能继续修改执行记录");
   const workflow = workflowSchema.parse(session.workflow);
@@ -88,7 +88,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
       const anchor = await requireSessionAnchor(tx, session.actualAnchorId ?? session.sourceRecord.anchorId ?? "", session.sourceRecord.branchId);
       data.actualAnchor = { connect: { id: anchor.id } }; data.actualAnchorName = anchor.name;
       if (session.account.banned) throw new UserActionError("账号已封禁，请确认解封并启用后再开播");
-      if (!session.account.active || session.account.branch.status !== "ACTIVE") throw new UserActionError("账号或分公司已停用");
+      if (!session.account.active || session.account.branch?.status !== "ACTIVE") throw new UserActionError("账号或分公司已停用");
       // 输入精度为分钟；同一分钟建档和准备允许从该分钟起记。
       if (time < shanghaiDate(shanghaiInput(session.createdAt))! && !input.reason) throw new UserActionError("开播时间早于系统准备记录，请填写补填原因");
       if (session.shiftId) {
@@ -177,7 +177,7 @@ export async function saveDailyWork(tx: Prisma.TransactionClient, token: string,
 
 export async function readWorkbench(tx: Prisma.TransactionClient, token: string) {
   const actor = await requireReadAccountActor(tx, token);
-  const accounts = await tx.douyinAccount.findMany({ where: currentAccountScope(actor), select: { id: true, name: true, douyinId: true, active: true, banned: true, unbanDate: true, purpose: true, anchor: { select: { name: true } }, controller: { select: { name: true } }, branch: { select: { name: true } } }, orderBy: { name: "asc" } });
+  const accounts = await tx.douyinAccount.findMany({ where: {AND:[currentAccountScope(actor),{kind:"INTERNAL"}]}, select: { id: true, name: true, douyinId: true, active: true, banned: true, unbanDate: true, purpose: true, anchor: { select: { name: true } }, controller: { select: { name: true } }, branch: { select: { name: true } } }, orderBy: { name: "asc" } });
   const scope = { deletedAt: null, sourceRecord: historicalAccountScope(actor) };
   if (isExecutionController(actor)) {
     const sessions = await tx.workSession.findMany({ where: { ...scope, phase: { in: ["PREPARING", "LIVE", "WRAP"] } }, include: { sourceRecord: true }, orderBy: { createdAt: "desc" } });
@@ -193,8 +193,8 @@ export async function readWorkbench(tx: Prisma.TransactionClient, token: string)
 }
 export async function readWorkspace(tx: Prisma.TransactionClient, token: string, id: string) {
   const actor = await requireReadAccountActor(tx, token);
-  const account = await tx.douyinAccount.findFirst({ where: { id, ...currentAccountScope(actor) }, select: { id: true, name: true, douyinId: true, purpose: true, room: { select: { id: true, name: true } }, phoneNumber: { select: { id: true, number: true } }, active: true, banned: true, unbanDate: true, branchId: true, controllerId: true, operatorId: true, anchorId: true, branch: { select: { id: true, name: true, managerId: true, status: true } }, controller: { select: { name: true } }, operator: { select: { name: true } }, anchor: { select: { name: true } }, workflow: true } });
-  if (!account) return null;
+  const account = await tx.douyinAccount.findFirst({ where: { id, ...currentAccountScope(actor) }, select: { id: true, kind: true, name: true, douyinId: true, purpose: true, room: { select: { id: true, name: true } }, phoneNumber: { select: { id: true, number: true } }, active: true, banned: true, unbanDate: true, branchId: true, controllerId: true, operatorId: true, anchorId: true, branch: { select: { id: true, name: true, managerId: true, status: true } }, controller: { select: { name: true } }, operator: { select: { name: true } }, anchor: { select: { name: true } }, workflow: true } });
+  if (!account || !account.branchId) return null;
   const current = await tx.workSession.findFirst({ where: { deletedAt: null, accountId: id, phase: { in: ["PREPARING", "LIVE"] }, sourceRecord: historicalAccountScope(actor) } });
   const wrapping = await tx.workSession.findMany({ where: { deletedAt: null, accountId: id, phase: "WRAP", sourceRecord: historicalAccountScope(actor) }, select: { id: true, label: true, endedAt: true }, orderBy: { createdAt: "desc" } });
   const controllers = await tx.user.findMany({ where: { branchId: account.branchId, employmentStatus: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } });
@@ -204,7 +204,7 @@ export async function readWorkspace(tx: Prisma.TransactionClient, token: string,
 export async function readWorkSession(tx: Prisma.TransactionClient, token: string, id: string) {
   const actor = await requireReadAccountActor(tx, token);
   const session = await tx.workSession.findFirst({ where: { id, ...(!isAccountBoss(actor) ? { deletedAt: null } : {}), sourceRecord: historicalAccountScope(actor) }, include: { sourceRecord: true, screenshots: { orderBy: { createdAt: "asc" }, select: { id: true, createdAt: true, event: { select: { body: true, kind: true } } } }, report: { select: { id: true } }, events: { orderBy: { createdAt: "desc" }, take: 200, include: { screenshots: { select: { id: true }, orderBy: { createdAt: "asc" } } } }, account: { select: { controllerId: true, branchId: true, workflow: { select: { version: true } } } } } });
-  if (!session) return null;
+  if (!session || !session.sourceRecord.branchId) return null;
   const editable = !session.deletedAt && canExecute(actor, session.account, session.controllerId) && (!session.loginUserId || session.loginUserId === actor.id || isAccountBoss(actor));
   // 接手后的当前归属不传给旧负责人。
   const { account: _account, ...safe } = session;
@@ -221,8 +221,8 @@ export async function readWorkHistory(tx: Prisma.TransactionClient, token: strin
 
 export async function readConfigAccounts(tx: Prisma.TransactionClient, token: string) {
   const actor = await requireReadAccountActor(tx, token);
-  const accounts = await tx.douyinAccount.findMany({ where: currentAccountScope(actor), include: { branch: true, workflow: { select: { version: true } } }, orderBy: { name: "asc" } });
-  return accounts.filter(a => canEditWorkflow(actor, a)).map(a => ({ id: a.id, name: a.name, douyinId: a.douyinId, branchName: a.branch.name, version: a.workflow?.version }));
+  const accounts = await tx.douyinAccount.findMany({ where: {AND:[currentAccountScope(actor),{kind:"INTERNAL"}]}, include: { branch: true, workflow: { select: { version: true } } }, orderBy: { name: "asc" } });
+  return accounts.filter(a => canEditWorkflow(actor, a)).map(a => ({ id: a.id, name: a.name, douyinId: a.douyinId, branchName: a.branch?.name ?? "外部账号", version: a.workflow?.version }));
 }
 
 export async function copyWorkflow(tx: Prisma.TransactionClient, token: string, raw: unknown, ip: string) {
@@ -231,6 +231,7 @@ export async function copyWorkflow(tx: Prisma.TransactionClient, token: string, 
   const actor = await requireAccountActor(tx, token);
   const accounts = await tx.douyinAccount.findMany({ where: { id: { in: [input.sourceId, ...input.targets.map(t => t.id)] } }, include: { branch: true, workflow: true } });
   if (accounts.length !== input.targets.length + 1 || accounts.some(a => !canEditWorkflow(actor, a))) throw new UserActionError("来源或目标账号不存在，或无配置权限");
+  if (accounts.some(a => a.kind !== "INTERNAL")) throw new UserActionError("外部账号不配置中控流程");
   const source = accounts.find(a => a.id === input.sourceId)!;
   if (!source.workflow || source.workflow.version !== input.sourceVersion) throw new UserActionError("来源配置已变化，请刷新后重新选择");
   const content = workflowSchema.parse(source.workflow.content);

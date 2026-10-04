@@ -153,6 +153,7 @@ model AuditLog {
 
 // 当前资料与历史分开存储；历史不保存实名人、手机号和登录凭证。
 model DouyinAccount {
+  kind String @default("INTERNAL")
   externalAnchorId String?
   externalAnchor ExternalAnchor? @relation(fields: [externalAnchorId], references: [id], onDelete: Restrict)
   directLeadTasks DirectLeadTask[]
@@ -172,8 +173,8 @@ model DouyinAccount {
   active       Boolean         @default(true)
   banned       Boolean         @default(false)
   unbanDate    String? // 预计解封日期 YYYY-MM-DD；未知为 null，不自动恢复
-  branchId     String
-  branch       Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  branchId     String?
+  branch       Branch?          @relation(fields: [branchId], references: [id], onDelete: Restrict)
   operatorId   String?
   operator     User?           @relation("AccountOperator", fields: [operatorId], references: [id], onDelete: Restrict)
   controllerId String?
@@ -203,8 +204,8 @@ model AccountRecord {
   id             String        @id @default(cuid())
   accountId      String
   account        DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  branchId       String
-  branch         Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  branchId       String?
+  branch         Branch?        @relation(fields: [branchId], references: [id], onDelete: Restrict)
   branchName     String
   douyinId       String
   name           String
@@ -631,6 +632,7 @@ model LeadTask {
 }
 
 model LeadBackend {
+  notes String @default("")
   id String @id @default(cuid())
   name String @unique
   url String
@@ -670,8 +672,8 @@ model ConfirmedLead {
 model ExternalAnchor {
   id String @id @default(cuid())
   name String
-  branchId String
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  branchId String?
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: Restrict)
   active Boolean @default(true)
   notes String @default("")
   version Int @default(1)
@@ -687,6 +689,7 @@ model ExternalAnchor {
 
 // 无中控执行记录的实际直播，由导粉专员直接建档并负责填报。
 model DirectLeadTask {
+  branchName String?
   id String @id @default(cuid())
   accountId String
   account DouyinAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)

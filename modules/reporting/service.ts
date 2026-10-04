@@ -45,7 +45,7 @@ export async function saveSessionLiveData(tx:Prisma.TransactionClient,token:stri
  if(complete){
   const missing=liveFields.filter(([k])=>values[k]==="");if(missing.length)throw new UserActionError(`请补齐：${missing.map(([,l])=>l).join("、")}`);
   const seconds=parseDuration(values.durationText)??0;if(!seconds||!s.startedAt||s.startedAt.getTime()+seconds*1000>Date.now())throw new UserActionError("请核对直播时长，结束时间不能晚于现在");
-  const source=s.sourceRecord;
+  const source=s.sourceRecord;if(!source.branchId)throw new UserActionError("场次历史分公司缺失，请联系老板核对");
   const fields={...Object.fromEntries(metricFields.map(([k])=>[k,Number(values[k])])) as Record<typeof metricFields[number][0],number>,durationSeconds:seconds,averageStayHundredths:Math.round(Number(values.averageStayMinutes)*100),femaleHundredths:audienceHundredths(values.femalePercent),age31To40Hundredths:audienceHundredths(values.age31To40Percent),updatedByName:actor.name};
   await tx.liveReport.upsert({where:{workSessionId:s.id},update:{...fields,version:{increment:1}},create:{...fields,workSessionId:s.id,accountId:s.accountId,sourceRecordId:s.sourceRecordId,branchId:source.branchId,branchName:source.branchName,accountName:source.name,douyinId:source.douyinId,controllerId:s.actualControllerId??s.controllerId,controllerName:s.actualControllerName??source.controllerName,operatorId:source.operatorId,anchorId:s.actualAnchorId??source.anchorId,anchorName:s.actualAnchorName??source.anchorName,startedAt:s.startedAt,sessionLabel:s.label,createdById:actor.id,createdByName:actor.name}});
  }

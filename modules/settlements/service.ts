@@ -16,7 +16,7 @@ export async function saveBackend(tx:Prisma.TransactionClient,token:string,raw:u
   const old=v.id ? await tx.leadBackend.findUnique({where:{id:v.id}}):null;
   if(v.id&&!old)throw new UserActionError("后端不存在");
   if(old&&(old.version!==v.version||!v.reason))throw new UserActionError(old.version!==v.version?"资料已被修改，请刷新核对":"请填写更正原因");
-  const data={name:v.name,url:old?.url??"",active:v.active};
+  const data={name:v.name,url:old?.url??"",active:v.active,notes:v.notes??old?.notes??""};
   const row=old?await tx.leadBackend.update({where:{id:old.id},data:{...data,version:{increment:1}}}):await tx.leadBackend.create({data});
   await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_UPDATE",targetType:"LeadBackend",targetId:row.id,ip,detail:{actorName:actor.name,reason:v.reason,before:json(old),after:json(row)}});return row.id;
 }

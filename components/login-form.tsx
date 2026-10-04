@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { loginAction, type LoginFormState } from "@/modules/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function LoginForm() {
+  const [username, setUsername] = useState("");
   const [state, formAction, pending] = useActionState<LoginFormState, FormData>(
     loginAction,
     undefined
@@ -23,7 +24,7 @@ export function LoginForm() {
         <form action={formAction} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="username">用户名</Label>
-            <Input id="username" name="username" autoComplete="username" />
+            <Input id="username" name="username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} />
             {state?.fieldErrors?.username && (
               <p className="text-sm text-destructive">{state.fieldErrors.username[0]}</p>
             )}

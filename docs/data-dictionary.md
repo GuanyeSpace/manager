@@ -706,3 +706,11 @@ WorkSession：liveDataRole String?（SQL检查，可空历史兼容）；liveDat
 
 ## D059（2026-10-04）
 LeadTask.actualLeadId：实际导粉员工ID，可空、User外键；actualLeadName：实际人员姓名快照，可空；releasedAt：认领撤销时间，可空。旧actualLeadId为空时统计沿用userId；撤销时不显示原实际人员。
+
+## D061 字段变更（2026-10-04，以上旧快照以此为准）
+| 模型 | 字段 | 类型及用途 |
+| --- | --- | --- |
+| LeadBackend | notes | String，默认空字符串，说明/备注 |
+| DouyinAccount | kind | String，默认INTERNAL，外部为EXTERNAL；SQL限制取值与对应必需关联 |
+| DouyinAccount、AccountRecord、ExternalAnchor | branchId / branch | String? / Branch?，旧归属保留，新外部资料为空 |
+| DirectLeadTask | branchName | String?，新任务创建员工的分公司名称快照；旧任务为空沿用sourceRecord快照 |

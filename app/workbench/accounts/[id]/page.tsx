@@ -24,8 +24,8 @@ export default async function AccountWorkspace({ params, searchParams }: { param
   if (current) redirect(await previewHref(`/workbench/accounts/${id}?sessionId=${current.id}`));
   const workflow = a.workflow ? workflowSchema.parse(a.workflow.content) : { ...defaultWorkflow, before: [], live: [], after: [] };
   const { shift } = await getShift();
-  const ready = !!shift && !!a.controllerId && executable && !a.banned && a.active && a.branch.status === "ACTIVE" && a.workflow;
-  return <><header className="space-y-2"><div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold">{a.name} · 直播流程</h1><span className="rounded-full bg-muted px-3 py-1 text-sm">待开始准备</span></div><p className="text-sm text-muted-foreground">{a.branch.name} · 主播 {a.anchor?.name ?? "未绑定"} · 运营 {a.operator?.name ?? "无"} · 直播中控 {a.controller?.name ?? "无"}</p></header>
+  const ready = !!shift && !!a.controllerId && executable && !a.banned && a.active && a.branch?.status === "ACTIVE" && a.workflow;
+  return <><header className="space-y-2"><div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold">{a.name} · 直播流程</h1><span className="rounded-full bg-muted px-3 py-1 text-sm">待开始准备</span></div><p className="text-sm text-muted-foreground">{a.branch?.name ?? "外部账号"} · 主播 {a.anchor?.name ?? "未绑定"} · 运营 {a.operator?.name ?? "无"} · 直播中控 {a.controller?.name ?? "无"}</p></header>
     {a.banned && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{accountStatusLabel(a)}。确认解封后由管理人员恢复启用。</p>}
     {wrapping.length > 0 && <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5"><h2 className="font-semibold">此账号还有 {wrapping.length} 场待收尾</h2><p className="text-sm">继续完成下播检查和违规记录；如需开下一场，可在下方开始准备。</p>{wrapping.map(s => <Link key={s.id} href={`/workbench/accounts/${id}?sessionId=${s.id}`} className="block text-sm underline">{s.label} · {s.endedAt?.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })} · 继续收尾 →</Link>)}</section>}
 

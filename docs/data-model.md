@@ -164,7 +164,7 @@ LeadTask.data新增durationText、femalePercent、age31To40Percent字符串；�
 
 - WorkSession.actualAnchorId（可空User外键，Restrict）/actualAnchorName：本场实际主播及姓名快照。旧记录保留NULL，显示回退AccountRecord历史主播，不迁移猜测。
 - LiveReport新增anchorName、leadUserId、leadUserName三个可空历史补正字段；原anchorId/controllerId不删除。有场次实际人员及LeadTask时优先读取关联事实；无对应关联时使用原报表人员和新补正快照。查询采用当前已更正场次开播时间，原报表startedAt/指标保持不改；旧报表表单使用originalStartedAt维护原记录。
-- LeadBackend：id、唯一name、url、active、version、createdAt/updatedAt。仅老板操作；关联后可停用不可物理删。
+- LeadBackend：id、唯一name、notes（D061备注）、url、active、version、createdAt/updatedAt。仅老板操作；关联后可停用不可物理删。
 - ConfirmedLead：day（YYYY-MM-DD北京时间业务日）、anchorId(User FK)/anchorName、backendId(FK)/backendName/backendUrl、joinCount/effectiveCount、backendUnitCents/anchorUnitCents（整数分）、version、deletedAt及创建更新时间。day+anchorId+backendId唯一，anchorId+day索引；数据库检查非负及有效≤加人。
 - 总价/提成不另存易过期副本，按有效数量×整数分以BigInt运算，再输出两位小数字符串；单价最多7位整数元、数量上限20亿。
 - 新增20261002030000_confirmed_leads、20261002031000_legacy_report_people迁移，原20张表全部原列保持不变；新增两模型后共22模型，不更新旧指标。
@@ -176,7 +176,7 @@ D053（2026-10-02）：后端url及确定数据backendUrl保留为历史兼容�
 LiveReport新增isLeadGeneration Boolean?；true导粉、false不导粉、null历史未标记。迁移20261002080000_report_lead_mode仅添加可空列，不回填；共27迁移、22模型。LeadTask.data新增leadMode字符串：yes/no/空串，旧JSON缺键等同空；提交完成事务内同步报表。旧人数列/JSON/扩展字段保留，未导粉新报表的打粉人数为空。
 
 ## D055 兼容扩展（2026-10-02）
-新增ExternalAnchor与DirectLeadTask，模型数24。ExternalAnchor关联分公司，无用户会话；版本与启用状态保护维护。DirectLeadTask独立保存账号/AccountRecord/分公司/外部主播ID及姓名快照、负责人ID及姓名、开播时间、场次标签、草稿JSON、完成/删除时间、版本；提交与LiveReport更新同事务。
+新增ExternalAnchor与DirectLeadTask，模型数24。ExternalAnchor原分公司关联在D061变为可空，旧值保留，无用户会话；版本与启用状态保护维护。DirectLeadTask独立保存账号/AccountRecord/分公司/外部主播ID及姓名快照、负责人ID及姓名、开播时间、场次标签、草稿JSON、完成/删除时间、版本；提交与LiveReport更新同事务。
 DouyinAccount、AccountRecord、LiveReport、ConfirmedLead新增可空externalAnchorId；AccountRecord新增externalAnchorName快照，LiveReport复用anchorName；LiveReport新增唯一可空directTaskId，不能同时关联WorkSession。ConfirmedLead.anchorId改为可空，约束内部/外部恰好一种，增加日期+外部主播+后端唯一索引，原内部唯一索引保持。旧列/指标/快照不回填；旧关联不清空。
 迁移20261002110000_external_direct_leads为第28个迁移；独立空临时库从旧结构升级，22张旧表原列摘要一致，含旧结算金额及后端链接，两张新表为空。正式尚未迁移。
 
@@ -190,3 +190,6 @@ D056第29次迁移已发布，25个业务模型；24张原表原列摘要一致�
 
 ## D059（2026-10-04）
 LeadTask新增可空actualLeadId（User外键）、actualLeadName（姓名快照）、releasedAt。userId仍为权限所属认领账号。releasedAt非空表示无有效认领，不属于回收站；重新认领清空当前data并保存完整前态审计、更新人员、递增version。无旧行回填。
+
+## D061 共享外部资料
+迁移20261004000000_external_shared_directory新增LeadBackend.notes（空字符串）、DouyinAccount.kind（INTERNAL/EXTERNAL，明确externalAnchorId记录归为EXTERNAL）、DirectLeadTask.branchName可空快照。DouyinAccount/AccountRecord/ExternalAnchor.branchId及关系改为可空，新外部资料不绑定分公司；SQL约束内部账号必须有分公司、外部账号必须有关联主播。旧分公司、原列与历史任务JSON不改写。新直接任务保存创建者分公司及名称，生成报表从任务取归属；旧任务branchName为空时沿用原sourceRecord.branchName。确定数据金额及主播ID不变。

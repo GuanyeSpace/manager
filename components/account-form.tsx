@@ -16,9 +16,9 @@ const fields = [
   ["realName", "实名人（选填）", 100], ["purpose", "用途（选填）", 200],
 ] as const;
 
-export function AccountForm({ initial, branches, people, rooms, numbers, externalAnchors = [] }: {
+export function AccountForm({ initial, branches, people, rooms, numbers }: {
   initial?: AccountInput;
-  externalAnchors?: {id:string;name:string;branchId:string;active:boolean}[];
+  externalAnchors?: {id:string;name:string;branchId:string|null;active:boolean}[];
   rooms: { id: string; name: string; branchId: string }[];
   numbers: { id: string; number: string; branchId: string; account: { id: string } | null }[];
   branches: { id: string; name: string }[];
@@ -76,7 +76,6 @@ export function AccountForm({ initial, branches, people, rooms, numbers, externa
           {errors[key]?.[0] && <p className="text-sm text-destructive">{errors[key]?.[0]}</p>}
         </div>)}
       </div>
-      <label className="space-y-2 text-sm" key={`external-${branchId}`}>外部主播（与员工主播二选一）<select name="externalAnchorId" className={selectClass} defaultValue={branchId === initial?.branchId ? initial.externalAnchorId ?? "" : ""}><option value="">无</option>{externalAnchors.filter(a=>a.branchId===branchId&&(a.active||a.id===initial?.externalAnchorId)).map(a=><option key={a.id} value={a.id}>{a.name}（外部{a.active?"":" / 已停用"}）</option>)}</select></label>
       <p className="text-xs text-muted-foreground">每项职责限一人；老板可兼任。人员交接会保留此前的归属记录。</p>
       <div className="flex flex-col gap-2">
         <Label htmlFor="notes">备注（选填）</Label>

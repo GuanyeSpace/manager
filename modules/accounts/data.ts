@@ -12,7 +12,7 @@ export type AccountListFilters = { controllerId?: string; anchorId?: string; sta
 export async function readAccountList(tx: Prisma.TransactionClient, token: string, q = "", filters: AccountListFilters = {}) {
   const actor = await requireReadAccountActor(tx, token);
   const accounts = await tx.douyinAccount.findMany({
-    where: currentAccountScope(actor),
+    where: { AND: [currentAccountScope(actor), {kind:"INTERNAL"}] },
     select: {
       id: true, name: true, douyinId: true, realName: true, active: true, banned: true, unbanDate: true, phone: true,
       phoneNumber: { select: { id: true, number: true } }, room: { select: { id: true, name: true } },
@@ -64,7 +64,7 @@ export async function readAccountDetail(tx: Prisma.TransactionClient, token: str
     include: { branch: true, phoneNumber: { select: { id: true, number: true } }, room: { select: { id: true, name: true } }, operator: { select: { name: true } }, controller: { select: { name: true } }, anchor: { select: { name: true } }, externalAnchor: { select: { name: true } } },
   });
   const history = await readAccountHistory(tx, token, id);
-  const canEdit = !!account && account.branch.status === "ACTIVE" && canManageAccountBranch(actor, account.branch);
+  const canEdit = !!account && account.kind === "INTERNAL" && account.branch?.status === "ACTIVE" && canManageAccountBranch(actor, account.branch);
   const options = canEdit ? await readAccountOptions(tx, token) : null;
   const phones = account ? await tx.assetDevice.findMany({ where: { AND: [deviceScope(actor), { phoneLogins: { some: { accountId: id } } }] }, select: { id: true, code: true } }) : [];
   const visibleNumber = !account?.phoneNumber || !!await tx.phoneNumber.findFirst({ where: { AND: [numberScope(actor), { id: account.phoneNumber.id }] }, select: { id: true } });

@@ -66,7 +66,7 @@ export async function runLeadCommand(tx: Prisma.TransactionClient, token: string
   if (input.command === "claim") {
     if (!isLeadSpecialist(actor)) throw new UserActionError("仅导粉专员可以认领场次");
     const session = await tx.workSession.findFirst({ where: { ...eligible, id: input.id, sourceRecord: { ...(isAccountBoss(actor) ? {} : { branchId: actor.branchId ?? "" }), branch: { status: "ACTIVE" } } }, include: { leadTask: true, report: true, sourceRecord: true } });
-    if (!session) throw new UserActionError("场次不存在或尚未实际开播，不能认领");
+    if (!session || !session.sourceRecord.branchId) throw new UserActionError("场次不存在或尚未实际开播，不能认领");
     if (session.leadTask && (!session.leadTask.releasedAt || session.leadTask.deletedAt)) throw new UserActionError(`本场已由${session.leadTask.userName}认领，请刷新列表`);
     if (session.report && (session.liveDataRole !== "CONTROLLER" || session.report.deletedAt)) throw new UserActionError("本场已有历史数据，请联系负责人维护");
     const person = await tx.user.findFirst({where:{id:input.actualLeadId || actor.id,branchId:session.sourceRecord.branchId,employmentStatus:"ACTIVE"}});

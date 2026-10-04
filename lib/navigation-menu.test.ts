@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MENU_GROUPS, MENU_ITEMS, TOP_ITEM, currentLocation, isMenuActive } from "./navigation-menu";
 
-// 任务确认的 20 个入口（置顶 1 项 + 5 组 19 项），配置入口按 D060 分组。
+// 任务确认的 21 个入口（置顶 1 项 + 5 组 20 项），配置入口按 D060 分组。
 const expectedEntries: [string, string][] = [
   ["/boss", "工作台"],
   ["/accounts", "抖音账号"],
@@ -21,7 +21,8 @@ const expectedEntries: [string, string][] = [
   ["/resources/equipment", "电脑与设备"],
   ["/resources/materials", "办公物资"],
   ["/boss/users", "员工"],
-  ["/resources/anchors", "主播"],
+  ["/resources/anchors", "内部主播"],
+  ["/resources/external-anchors", "外部主播"],
   ["/boss/branches", "分公司"],
   ["/account-config", "账号流程与话术"],
   ["/boss/reporting", "直播数据填写设置"],
@@ -37,11 +38,11 @@ function activeHrefs(pathname: string, view: string | null): string[] {
   return MENU_ITEMS.filter(item => isMenuActive(item.href, pathname, view)).map(item => item.href);
 }
 
-test("菜单就是确认的 20 个入口，展示名与路由没有漂移", () => {
-  assert.equal(MENU_ITEMS.length, 20);
+test("菜单就是确认的 21 个入口，展示名与路由没有漂移", () => {
+  assert.equal(MENU_ITEMS.length, 21);
   assert.deepEqual(MENU_ITEMS.map(item => [item.href, item.label]), expectedEntries);
   assert.deepEqual(MENU_GROUPS.map(group => group.title), ["直播业务", "数据统计", "设备与物资", "组织人员", "配置管理"]);
-  assert.deepEqual(MENU_GROUPS.map(group => group.items.length), [4, 5, 4, 3, 3]);
+  assert.deepEqual(MENU_GROUPS.map(group => group.items.length), [4, 5, 4, 4, 3]);
   assert.equal(TOP_ITEM.href, "/boss");
 });
 

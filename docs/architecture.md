@@ -164,7 +164,7 @@ modules/live-reports/input-metrics.ts集中中文时长解析、画像单位转�
 D054：导粉表单状态用LeadTask.data.leadMode保存，提交事务同步LiveReport.isLeadGeneration；列表状态筛选/全量合计由live-reports/data统一处理，对比由settlements/comparison排除不导粉报告和草稿。旧独立报表沿monetization服务更正；状态变更沿用锁、版本和审计，无新增岗位权限。
 
 ## D055 新入口与授权（2026-10-02）
-- /resources/external-anchors与modules/external-anchors：分公司隔离的外部主播维护；账号表单二选一关联；无独立员工登录。
+- /resources/external-anchors与modules/external-anchors：D061仅老板维护、全公司导粉选择的外部主播与多账号；公司账号表单不再新增外部关联；无独立员工登录。
 - /leads/direct/new、/leads/direct/[id]与modules/direct-leads：独立任务建档/维护；复用LeadDataForm和指标校验；导粉列表合并分页；LiveReport用directTaskId唯一关联。
 - lib/anchor-identity.ts区分内部/外部ID；reportPeople、报表筛选、确定数据和comparison同一标识；直接记录不依赖中控WorkSession。
 - /boss/preview/[role]选择员工；/boss/preview/{role}/{employee}/view/{原路径}在proxy内部重写到原员工页。proxy拒绝未签名外来预览头，仅从专属路径生成签名上下文；内部重写再次经过proxy时只保留签名有效且路径匹配的上下文；真实老板会话不变。read-actor对每个读事务重新确认老板及目标员工，再应用原员工scope；普通写鉴权拒绝readonly-preview凭据，预览POST在proxy额外拒绝，截图落盘前再次写鉴权。
@@ -184,3 +184,6 @@ WorkLiveClock使用中央Dialog；页面打开时定时和focus/visibility重新
 
 ## D060 配置导航（2026-10-04）
 `lib/navigation-menu.ts`统一五组20入口，底部配置管理含/account-config、/boss/reporting、/settlements/backends；settlements匹配排除comparison和backends子树。`management-shell-chrome`共用桌面/抽屠菜单，过滤老板专属设置及后端入口；原路由、服务端鉴权和数据库结构不变。
+
+## D061 资料列表与共享目录
+外部账号继续复用DouyinAccount及AccountRecord，不新建重复账号实体。外部资料保存由modules/external-anchors事务统一维护多账号、版本、历史与审计；导粉新建任务从登录员工分公司保存归属，不从共享资料取归属。列表与新建执行/配置服务排除外部账号，历史读取保留。登录仅用户名受控状态，密码仍由表单重置清空。组织菜单21入口（内部/外部主播独立），外部入口仅老板。

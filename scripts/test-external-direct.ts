@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import {validateTestEnv,resolveTestClient,assertTestDatabase,newRunId,cleanupRun} from "./lib/test-db";
 import {saveAccount} from "../modules/accounts/service";
-import {saveExternalAnchor} from "../modules/external-anchors/service";
-import {createDirectTask,readDirectTask,runDirectCommand,assertNoDirectDuplicate} from "../modules/direct-leads/service";
+import {saveExternalAnchor,readExternalAnchors} from "../modules/external-anchors/service";
+import {createDirectTask,readDirectOptions,readDirectTask,runDirectCommand,assertNoDirectDuplicate} from "../modules/direct-leads/service";
 import {readLeadList,runLeadCommand} from "../modules/leads/service";
 import {readLiveReports} from "../modules/live-reports/data";
 import {readResourceList} from "../modules/resources/data";
@@ -15,32 +15,36 @@ import {previewReadToken,requireReadAccountActor} from "../lib/auth/read-actor";
 import {submitWorkCommand} from "../modules/workbench/screenshots";
 import {runShiftCommand} from "../modules/workbench/shifts";
 async function main(){
- const {dbName}=validateTestEnv(),db=resolveTestClient(),marker=newRunId();let verified=false;
+ const {dbName}=validateTestEnv(),db=resolveTestClient(),marker=newRunId();let verified=false,externalId="";
  try{
   await assertTestDatabase(db,dbName);verified=true;
   const b=await db.branch.create({data:{name:marker+"-a"}}),other=await db.branch.create({data:{name:marker+"-b"}});
   async function user(label:string,role:"BOSS"|"LEAD_SPECIALIST"|"CONTROLLER"|"ANCHOR"|"OPERATOR",branchId:string|null){const u=await db.user.create({data:{username:marker+label,name:label==="anchor"?"同名主播":label,role,branchId,passwordHash:"not-a-real-hash",mustChangePassword:false}});const token=marker+label;await db.session.create({data:{id:token,userId:u.id,expiresAt:new Date(Date.now()+3600000)}});return {...u,token};}
   const boss=await user("boss","BOSS",null),lead=await user("lead","LEAD_SPECIALIST",b.id),second=await user("second","LEAD_SPECIALIST",b.id),outsider=await user("outsider","LEAD_SPECIALIST",other.id),controller=await user("controller","CONTROLLER",b.id),anchor=await user("anchor","ANCHOR",b.id),operator=await user("operator","OPERATOR",b.id);
-  const ext=await db.$transaction(tx=>saveExternalAnchor(tx,boss.token,{name:"同名主播",branchId:b.id,active:"true",version:0},"test"));
-  await assert.rejects(db.$transaction(tx=>saveExternalAnchor(tx,lead.token,{name:"禁止",branchId:b.id,active:"true",version:0},"test")),/无权/);
-  const input={id:"",version:0,douyinId:marker,name:"外部账号",homepageUrl:"",realName:"",phone:"",purpose:"",notes:"",branchId:b.id,operatorId:operator.id,controllerId:"",anchorId:"",externalAnchorId:ext,active:"true" as const};
-  const account=await db.$transaction(tx=>saveAccount(tx,boss.token,input,"test"));
-  await assert.rejects(db.$transaction(tx=>saveAccount(tx,boss.token,{...input,douyinId:marker+"bad",anchorId:anchor.id},"test")),/只能选择一种/);
+  const ext=await db.$transaction(tx=>saveExternalAnchor(tx,boss.token,{name:"同名主播",version:0,accounts:[{id:"",version:0,name:"外部账号",douyinId:marker,active:true}]},"test"));externalId=ext;
+  await assert.rejects(db.$transaction(tx=>saveExternalAnchor(tx,lead.token,{name:"禁止",version:0},"test")),/仅老板/);
+  await assert.rejects(db.$transaction(tx=>readExternalAnchors(tx,lead.token)),/仅老板/);
+  const accountRow=await db.douyinAccount.findUniqueOrThrow({where:{douyinId:marker}}),account=accountRow.id;
+  assert.equal(accountRow.branchId,null);assert.equal(accountRow.kind,"EXTERNAL");
+  await assert.rejects(db.$transaction(tx=>saveAccount(tx,boss.token,{id:"",version:0,douyinId:marker+"bad",name:"非法",homepageUrl:"",realName:"",phone:"",purpose:"",notes:"",branchId:b.id,operatorId:"",controllerId:"",anchorId:"",externalAnchorId:ext,active:"true"},"test")),/外部账号/);
+  assert((await db.$transaction(tx=>readDirectOptions(tx,outsider.token))).accounts.some(a=>a.id===account));
   const source=await db.accountRecord.findFirstOrThrow({where:{accountId:account,endedAt:null}});
   const startedAt=new Date(Date.now()-86400000*2);startedAt.setSeconds(0,0);
   await db.accountRecord.update({where:{id:source.id},data:{startedAt:new Date(startedAt.getTime()-86400000)}});
   const create={accountId:account,externalAnchorId:ext,startedAt:shanghaiInput(startedAt),label:"外部场次"};
-  await assert.rejects(db.$transaction(tx=>createDirectTask(tx,outsider.token,create,"test")),/本分公司/);
+  const otherTask=await db.$transaction(tx=>createDirectTask(tx,outsider.token,{...create,startedAt:shanghaiInput(new Date(startedAt.getTime()+7200000))},"test"));
+  assert.equal((await db.directLeadTask.findUniqueOrThrow({where:{id:otherTask}})).branchId,other.id);
+  assert.equal(await db.$transaction(tx=>readDirectTask(tx,lead.token,otherTask)),null);
   const race=await Promise.allSettled([lead,second].map(u=>db.$transaction(tx=>createDirectTask(tx,u.token,create,"test"))));assert.equal(race.filter(r=>r.status==="fulfilled").length,1);
   const id=(race.find(r=>r.status==="fulfilled") as PromiseFulfilledResult<string>).value,task=await db.directLeadTask.findUniqueOrThrow({where:{id}}),owner=task.userId===lead.id?lead:second,notOwner=owner.id===lead.id?second:lead;
   assert.equal(await db.workSession.count({where:{accountId:account}}),0);assert.equal(await db.workShift.count({where:{userId:owner.id}}),0);
-  assert.equal(await db.$transaction(tx=>readDirectTask(tx,notOwner.token,id)),null);assert.equal(await db.$transaction(tx=>readDirectTask(tx,outsider.token,id)),null);assert.equal((await db.$transaction(tx=>readDirectTask(tx,operator.token,id)))?.editable,false);
+  assert.equal(await db.$transaction(tx=>readDirectTask(tx,notOwner.token,id)),null);assert.equal(await db.$transaction(tx=>readDirectTask(tx,outsider.token,id)),null);assert.equal(await db.$transaction(tx=>readDirectTask(tx,operator.token,id)),null);
   await assert.rejects(db.$transaction(tx=>assertNoDirectDuplicate(tx,account,startedAt)),/已有直接填报/);
   const values=leadValues(Object.fromEntries(activeLeadFields.map(([key])=>[key,"0"])));Object.assign(values,{durationText:"1小时",leadMode:"yes",exposureCount:"100",entryCount:"20",peakOnline:"10",averageOnline:"5",fanGroupCount:"10",linkClickCount:"8",backendJoinCount:"5",effectiveCount:"4",femalePercent:"65.32%",age31To40Percent:"30"});
   await db.$transaction(tx=>runDirectCommand(tx,owner.token,{id,version:1,command:"save",data:values},"test"));
   await assert.rejects(db.$transaction(tx=>runDirectCommand(tx,owner.token,{id,version:1,command:"complete",data:values},"test")),/已被修改/);
   await db.$transaction(tx=>runDirectCommand(tx,owner.token,{id,version:2,command:"complete",data:values},"test"));
-  const report=await db.liveReport.findUniqueOrThrow({where:{directTaskId:id}});assert.equal(report.controllerId,null);assert.equal(report.workSessionId,null);assert.equal(report.anchorId,null);assert.equal(report.externalAnchorId,ext);assert.equal(report.backendJoinCount,5);
+  const report=await db.liveReport.findUniqueOrThrow({where:{directTaskId:id}});assert.equal(report.controllerId,null);assert.equal(report.workSessionId,null);assert.equal(report.anchorId,null);assert.equal(report.externalAnchorId,ext);assert.equal(report.backendJoinCount,5);assert.equal(report.branchId,b.id);assert.equal(report.branchName,b.name);
   const list=await db.$transaction(tx=>readLeadList(tx,owner.token,"completed"));assert(list.tasks.some(t=>t.id===id&&t.direct));
   const reports=await db.$transaction(tx=>readLiveReports(tx,owner.token,{page:1,source:"direct",anchorId:`external:${ext}`,view:"monetization"}));assert.equal(reports.count,1);assert.equal(reports.summary.joins,5);assert.equal(reports.reports[0].controllerName,"未安排");
   assert.equal((await db.$transaction(tx=>readLiveReports(tx,notOwner.token,{page:1,accountId:account}))).count,0);
@@ -59,9 +63,10 @@ async function main(){
   await db.$transaction(tx=>saveConfirmed(tx,boss.token,{...settlement,anchorId:anchor.id,joinCount:"10",effectiveCount:"8"},"test"));
   const comparison=await db.$transaction(tx=>readComparison(tx,boss.token,{from:settlement.day,to:settlement.day,anchorId:`external:${ext}`}));assert.equal(comparison.count,1);assert.equal(comparison.rows[0].reportJoins,5);assert.equal(comparison.rows[0].confirmedJoins,5);
   const income=await db.$transaction(tx=>readAnchorIncome(tx,anchor.token,{from:settlement.day,to:settlement.day}));assert.equal(income.totals.joins,10);assert.equal(income.totals.income,"9.60");
-  await db.$transaction(tx=>saveExternalAnchor(tx,boss.token,{id:ext,name:"改名主播",branchId:b.id,active:"false",version:1},"test"));
+  await db.$transaction(tx=>saveExternalAnchor(tx,boss.token,{id:ext,name:"改名主播",version:1,accounts:[{id:account,version:accountRow.version,name:accountRow.name,douyinId:marker,active:true}]},"test"));
+  await db.$transaction(tx=>saveExternalAnchor(tx,boss.token,{id:ext,command:"toggle",version:2},"test"));
   assert.equal((await db.accountRecord.findUniqueOrThrow({where:{id:source.id}})).externalAnchorName,"同名主播");assert.equal((await db.liveReport.findUniqueOrThrow({where:{id:report.id}})).anchorName,"同名主播");
-  await assert.rejects(db.$transaction(tx=>createDirectTask(tx,owner.token,{...create,startedAt:shanghaiInput(new Date(+startedAt+60000))},"test")),/本分公司/);
+  await assert.rejects(db.$transaction(tx=>createDirectTask(tx,owner.token,{...create,startedAt:shanghaiInput(new Date(+startedAt+60000))},"test")),/启用的外部主播/);
   await assert.rejects(db.$transaction(async tx=>{await runDirectCommand(tx,owner.token,{id,version:7,command:"save",reason:"回滚验证",data:{...values,entryCount:"201"}},"test");throw new Error("forced rollback");}),/forced rollback/);
   assert.equal((await db.directLeadTask.findUniqueOrThrow({where:{id}})).version,7);
   assert.equal((await db.liveReport.findUniqueOrThrow({where:{id:report.id}})).entryCount,20);
@@ -80,7 +85,7 @@ async function main(){
   assert((await db.auditLog.count({where:{targetType:"DirectLeadTask",targetId:id}}))>=7);
   console.log("PASS: 外部资料与历史快照、分公司/本人权限、直接填报并发去重/草稿/提交/更正/删除恢复、无虚假场次、同名统计隔离、主播收入、只读预览权限与写拒绝");
  }finally{
-  if(verified){const accounts=await db.douyinAccount.findMany({where:{douyinId:{startsWith:marker}},select:{id:true}}),ids=accounts.map(a=>a.id);await db.liveReport.deleteMany({where:{accountId:{in:ids}}});await db.directLeadTask.deleteMany({where:{accountId:{in:ids}}});await db.accountRecord.deleteMany({where:{accountId:{in:ids}}});await db.douyinAccount.deleteMany({where:{id:{in:ids}}});await db.confirmedLead.deleteMany({where:{backend:{name:{startsWith:marker}}}});await db.leadBackend.deleteMany({where:{name:{startsWith:marker}}});await db.externalAnchor.deleteMany({where:{branch:{name:{startsWith:marker}}}});await cleanupRun(db,marker);}await db.$disconnect();
+  if(verified){const accounts=await db.douyinAccount.findMany({where:{douyinId:{startsWith:marker}},select:{id:true}}),ids=accounts.map(a=>a.id);await db.liveReport.deleteMany({where:{accountId:{in:ids}}});await db.directLeadTask.deleteMany({where:{accountId:{in:ids}}});await db.accountRecord.deleteMany({where:{accountId:{in:ids}}});await db.douyinAccount.deleteMany({where:{id:{in:ids}}});await db.confirmedLead.deleteMany({where:{backend:{name:{startsWith:marker}}}});await db.leadBackend.deleteMany({where:{name:{startsWith:marker}}});if(externalId)await db.externalAnchor.deleteMany({where:{id:externalId}});await cleanupRun(db,marker);}await db.$disconnect();
  }
 }
 main().then(()=>console.log("ALL PASS (including cleanup)")).catch(e=>{console.error(e);process.exitCode=1;});

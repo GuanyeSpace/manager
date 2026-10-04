@@ -77,7 +77,7 @@ function MenuList({ pathname, view, collapsed, onToggle, onNavigate, idPrefix, b
               <ChevronDown aria-hidden className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
             </button>
             <div id={panelId} hidden={!open} className="mt-1 space-y-0.5">
-                {group.items.filter(item => !["/boss/reporting", "/settlements/backends"].includes(item.href) || boss).map(item => (
+                {group.items.filter(item => !["/boss/reporting", "/settlements/backends", "/resources/external-anchors"].includes(item.href) || boss).map(item => (
                   <MenuRow key={item.href} item={item} active={isMenuActive(item.href, pathname, view)} onNavigate={onNavigate} />
                 ))}
               </div>

@@ -20,9 +20,9 @@ export function canUseAccounts(actor: AccountActor): boolean {
 
 export function canManageAccountBranch(
   actor: AccountActor,
-  branch: { id: string; managerId: string | null }
+  branch: { id: string; managerId: string | null } | null
 ): boolean {
-  return canUseAccounts(actor) && !isExecutionController(actor) && (isAccountBoss(actor) ||
+  return !!branch && canUseAccounts(actor) && !isExecutionController(actor) && (isAccountBoss(actor) ||
     (actor.branchId === branch.id && branch.managerId === actor.id));
 }
 

@@ -58,7 +58,7 @@ export async function correctSession(tx: Prisma.TransactionClient, token: string
   await acquireUserMutationLock(tx);
   const actor = await requireAccountActor(tx, token);
   const s = await tx.workSession.findUnique({ where: { id: input.id }, include: { account: true, sourceRecord: true, shift: true } });
-  if (!s || s.deletedAt || !canExecute(actor, s.account, s.controllerId) || (s.loginUserId && s.loginUserId !== actor.id && !isAccountBoss(actor))) throw new UserActionError("场次不存在或无更正权限");
+  if (!s || !s.sourceRecord.branchId || s.deletedAt || !canExecute(actor, s.account, s.controllerId) || (s.loginUserId && s.loginUserId !== actor.id && !isAccountBoss(actor))) throw new UserActionError("场次不存在或无更正权限");
   if (input.kind !== "anchor" && !["COMPLETE", "CANCELLED"].includes(s.phase)) throw new UserActionError("请先完成本场收尾或未开播归档，再更正记录");
   if (s.version !== input.version) throw new UserActionError("本场记录已更新，请刷新后核对再更正");
   if (screenshots.length && !["violation", "wrap", "evidence", "unstarted"].includes(input.kind)) throw new UserActionError("此更正不需要上传截图");

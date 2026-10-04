@@ -30,7 +30,7 @@ export async function supplementSession(tx: Prisma.TransactionClient, token: str
   const account = await tx.douyinAccount.findUnique({ where: { id: input.accountId } });
   const source = await tx.accountRecord.findFirst({ where: { id: input.sourceRecordId, accountId: input.accountId } });
   const person = await tx.user.findUnique({ where: { id: input.actualControllerId } });
-  if (!account || !source || !person) throw new UserActionError("请选择有效账号、历史归属及员工");
+  if (!account || !source || !source.branchId || !person) throw new UserActionError("请选择有效账号、历史归属及员工");
   const time = shanghaiDate(input.time), end = input.kind === "complete" ? shanghaiDate(input.endedAt) : null;
   if (!time || time.getTime() > Date.now() || input.kind === "complete" && (!end || end.getTime() > Date.now())) throw new UserActionError("请填写不晚于现在的北京时间");
   const matching = await tx.accountRecord.findMany({ where: { accountId: account.id, startedAt: { lte: time }, OR: [{ endedAt: null }, { endedAt: { gt: time } }] }, select: { id: true } });
