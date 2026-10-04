@@ -79,3 +79,5 @@
 - [2026-10-03全链路梳理（进行中）](system-review-20261003.md)：业务地图、复现问题、分批确认与未验证边界。
 
 - [D059收尾与导粉认领验收](tasks/lead-claim-wrap-verification.md)：实际导粉人员、未完成撤销、截图复用与数据页收尾。
+
+- [D061后端、登录与共享外部主播验收](tasks/shared-directories-verification.md)：列表精简、登录输入保留、多账号关联、跨分公司填报隔离、迁移及浏览器证据。

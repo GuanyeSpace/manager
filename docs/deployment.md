@@ -430,3 +430,10 @@ D059最终交接：功能源码74e2d230f5b796c831f92444c9c4715d0eb1f839已同步
 本地菜单7/7、类型/lint/构建及桌面/窄屏22项通过，详见[tasks/config-navigation-verification.md](tasks/config-navigation-verification.md)。隔离test-%员工0，3103/9334停止，测试会话JSON与profile删除；未在生产建立测试业务。正在审查提交并推送。
 
 D060交接完成：功能提交5b8446005f5d88810236425a3bad2b6eb181c8f8已推送origin/main，远程SHA一致。实现、验证、备份发布和Git同步完成；仅保留用户排除的.claude/launch.json删除，无本轮运行中的临时服务。后续交接文档提交不改变生产程序。
+
+## D061 发布完成（2026-10-04 13:39 北京时间）
+功能源码fddc7912f1862f3c9160b0b83e00a4ccc95582f6已推送origin/main，远程一致；270部署文件SHA逐一核对。新增20261004000000_external_shared_directory，累计31迁移，无待执行；25表原列全部摘要一致。
+备份/var/backups/manager/manager-20261004T053922Z.dump及同名.screenshots.tar.gz：pg_restore目录和截图tar可读，未做完整恢复演练。摘要/opt/manager/data-before-d061-20261004.json，旧程序/opt/manager/standalone-before-d061-20261004，旧源码source-before-d061-20261004.tar.gz。
+暂停写入后保存external-before-d061-20261004.jsonl分类清单，本次旧外部账号0条、内外主播绑定冲突0；没有清空旧字段。截图应用用户读写探针通过。独立stage build-d061-20261004受限构建5分25.715秒、峰值905.5MiB，退出0及marker后切换；停服务13:39:22，13:39:30应用就绪。
+manager/nginx/docker和备份/续期timer active，standalone无.env，HTTPS登录200、内部主播/外部主播/后端/直接填报入口未登录307。定时器active不代表本次续期成功；正式库无测试员工/业务写入，已登录交互在隔离环境验收。
+验证详见[tasks/shared-directories-verification.md](tasks/shared-directories-verification.md)：菜单7/7、浏览器23项、迁移/专项/七项回归/类型/lint/构建通过。临时3103/9334停止，会话文件/profile删除，test-%员工剩余0；日常开发库未迁移。后续纯交接文档提交不改变生产源码。
