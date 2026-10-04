@@ -5,11 +5,11 @@ import { shanghaiInput } from "@/modules/live-reports/schema";
 import { formatDateTime } from "@/lib/datetime";
 import { shiftCommandAction, saveShiftCheckAction } from "@/modules/workbench/actions";
 
-import { completedCheckCount, SHIFT_MINIMUM_MS, equipmentLabels, equipmentTargets, type EquipmentChecks } from "@/modules/workbench/schema";
+import { isShiftExpired, completedCheckCount, SHIFT_MINIMUM_MS, equipmentLabels, equipmentTargets, type EquipmentChecks } from "@/modules/workbench/schema";
 
 type Check = { status: "normal" | "issue"; note: string; at: string; actor: string };
 type CheckItem = "computer" | "sound" | "picture" | "network";
-type Shift = { clockStartedAt: Date | null; checkedInAt: Date | null; createdAt: Date; id: string; version: number; startedAt: Date; endedAt: Date | null; checks: unknown; userName: string };
+type Shift = { clockStartedAt: Date | null; checkedInAt: Date | null; createdAt: Date; id: string; version: number; startedAt: Date; endedAt: Date | null; checks: unknown; userName: string; missedEndRecordedAt?: Date | null };
 
 const items: { key: CheckItem; label: string }[] = [
   { key: "computer", label: "电脑" },
@@ -90,8 +90,10 @@ function ActiveShift({ shift, firstStartedAt, unfinished, serverNow }: { shift: 
   const elapsed = Math.max(0, now - new Date(shift.clockStartedAt ?? shift.createdAt).getTime());
   const remaining = Math.max(0, SHIFT_MINIMUM_MS - elapsed);
   const minutes = firstStartedAt ? Math.floor((new Date(firstStartedAt).getTime() - new Date(shift.startedAt).getTime()) / 60000) : null;
+  const expired = isShiftExpired(shift, now);
   const blockEnd = complete < 4 || unfinished > 0 || busy;
   return <section className="space-y-5 rounded-xl border bg-white p-5">
+    {expired && <section id="missed-end" className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4"><h2 className="font-semibold">上班记录超时待处理</h2><p className="text-sm">请先处理旧班次，再重新上班。已在直播的场次可继续下播、填报和收尾；尚未开播的准备请取消或登记未正常开播。</p><h3 className="font-medium">补登下班</h3><p className="text-xs">填写实际离岗时间；补登操作时间另行记录，无需补勾漏做的检查。</p><ShiftForm fields={{ command: "shiftMissedEnd", id: shift.id, version: snapshot.version }}><label className="block text-sm">实际下班时间（北京时间）<input type="datetime-local" step="1" name="endedAt" required className={inputClass} /></label><label className="block text-sm">补登下班原因<textarea name="reason" required maxLength={2000} className={inputClass} /></label>{unfinished > 0 && <p className="text-sm text-amber-800">还有 {unfinished} 场未处理，请先完成场次。</p>}<button disabled={unfinished > 0 || busy} className={buttonClass}>确认补登下班</button></ShiftForm></section>}
     <div className="space-y-2"><h2 className="font-semibold">{complete === 4 ? "到岗成功" : `检查中（${complete}/4）`}</h2><p className="text-sm text-muted-foreground">{shift.userName} · 登记上班时间 {formatDateTime(new Date(shift.startedAt), true)}</p><p className="text-sm">首次完成全部检查：{snapshot.checkedInAt ? formatDateTime(new Date(snapshot.checkedInAt), true) : complete === 4 ? "历史未记录" : "尚未完成"}</p><p className="text-xs text-muted-foreground">系统计时从 {formatDateTime(new Date(shift.clockStartedAt ?? shift.createdAt), true)} 开始；补登或更正登记时间不改变计时。</p>{minutes !== null && <p className="text-sm">{minutes >= 0 ? `首场提前 ${minutes} 分钟登记上班` : `首场开播后 ${-minutes} 分钟登记上班`}（要求提前30分钟）</p>}</div>
     <div><h3 className="font-semibold">每日设备检查</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">选择结果后勾选完成即保存。异常请填写情况；四项全部完成即到岗成功。声音、画面、网络须恢复正常后才能开播。</p></div>
     <div>{items.map(({ key }) => <CheckRow key={key} item={key} saved={snapshot.checks[key]} busy={busy} save={save} />)}</div>
@@ -122,7 +124,7 @@ export function WorkShiftCorrection({ shift }: { shift: Shift }) {
   const fields = { id: shift.id, version: shift.version };
   const reason = <label className="text-sm">更正原因（必填）<textarea name="reason" required maxLength={2000} className={inputClass} /></label>;
   return <details className="space-y-4 rounded-lg border p-4"><summary className="cursor-pointer text-sm font-semibold">更正本次上班记录</summary><p className="text-xs text-muted-foreground">按北京时间填写，修改前后的内容及操作时间保留；更正不改变系统计时起点或提前下班标记。</p>
-    <ShiftForm fields={{ ...fields, command: "shiftCorrectTime" }}><label className="text-sm">实际到岗<input type="datetime-local" name="startedAt" required defaultValue={shanghaiInput(new Date(shift.startedAt))} className={inputClass} /></label>{shift.endedAt && <label className="text-sm">实际结束上班<input type="datetime-local" name="endedAt" required defaultValue={shanghaiInput(new Date(shift.endedAt))} className={inputClass} /></label>}{reason}<button className={buttonClass}>保存上班时间更正</button></ShiftForm>
+    <ShiftForm fields={{ ...fields, command: "shiftCorrectTime" }}><label className="text-sm">实际到岗<input type="datetime-local" name="startedAt" required defaultValue={shanghaiInput(new Date(shift.startedAt))} className={inputClass} /></label>{shift.endedAt && <label className="text-sm">实际结束上班<input type="datetime-local" name="endedAt" step={shift.missedEndRecordedAt ? 1 : 60} required defaultValue={shanghaiInput(new Date(shift.endedAt))} className={inputClass} /></label>}{reason}<button className={buttonClass}>保存上班时间更正</button></ShiftForm>
     <details className="space-y-3 border-t pt-3"><summary className="cursor-pointer text-sm">更正每日设备检查</summary><label className="text-sm">选择检查项<select value={item} onChange={e => setItem(e.target.value as CheckItem)} className={inputClass}>{items.map(i => <option key={i.key} value={i.key}>{i.label}</option>)}</select></label><ShiftForm key={item} fields={{ ...fields, command: "shiftCorrectCheck", item }}><label className="text-sm">实际检查结果<select name="status" defaultValue={saved?.status ?? "normal"} className={inputClass}><option value="normal">正常</option><option value="issue">异常</option></select></label><label className="text-sm">备注（异常时必填）<textarea name="note" defaultValue={saved?.note ?? ""} maxLength={2000} className={inputClass} /></label><p className="text-xs text-muted-foreground">保留原检查时间；更正时间由系统另外记录。</p>{reason}<button className={buttonClass}>保存检查更正</button></ShiftForm></details>
   </details>;
 }

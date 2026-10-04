@@ -193,3 +193,7 @@ LeadTask新增可空actualLeadId（User外键）、actualLeadName（姓名快照
 
 ## D061 共享外部资料
 迁移20261004000000_external_shared_directory新增LeadBackend.notes（空字符串）、DouyinAccount.kind（INTERNAL/EXTERNAL，明确externalAnchorId记录归为EXTERNAL）、DirectLeadTask.branchName可空快照。DouyinAccount/AccountRecord/ExternalAnchor.branchId及关系改为可空，新外部资料不绑定分公司；SQL约束内部账号必须有分公司、外部账号必须有关联主播。旧分公司、原列与历史任务JSON不改写。新直接任务保存创建者分公司及名称，生成报表从任务取归属；旧任务branchName为空时沿用原sourceRecord.branchName。确定数据金额及主播ID不变。
+
+## D062 WorkShift漏下班（2026-10-04）
+
+新增可空missedEndReason（补登必填原因）、missedEndRecordedAt（不可由员工填写的补登操作时间）；endedAt仍是实际下班时间。修改实际时间不改原操作时间，更正另写审计。迁移20261004060000_shift_missed_end只追加两列，旧行均NULL。不新增超时存储状态，以未结束且clockStartedAt??createdAt达到16小时实时判断。补登不回填checkedInAt和checks；新班次创建空检查。

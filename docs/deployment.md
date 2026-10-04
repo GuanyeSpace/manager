@@ -437,3 +437,9 @@ D060交接完成：功能提交5b8446005f5d88810236425a3bad2b6eb181c8f8已推送
 暂停写入后保存external-before-d061-20261004.jsonl分类清单，本次旧外部账号0条、内外主播绑定冲突0；没有清空旧字段。截图应用用户读写探针通过。独立stage build-d061-20261004受限构建5分25.715秒、峰值905.5MiB，退出0及marker后切换；停服务13:39:22，13:39:30应用就绪。
 manager/nginx/docker和备份/续期timer active，standalone无.env，HTTPS登录200、内部主播/外部主播/后端/直接填报入口未登录307。定时器active不代表本次续期成功；正式库无测试员工/业务写入，已登录交互在隔离环境验收。
 验证详见[tasks/shared-directories-verification.md](tasks/shared-directories-verification.md)：菜单7/7、浏览器23项、迁移/专项/七项回归/类型/lint/构建通过。临时3103/9334停止，会话文件/profile删除，test-%员工剩余0；日常开发库未迁移。后续纯交接文档提交不改变生产源码。
+
+## 2026-10-04 22:17 D062 上班时限与工作引导
+
+第32次迁移20261004060000_shift_missed_end只新增可空补登字段；发布前数据库和截图备份manager-20261004T141631Z可读，25表原列摘要data-before-d062-20261004.json不变。旧程序standalone-before-d062-20261004及旧源码归档保留，272源码SHA一致。截图应用用户探针通过，manager/nginx/docker及timer active，公网登录200、未登录controller307。
+
+独立stage受限构建期间SSH/HTTPS曾超时，最终21:41构建成功（11分58秒，914.6MiB峰值），恢复后才备份、迁移和切换。根因尚未确认；没有无限制重试，没有用测试数据访问正式业务。详见tasks/shift-expiry-verification.md。

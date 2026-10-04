@@ -187,3 +187,7 @@ WorkLiveClock使用中央Dialog；页面打开时定时和focus/visibility重新
 
 ## D061 资料列表与共享目录
 外部账号继续复用DouyinAccount及AccountRecord，不新建重复账号实体。外部资料保存由modules/external-anchors事务统一维护多账号、版本、历史与审计；导粉新建任务从登录员工分公司保存归属，不从共享资料取归属。列表与新建执行/配置服务排除外部账号，历史读取保留。登录仅用户名受控状态，密码仍由表单重置清空。组织菜单21入口（内部/外部主播独立），外部入口仅老板。
+
+## D062 班次与流程引导
+
+schema.ts提供isShiftExpired，开始准备和确认开播在全局写锁内复核；shifts.ts实现shiftMissedEnd及补登记录更正的实际时间边界、版本/事务/审计。WorkShiftPanel及ShiftExpiryNotice提示超时而不显示时长，历史详情区分实际下班与操作时间。WorkStageTabs通过局部Context向WorkTaskTable提供纯导航，后者按成功保存的本地快照与pending/error控制按钮，未改服务端收尾门槛。导粉仅改展示名称及次要回收站样式，原查询参数/状态不变。

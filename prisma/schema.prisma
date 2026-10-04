@@ -580,6 +580,8 @@ model WorkShift {
   clockStartedAt DateTime?
   checkedInAt DateTime?
   earlyEndReason String?
+  missedEndReason String?
+  missedEndRecordedAt DateTime?
   version Int @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1,3 +1,4 @@
+import { shanghaiDate } from "@/modules/live-reports/schema";
 import { requireReadAccountActor } from "@/lib/auth/read-actor";
 import { correctedTime, minuteFloor, type CorrectionChange } from "./corrections";
 import { formatDateTime } from "@/lib/datetime";
@@ -6,7 +7,7 @@ import { isAccountBoss } from "@/lib/auth/account-permissions";
 import { requireAccountActor } from "@/modules/accounts/service";
 import { acquireUserMutationLock, UserActionError } from "@/modules/users/boss-guard";
 import { writeAudit } from "@/lib/audit";
-import { completedCheckCount, SHIFT_MINIMUM_MS, equipmentLabels, shiftCommandSchema, type EquipmentChecks } from "./schema";
+import { isShiftExpired, completedCheckCount, SHIFT_MINIMUM_MS, equipmentLabels, shiftCommandSchema, type EquipmentChecks } from "./schema";
 
 export async function readShift(tx: Prisma.TransactionClient, token: string) {
   const actor = await requireReadAccountActor(tx, token);
@@ -41,7 +42,7 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
     let before: Prisma.InputJsonValue, after: Prisma.InputJsonValue;
     if (input.command === "shiftCorrectTime") {
       const start = correctedTime(input.startedAt, shift.startedAt);
-      const end = shift.endedAt ? correctedTime(input.endedAt, shift.endedAt) : null;
+      const end = shift.endedAt ? (shift.missedEndRecordedAt ? missedEndTime(input.endedAt, shift.endedAt) : correctedTime(input.endedAt, shift.endedAt)) : null;
       if (!shift.endedAt && input.endedAt) throw new UserActionError("尚未结束上班，请先按正常流程处理全部场次后结束上班");
       if (+start === +shift.startedAt && (end?.getTime() ?? null) === (shift.endedAt?.getTime() ?? null)) throw new UserActionError("上班时间未发生变化");
       await assertShiftInterval(tx, shift.userId, shift.id, start, end);
@@ -49,9 +50,9 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
       if (sessions.some(s => minuteFloor(start) > Math.min(s.createdAt.getTime(), s.startedAt?.getTime() ?? Infinity))) throw new UserActionError("到岗时间不能晚于本次上班的准备或开播时间");
       if (end) {
         if (sessions.some(s => ["PREPARING", "LIVE", "WRAP"].includes(s.phase))) throw new UserActionError("本次上班仍有未收尾场次");
-        const lastFinish = await tx.workEvent.findFirst({ where: { sessionId: { in: sessions.map(s => s.id) }, kind: { in: ["complete", "unstarted", "cancel"] } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+        const lastFinish = shift.missedEndRecordedAt ? null : await tx.workEvent.findFirst({ where: { sessionId: { in: sessions.map(s => s.id) }, kind: { in: ["complete", "unstarted", "cancel"] } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
         const last = Math.max(0, ...sessions.map(s => (s.endedAt ?? s.createdAt).getTime()), lastFinish?.createdAt.getTime() ?? 0);
-        if (end.getTime() < Math.floor(last / 60000) * 60000) throw new UserActionError("结束上班时间不能早于本次场次下播和收尾完成时间");
+        if (end.getTime() < (shift.missedEndRecordedAt ? last : Math.floor(last / 60000) * 60000)) throw new UserActionError(shift.missedEndRecordedAt ? "结束上班时间不能早于本次场次下播或准备时间" : "结束上班时间不能早于本次场次下播和收尾完成时间");
       }
       before = { startedAt: shift.startedAt.toISOString(), endedAt: shift.endedAt?.toISOString() ?? null };
       after = { startedAt: start.toISOString(), endedAt: end?.toISOString() ?? null };
@@ -67,6 +68,19 @@ export async function runShiftCommand(tx: Prisma.TransactionClient, token: strin
       await tx.workShift.update({ where: { id: shift.id }, data: { checks: { ...checks, [input.item]: next }, ...(!shift.endedAt && !shift.checkedInAt && completedCheckCount(checks) < 4 && completedCheckCount({ ...checks, [input.item]: next }) === 4 ? { checkedInAt: new Date() } : {}), version: { increment: 1 } } });
     }
     await writeAudit({ db: tx, actorId: actor.id, action: "DAILY_WORK_UPDATE", targetType: "WorkShift", targetId: shift.id, detail: { command: input.command, reason: input.reason, actorName: actor.name, before, after, changes, version: shift.version + 1 }, ip });
+  } else if (input.command === "shiftMissedEnd") {
+    if (!isShiftExpired(shift)) throw new UserActionError("仅超时未结束的上班记录可以补登下班");
+    if (!input.reason) throw new UserActionError("请填写补登下班原因");
+    const endedAt = missedEndTime(input.endedAt, null);
+    const { unfinished } = await readShift(tx, token);
+    const sessions = await tx.workSession.findMany({ where: { deletedAt: null, shiftId: shift.id }, select: { phase: true, createdAt: true, endedAt: true } });
+    if (unfinished || sessions.some(s => ["PREPARING", "LIVE", "WRAP"].includes(s.phase))) throw new UserActionError("请先处理全部准备中、直播中及待收尾场次，再补登下班");
+    await assertShiftInterval(tx, shift.userId, shift.id, shift.startedAt, endedAt);
+    const last = Math.max(0, ...sessions.map(s => (s.endedAt ?? s.createdAt).getTime()));
+    if (endedAt.getTime() < last) throw new UserActionError("实际下班时间不能早于本班次最后实际下播或未开播场次的准备时间");
+    const recordedAt = new Date();
+    await tx.workShift.update({ where: { id: shift.id }, data: { endedAt, missedEndReason: input.reason, missedEndRecordedAt: recordedAt, version: { increment: 1 } } });
+    await writeAudit({ db: tx, actorId: actor.id, action: "DAILY_WORK_UPDATE", targetType: "WorkShift", targetId: shift.id, detail: { command: input.command, reason: input.reason, actorName: actor.name, recordedAt: recordedAt.toISOString(), before: { endedAt: null, missedEndReason: shift.missedEndReason, missedEndRecordedAt: shift.missedEndRecordedAt?.toISOString() ?? null }, after: { endedAt: endedAt.toISOString(), missedEndReason: input.reason, missedEndRecordedAt: recordedAt.toISOString() }, version: shift.version + 1 }, ip });
   } else if (input.command === "shiftEnd" || input.command === "shiftEarlyEnd") {
     const { unfinished } = await readShift(tx, token);
     if (unfinished) throw new UserActionError("还有准备中、直播中或待收尾场次，请全部处理后结束上班");
@@ -101,4 +115,14 @@ async function assertShiftInterval(tx: Prisma.TransactionClient, userId: string,
   if (end && end <= start) throw new UserActionError("结束上班时间必须晚于到岗时间");
   const other = await tx.workShift.findFirst({ where: { userId, id: { not: id }, startedAt: { lt: end ?? new Date() }, OR: [{ endedAt: { gt: start } }, { endedAt: null }] }, select: { id: true } });
   if (other) throw new UserActionError("上班时间与本人另一条上班记录重叠，请核对");
+}
+
+function missedEndTime(value: string, previous: Date | null) {
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:[0-5]\d$/.test(value)) {
+    const minute = shanghaiDate(value.slice(0, 16));
+    const time = minute && new Date(minute.getTime() + Number(value.slice(-2)) * 1000);
+    if (!time || time.getTime() > Date.now()) throw new UserActionError("请填写有效且不晚于现在的北京时间");
+    return time;
+  }
+  return correctedTime(value, previous);
 }

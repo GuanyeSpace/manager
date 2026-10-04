@@ -9,7 +9,7 @@ import { isExecutionController, canManageAccountBranch, isAccountBoss, type Acco
 import { acquireUserMutationLock, UserActionError } from "@/modules/users/boss-guard";
 import { writeAudit } from "@/lib/audit";
 import { shanghaiDate, shanghaiInput } from "@/modules/live-reports/schema";
-import { endKinds, endOutcomes, isInterrupted, isViolationEnd, isOtherEnd, copyWorkflowSchema, commandSchema, dailyTasks, workflowSchema, type Progress, type EquipmentChecks } from "./schema";
+import { isShiftExpired, endKinds, endOutcomes, isInterrupted, isViolationEnd, isOtherEnd, copyWorkflowSchema, commandSchema, dailyTasks, workflowSchema, type Progress, type EquipmentChecks } from "./schema";
 
 export function canEditWorkflow(actor: AccountActor, account: { kind?: string; branchId: string | null; controllerId: string | null; operatorId: string | null; branch: { id: string; managerId: string | null } | null }) {
   return account.kind !== "EXTERNAL" && !isExecutionController(actor) && (canManageAccountBranch(actor, account.branch) || (actor.branchId === account.branchId && account.operatorId === actor.id));
@@ -47,6 +47,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
     if (!account.workflow) throw new UserActionError("请先保存账号流程");
     const shift = await tx.workShift.findFirst({ where: { userId: actor.id, endedAt: null } });
     if (!shift) throw new UserActionError("请先在工作台开始上班，再开始本场准备");
+    if (isShiftExpired(shift)) throw new UserActionError("上班记录超时待处理，请先到上班/下班处理旧班次");
     const actual = await tx.user.findFirst({ where: { id: input.actualControllerId || actor.id, employmentStatus: "ACTIVE", OR: [{ branchId: account.branchId }, ...(isAccountBoss(actor) ? [{ id: actor.id }] : [])] }, select: { id: true, name: true } });
     if (!actual) throw new UserActionError("本场直播中控必须是本分公司在职员工");
     const anchorId = input.actualAnchorId || account.anchorId;
@@ -93,6 +94,7 @@ export async function runWorkCommand(tx: Prisma.TransactionClient, token: string
       if (time < shanghaiDate(shanghaiInput(session.createdAt))! && !input.reason) throw new UserActionError("开播时间早于系统准备记录，请填写补填原因");
       if (session.shiftId) {
         const shift = await tx.workShift.findFirst({ where: { id: session.shiftId, endedAt: null } });
+        if (shift && isShiftExpired(shift)) throw new UserActionError("上班记录超时待处理，不能确认开播；可取消准备或登记未正常开播");
         const checks = shift?.checks as EquipmentChecks | undefined;
         if (!shift || ["sound", "picture", "network"].some(key => checks?.[key as keyof EquipmentChecks]?.status !== "normal")) throw new UserActionError("请先完成本次上班的声音、画面、网络检查并确认正常");
         if (time < shanghaiDate(shanghaiInput(shift.startedAt))!) throw new UserActionError("开播时间不能早于本次到岗时间");

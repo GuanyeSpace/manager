@@ -196,7 +196,7 @@ async function main() {
       assert.equal(login.status, 307);
       const home = await fetch(base + "/", { headers: { Cookie: `session=${signSessionToken(other.token)}` }, redirect: "manual" });
       assert.equal(home.status, 307); assert.ok(home.headers.get("location")?.endsWith("/leads"));
-      for (const [u, path, text] of [[other, `/leads/${task.id}`, "认领与数据修改记录"], [manager, "/leads?view=completed", "已完成记录"], [remote, "/leads?view=available", "暂无可认领场次"]] as const) {
+      for (const [u, path, text] of [[other, `/leads/${task.id}`, "认领与数据修改记录"], [manager, "/leads?view=completed", "已完成场次"], [remote, "/leads?view=available", "暂无可认领场次"]] as const) {
         const response: Response = await fetch(base + path, { headers: { Cookie: `session=${signSessionToken(u.token)}` }, redirect: "manual" });
         assert.equal(response.status, 200, path); assert.match((await response.text()).replace(/<!--.*?-->/g, ""), new RegExp(text));
       }

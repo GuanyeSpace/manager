@@ -80,12 +80,16 @@ export const equipmentTargets = {
   network: "直播伴侣测速正常，大于 50 Mb。",
 } as const;
 export const SHIFT_MINIMUM_MS = 8 * 60 * 60 * 1000;
+export const SHIFT_MAXIMUM_MS = 16 * 60 * 60 * 1000;
+export function isShiftExpired(shift: { clockStartedAt: Date | null; createdAt: Date; endedAt: Date | null }, now = Date.now()) {
+  return !shift.endedAt && now - new Date(shift.clockStartedAt ?? shift.createdAt).getTime() >= SHIFT_MAXIMUM_MS;
+}
 export function completedCheckCount(checks: EquipmentChecks) {
   return Object.keys(equipmentLabels).filter(key => ["normal", "issue"].includes(checks[key as keyof EquipmentChecks]?.status ?? "")).length;
 }
 export type EquipmentChecks = Partial<Record<keyof typeof equipmentLabels, { status: "normal" | "issue"; note: string; at: string; actor: string }>>;
 export const shiftCommandSchema = z.object({
-  command: z.enum(["shiftStart", "shiftCheck", "shiftEnd", "shiftEarlyEnd", "shiftCorrectTime", "shiftCorrectCheck"]),
+  command: z.enum(["shiftStart", "shiftCheck", "shiftEnd", "shiftEarlyEnd", "shiftMissedEnd", "shiftCorrectTime", "shiftCorrectCheck"]),
   id: z.string().max(100).default(""), version: z.coerce.number().int().min(0).default(0),
   startedAt: z.string().max(30).default(""), endedAt: z.string().max(30).default(""), reason: z.string().trim().max(2000).default(""),
   item: z.enum(["computer", "sound", "picture", "network"]).default("computer"),

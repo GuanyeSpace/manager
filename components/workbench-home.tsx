@@ -1,14 +1,17 @@
+import { ShiftExpiryNotice } from "./shift-expiry-notice";
 import Link from "next/link";
 
 
-import { getWorkbench } from "@/modules/workbench/queries";
+import { getShift, getWorkbench } from "@/modules/workbench/queries";
 import { moneyPending, workStatusLabel } from "@/modules/workbench/schema";
 export async function WorkbenchHome() {
   const { accounts, sessions, executionOnly } = await getWorkbench();
+  const { shift } = await getShift();
   const active = sessions.filter(s => s.phase === "LIVE" || s.phase === "PREPARING");
   const pending = sessions.filter(s => s.phase !== "LIVE" && s.phase !== "PREPARING");
   return <div className={`space-y-4 ${executionOnly && pending.length ? "pb-52" : ""}`}>
     <header className="flex flex-wrap items-end justify-between gap-3 border-b pb-3"><div className="space-y-2"><h1 className="text-2xl font-semibold">直播工作</h1><p className="text-sm text-muted-foreground">选账号、做准备、跟进直播、完成收尾。</p></div>{!executionOnly && <nav className="flex flex-wrap gap-3 text-sm"><Link href="/live-reports/new" className="rounded-lg bg-emerald-900 px-4 py-3 text-white">填写本场数据</Link><Link href="/live-reports" className="rounded-lg border px-4 py-3">维护我的数据</Link></nav>}</header>
+    {shift && <ShiftExpiryNotice shift={shift} serverNow={new Date()} />}
     <div className="flex flex-wrap gap-x-6 gap-y-2">{[["负责账号", accounts.length], ["进行中的场次", active.length], [executionOnly ? "待收尾场次" : "待收尾 / 补数据", pending.length]].map(([label, count]) => <section key={label} className="flex items-center gap-2"><p className="text-xs text-muted-foreground">{label}</p><p className="text-sm font-semibold tabular-nums">{count}</p></section>)}</div>
     {active.length > 0 && <section className="space-y-3"><h2 className="text-lg font-semibold">继续本场工作</h2>{active.map(s => <Link key={s.id} href={`/workbench/sessions/${s.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-950"><span className="min-w-0"><strong className="break-words">{s.sourceRecord.name}</strong><span className="ml-3 text-sm">{s.label} · {workStatusLabel(s)}</span></span><span className="shrink-0 rounded-lg bg-emerald-900 px-4 py-2 text-sm text-white">进入本场 →</span></Link>)}</section>}
     <section className="space-y-3" aria-label="选择直播账号"><h2 className="text-base font-semibold">选择直播账号</h2>{!accounts.length ? <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">还没有分配账号，请联系老板或分公司负责人。</p> : <div tabIndex={0} aria-label="直播账号列表" className="grid max-h-[40dvh] lg:max-h-[max(10rem,calc(100dvh-27rem))] grid-cols-1 gap-3 overflow-y-auto overscroll-contain p-1 sm:grid-cols-2 lg:grid-cols-3">{accounts.map(a => <Link key={a.id} href={`/workbench/accounts/${a.id}`} className="min-w-0 space-y-2 rounded-xl border bg-white p-3 transition-colors hover:border-foreground/30 hover:bg-muted/30"><h3 className="break-words font-semibold">{a.name}</h3><p className="break-all text-xs text-muted-foreground">抖音号：{a.douyinId}</p><p className="break-words text-sm">主播：{a.anchor?.name ?? "无"}</p><p className="border-t pt-2 text-sm font-medium">进入账号工作空间 →</p></Link>)}</div>}</section>

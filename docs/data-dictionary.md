@@ -714,3 +714,12 @@ LeadTask.actualLeadId：实际导粉员工ID，可空、User外键；actualLeadN
 | DouyinAccount | kind | String，默认INTERNAL，外部为EXTERNAL；SQL限制取值与对应必需关联 |
 | DouyinAccount、AccountRecord、ExternalAnchor | branchId / branch | String? / Branch?，旧归属保留，新外部资料为空 |
 | DirectLeadTask | branchName | String?，新任务创建员工的分公司名称快照；旧任务为空沿用sourceRecord快照 |
+
+### D062 WorkShift补充字段
+
+| 字段 | 类型 | 含义 |
+| --- | --- | --- |
+| missedEndReason | String? | 超时班次补登下班原因，历史为空 |
+| missedEndRecordedAt | DateTime? | 首次补登操作时间，系统写入，更正实际时间不重置 |
+
+endedAt为实际下班时间，不等于补登操作时间；超时不写入endedAt。
