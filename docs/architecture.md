@@ -194,3 +194,6 @@ schema.ts提供isShiftExpired，开始准备和确认开播在全局写锁内复
 
 ### D063 预览导航修复
 员工选择页用完整文档导航进入预览，避免 Next 根布局缓存保留老板身份。根布局校验签名预览上下文后提供 PreviewNavigationProvider；ContextLink、ReturnLink 和路径导航在首次渲染即带预览前缀，防止裸链接预取丢失身份。服务端预览权限及写入拒绝沿用原实现。
+
+### D064 场次名称（2026-10-06）
+lib/session-label.ts统一场次名称的只读格式化，页面调用时传实际startedAt；关联报表沿用reportPeople已解析的场次更正时间。原始label/sessionLabel仍用于保存及审计，格式化值不回填表单。待收尾查询补选startedAt，不改变权限或状态。

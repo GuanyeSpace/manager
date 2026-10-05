@@ -1,3 +1,4 @@
+import { displaySessionLabel } from "@/lib/session-label";
 import { liveValues, readSessionLiveData } from "@/modules/reporting/service";
 import { ReportingForm } from "@/components/reporting-form";
 import { prisma } from "@/lib/db";
@@ -19,7 +20,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
   const { task: t, editable, manager, people, actualPeople, history } = result, s = t.session;
   const split=s.liveDataRole === "CONTROLLER";
   const live=split&&manager?await prisma.$transaction(async tx=>readSessionLiveData(tx,(await getCurrentSessionToken())??"",s.id)):null;
-  return <><ReturnLink fallback="/leads" label="返回导粉工作台" /><header className="space-y-2"><h1 className="text-2xl font-semibold">{s.sourceRecord.name} · {s.label}</h1><p className="text-sm">{t.branch.name} · 本场实际导粉专员：{t.actualLeadName ?? t.userName} · 登录认领账号：{t.userName} · 主播：{s.actualAnchorName ?? s.sourceRecord.anchorName ?? "未记录"}</p><p className="text-sm text-slate-500">开播 {formatDateTime(s.startedAt!)} · {s.endedAt ? `下播 ${formatDateTime(s.endedAt)}` : "正在直播"} · {t.deletedAt ? "已删除" : t.completedAt ? "数据已完成" : "待填报 / 待补数据"}</p></header>
+  return <><ReturnLink fallback="/leads" label="返回导粉工作台" /><header className="space-y-2"><h1 className="text-2xl font-semibold">{s.sourceRecord.name} · {displaySessionLabel(s.label, s.startedAt)}</h1><p className="text-sm">{t.branch.name} · 本场实际导粉专员：{t.actualLeadName ?? t.userName} · 登录认领账号：{t.userName} · 主播：{s.actualAnchorName ?? s.sourceRecord.anchorName ?? "未记录"}</p><p className="text-sm text-slate-500">开播 {formatDateTime(s.startedAt!)} · {s.endedAt ? `下播 ${formatDateTime(s.endedAt)}` : "正在直播"} · {t.deletedAt ? "已删除" : t.completedAt ? "数据已完成" : "待填报 / 待补数据"}</p></header>
     <LeadDataForm id={id} version={t.version} initial={leadValues(split?{...leadValues(t.data),...liveValues(s.liveDataDraft)}:t.data)} liveReadOnly={split} completed={!!t.completedAt} editable={editable && !t.deletedAt} ended={!!s.endedAt && s.phase !== "LIVE" && (!split || !!s.liveDataSubmittedAt)} />
     {split&&!s.liveDataSubmittedAt&&<p>等待直播中控提交直播数据，打粉数据可先存草稿。</p>}{live&&<details className="rounded border p-4"><summary>管理人员更正直播数据</summary><ReportingForm id={s.id} version={live.version} initial={live.values} submitted={live.submitted} editable={live.editable} ended={live.ended}/><CorrectionHistory rows={live.history}/></details>}
     <HistoricalReportFields data={{ ...(t.data as Record<string, unknown>), ...(s.report ? { longPressCount: s.report.longPressCount ?? (t.data as Record<string,unknown>).longPressCount, hasSales: s.report.hasSales, salesGmv: s.report.salesGmv?.toString() } : {}) }} />

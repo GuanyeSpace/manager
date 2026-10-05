@@ -1,3 +1,4 @@
+import { displaySessionLabel } from "@/lib/session-label";
 import { powderRatios } from "@/modules/live-reports/input-metrics";
 import { ReportRecycleForm } from "@/components/report-recycle-form";
 import Link from "@/components/context-link";
@@ -11,7 +12,7 @@ export function MonetizationTable({ reports }: { reports: (LiveReport & {  powde
     <TableHeader><TableRow>{["账号", "主播", "直播中控", "导粉专员", "开播时间", "场次", "导粉状态", "进房人数", "进粉丝群人数", "链接点击人数", "后端加人数", "后端有效人数", ...powderRatios.map(([label]) => label), "打粉数据更新", "操作"].map((label) => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader>
     <TableBody>{reports.map((r) => <TableRow key={r.id}>
       <TableCell><span className="font-medium">{r.accountName}</span><span className="block text-xs text-muted-foreground">{r.douyinId}</span>{r.directTaskId && <span className="block text-xs text-emerald-800">直接录入</span>}</TableCell>
-      <TableCell>{r.anchorName ?? "未记录"}</TableCell><TableCell>{r.controllerName ?? "未记录"}</TableCell><TableCell>{r.leadName ?? "未记录"}</TableCell><TableCell>{formatDateTime(r.startedAt)}</TableCell><TableCell>{r.sessionLabel}</TableCell><TableCell>{r.isLeadGeneration === null ? r.powderPending ? "待填打粉数据" : "历史未标记" : r.isLeadGeneration ? "导粉" : "不导粉"}</TableCell><TableCell>{r.entryCount}</TableCell>
+      <TableCell>{r.anchorName ?? "未记录"}</TableCell><TableCell>{r.controllerName ?? "未记录"}</TableCell><TableCell>{r.leadName ?? "未记录"}</TableCell><TableCell>{formatDateTime(r.startedAt)}</TableCell><TableCell>{displaySessionLabel(r.sessionLabel, r.startedAt)}</TableCell><TableCell>{r.isLeadGeneration === null ? r.powderPending ? "待填打粉数据" : "历史未标记" : r.isLeadGeneration ? "导粉" : "不导粉"}</TableCell><TableCell>{r.entryCount}</TableCell>
       <TableCell>{r.isLeadGeneration === false ? "不适用" : r.fanGroupCount ?? "未填写"}</TableCell><TableCell>{r.isLeadGeneration === false ? "不适用" : r.linkClickCount ?? "未填写"}</TableCell><TableCell>{r.isLeadGeneration === false ? "不适用" : r.backendJoinCount ?? "未填写"}</TableCell><TableCell>{r.isLeadGeneration === false ? "不适用" : r.effectiveCount ?? "未填写"}</TableCell>
       {powderRatios.map(([label,n,d]) => <TableCell key={label}>{r.isLeadGeneration === false ? "不适用" : conversion(r[n],r[d])}</TableCell>)}
       <TableCell>{r.monetizationUpdatedAt ? <>{r.monetizationUpdatedBy}<span className="block text-xs text-muted-foreground">{formatDateTime(r.monetizationUpdatedAt)}</span></> : "尚未填写"}</TableCell>

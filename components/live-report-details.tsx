@@ -1,3 +1,4 @@
+import { displaySessionLabel } from "@/lib/session-label";
 import { ReportingForm } from "./reporting-form";
 import { readSessionLiveData } from "@/modules/reporting/service";
 import { prisma } from "@/lib/db";
@@ -44,7 +45,7 @@ export async function LiveReportDetails({ id, embedded = false, via }: { id: str
   const metrics = Object.fromEntries(metricFields.map(([key]) => [key, String(r[key])])) as Pick<ReportInput, typeof metricFields[number][0]>;
   return <>
     {!embedded && <ReturnLink fallback="/live-reports" label="返回直播数据" />}
-    {!embedded && <div><h1 className="text-2xl font-semibold">{r.accountName} · {r.sessionLabel}</h1><p className="mt-1 text-sm text-muted-foreground">{formatDateTime(r.startedAt)} 开播 · 数据已保存</p></div>}
+    {!embedded && <div><h1 className="text-2xl font-semibold">{r.accountName} · {displaySessionLabel(r.sessionLabel, r.startedAt)}</h1><p className="mt-1 text-sm text-muted-foreground">{formatDateTime(r.startedAt)} 开播 · 数据已保存</p></div>}
     {!embedded && r.workSessionId && <Link href={`/workbench/sessions/${r.workSessionId}`} className="text-sm text-primary">查看本场执行记录 →</Link>}
     {!embedded && <LiveReportTable reports={[r]} />}
     <p className="text-sm text-muted-foreground">录入：{r.createdByName}（{formatDateTime(r.createdAt)}） · 最近更新：{r.updatedByName}（{formatDateTime(r.updatedAt)}） · 版本 {r.version}</p>
