@@ -449,3 +449,8 @@ manager/nginx/docker和备份/续期timer active，standalone无.env，HTTPS登�
 本地Linux amd64 standalone构建发布，功能提交0cd2b54；无迁移（仍32）。构建下载失败后用原锁文件缓存离线安装，生产未构建。切换前暂停应用、备份数据库及截图，25表原列摘要一致、273部署文件SHA一致。
 备份`/var/backups/manager/manager-20261004T194054Z.dump`及同名`.screenshots.tar.gz`可读；旧程序`/opt/manager/standalone-before-d063-20261005`、旧源码`/opt/manager/source-before-d063-20261005.tar.gz`，摘要`/opt/manager/data-before-d063-20261005.json`。
 截图探针、服务和定时器正常，公网登录200、未登录导粉307。两个真实目标导粉员工的认证HTTPS预览各18场，匹配只读查询；未新建正式业务或员工会话。隔离浏览器17项及相关回归通过，详见[tasks/lead-availability-verification.md](tasks/lead-availability-verification.md)。
+
+## 2026-10-06 01:08 D064 场次名称
+功能87fff5b已推送，本地Linux构建发布，无迁移。自动名称显示实际开播时间，历史原值不变。25表原列核对一致、275文件SHA一致。
+备份`/var/backups/manager/manager-20261005T170822Z.dump`及同名`.screenshots.tar.gz`可读；旧程序`/opt/manager/standalone-before-d064-20261006`、旧源码`/opt/manager/source-before-d064-20261006.tar.gz`；摘要`/opt/manager/data-before-d064-20261006.json`。
+截图探针和服务正常，HTTPS登录200/受保护页307，3条真实场次认证HTTP标题核对通过；隔离桌面14项及类型/lint/构建通过。详见[tasks/session-label-verification.md](tasks/session-label-verification.md)。

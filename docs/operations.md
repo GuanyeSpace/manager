@@ -152,3 +152,6 @@ D059回退注意：迁移只追加LeadTask三列及外键，不改旧值。新�
 
 ### 2026-10-05 D063 本地构建补充
 Linux容器npm下载曾ECONNRESET，重试仅两个依赖停滞；本机下载相同锁定tarball后加入npm缓存，缓存复制到新构建容器，以`npm ci --offline`保持锁文件完整性校验完成安装，再按原流程构建。不要升级依赖或关闭完整性校验，也不要把macOS node_modules部署到服务器。此次服务端仅解包切换；备份、原数据与回退路径见发布记录。
+
+### 2026-10-06 D064 Prisma下载缓存
+npm缓存不包含Prisma postinstall引擎，离线npm ci仍可能等待引擎下载。本次只读取回服务器相同版本Linux schema-engine，在本地amd64容器执行--version确认提交哈希，再用PRISMA_SCHEMA_ENGINE_BINARY指定该工具完成安装和构建。没有改变锁文件、关闭校验或在生产编译。
