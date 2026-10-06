@@ -646,6 +646,10 @@ model LeadBackend {
 }
 
 model ConfirmedLead {
+  isSettled Boolean?
+  settledAt DateTime?
+  settledById String?
+  settledByName String?
   externalAnchorId String?
   externalAnchor ExternalAnchor? @relation(fields: [externalAnchorId], references: [id], onDelete: Restrict)
   id String @id @default(cuid())

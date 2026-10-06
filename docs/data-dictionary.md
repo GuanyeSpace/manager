@@ -723,3 +723,11 @@ LeadTask.actualLeadId：实际导粉员工ID，可空、User外键；actualLeadN
 | missedEndRecordedAt | DateTime? | 首次补登操作时间，系统写入，更正实际时间不重置 |
 
 endedAt为实际下班时间，不等于补登操作时间；超时不写入endedAt。
+
+## D065 确定数据结算字段
+| 模型 | 字段 | 含义 |
+| --- | --- | --- |
+| ConfirmedLead | isSettled Boolean? | null历史待确认、false未结算、true后端给公司已结清 |
+| ConfirmedLead | settledAt DateTime? | 标记结算操作时间，并非实际转账时间 |
+| ConfirmedLead | settledById / settledByName String? | 最近一次标记人ID、姓名快照；撤销后清空，旧值保留审计 |
+查询status=all/unpaid/paid/unknown；原人数、单价、金额快照和提成口径不变。

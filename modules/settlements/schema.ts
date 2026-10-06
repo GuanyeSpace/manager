@@ -9,7 +9,7 @@ const money = z.string().regex(/^\d{1,7}(\.\d{1,2})?$/, "单价最多7位整数�
 export const backendSchema = z.object({ notes: z.string().trim().max(2000).optional(), id: id.default(""), version: z.coerce.number().int().min(0), name: z.string().trim().min(1,"请填写后端名称").max(100), active: z.enum(["true","false"]).transform(v=>v==="true"), reason: z.string().trim().max(2000).default("") });
 export const confirmedSchema = z.object({ id: id.default(""), version: z.coerce.number().int().min(0), day: daySchema, anchorId: id.min(1), backendId: id.min(1), joinCount: count, effectiveCount: count, backendUnit: money, anchorUnit: money, reason: z.string().trim().max(2000).default("") }).refine(v=>v.effectiveCount<=v.joinCount,{message:"有效数量不能超过加人数量",path:["effectiveCount"]});
 export const recycleSchema = z.object({id:id.min(1), version:z.coerce.number().int().min(1), operation:z.enum(["delete","restore"]), reason:z.string().trim().min(1,"请填写操作原因").max(2000)});
-export const settlementFilters = z.object({from:z.string().default(""),to:z.string().default(""),preset:z.enum(["yesterday","7d","30d","month","lastMonth"]).optional(),anchorId:id.default(""),backendId:id.default(""),trash:z.enum(["true","false"]).default("false"),page:z.coerce.number().int().min(1).catch(1),group:z.enum(["day","week","month"]).default("day")}).superRefine((v,ctx)=>{if(v.preset)return;for(const key of ["from","to"] as const)if(v[key]&&!daySchema.safeParse(v[key]).success)ctx.addIssue({code:"custom",path:[key],message:"日期无效"});if(v.from&&v.to&&v.from>v.to)ctx.addIssue({code:"custom",path:["to"],message:"结束日期不能早于开始日期"});});
+export const settlementFilters = z.object({status:z.enum(["all","unpaid","paid","unknown"]).default("all"),from:z.string().default(""),to:z.string().default(""),preset:z.enum(["yesterday","7d","30d","month","lastMonth"]).optional(),anchorId:id.default(""),backendId:id.default(""),trash:z.enum(["true","false"]).default("false"),page:z.coerce.number().int().min(1).catch(1),group:z.enum(["day","week","month"]).default("day")}).superRefine((v,ctx)=>{if(v.preset)return;for(const key of ["from","to"] as const)if(v[key]&&!daySchema.safeParse(v[key]).success)ctx.addIssue({code:"custom",path:[key],message:"日期无效"});if(v.from&&v.to&&v.from>v.to)ctx.addIssue({code:"custom",path:["to"],message:"结束日期不能早于开始日期"});});
 export function resolveFilters(raw: unknown, now=new Date(), defaultMonth=false) {
   const f=settlementFilters.parse(raw);
   const preset=f.preset ?? (defaultMonth&&!f.from&&!f.to ? "month":undefined);
@@ -22,4 +22,13 @@ export function period(day:string,group:"day"|"week"|"month") {
   if(group==="month")return day.slice(0,7);
   if(group==="day")return day;
   const d=new Date(day+"T00:00:00Z");d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));const start=d.toISOString().slice(0,10);d.setUTCDate(d.getUTCDate()+6);return `${start} ~ ${d.toISOString().slice(0,10)}`;
+}
+
+export const settlementStatusSchema = z.object({
+  operation: z.enum(["settle", "unsettle", "confirmUnpaid"]),
+  records: z.array(z.object({id:id.min(1),version:z.number().int().min(1)})).min(1).max(20).refine(rows=>new Set(rows.map(r=>r.id)).size===rows.length,"记录不能重复"),
+  reason: z.string().trim().max(2000).default("")
+}).superRefine((v,ctx)=>{if(v.operation!=="settle"&&v.records.length!==1)ctx.addIssue({code:"custom",message:"该操作仅支持单条记录"});if(v.operation==="unsettle"&&!v.reason)ctx.addIssue({code:"custom",message:"请填写撤销结算原因"});});
+export function settlementStatusWhere(status:string) {
+  return status==="paid" ? {isSettled:true} : status==="unpaid" ? {isSettled:false} : status==="unknown" ? {isSettled:null} : {};
 }

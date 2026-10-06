@@ -197,3 +197,6 @@ LeadTask新增可空actualLeadId（User外键）、actualLeadName（姓名快照
 ## D062 WorkShift漏下班（2026-10-04）
 
 新增可空missedEndReason（补登必填原因）、missedEndRecordedAt（不可由员工填写的补登操作时间）；endedAt仍是实际下班时间。修改实际时间不改原操作时间，更正另写审计。迁移20261004060000_shift_missed_end只追加两列，旧行均NULL。不新增超时存储状态，以未结束且clockStartedAt??createdAt达到16小时实时判断。补登不回填checkedInAt和checks；新班次创建空检查。
+
+## D065 结算状态
+ConfirmedLead追加isSettled Boolean?（null历史待确认、false未结算、true已结算）、settledAt DateTime?、settledById String?、settledByName String?。操作者ID及姓名作为标记快照，撤销清空当前标记信息，历史留在审计。新建服务显式false；迁移不默认、不回填原行。第33迁移20261006000000_confirmed_settlement只加4列，25模型数量不变。

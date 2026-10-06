@@ -6,7 +6,7 @@ import { isAccountBoss } from "@/lib/auth/account-permissions";
 import { hasRole, roleWhere } from "@/lib/auth/roles";
 import { acquireUserMutationLock, UserActionError } from "@/modules/users/boss-guard";
 import { writeAudit } from "@/lib/audit";
-import { backendSchema, confirmedSchema, recycleSchema, resolveFilters, pastDay, totalCents, moneyText, period } from "./schema";
+import { settlementStatusSchema, settlementStatusWhere, backendSchema, confirmedSchema, recycleSchema, resolveFilters, pastDay, totalCents, moneyText, period } from "./schema";
 export async function requireSettlementBoss(tx:Prisma.TransactionClient,token:string) {
   const actor=await requireAccountActor(tx,token);if(!isAccountBoss(actor))throw new UserActionError("仅老板可以管理和查看确定打粉数据");return actor;
 }
@@ -26,6 +26,7 @@ export async function saveConfirmed(tx:Prisma.TransactionClient,token:string,raw
   const old=v.id?await tx.confirmedLead.findUnique({where:{id:v.id}}):null;
   if(v.id&&!old)throw new UserActionError("记录不存在");
   if(old?.deletedAt)throw new UserActionError("请先恢复记录");
+  if(old?.isSettled)throw new UserActionError("已结算记录请先填写原因撤销结算，再更正");
   if(old&&(old.version!==v.version||!v.reason))throw new UserActionError(old.version!==v.version?"记录已被修改，请刷新核对":"请填写更正原因");
   const identity=anchorIds(v.anchorId), same=!!old&&anchorKey(old.anchorId,old.externalAnchorId)===v.anchorId;
   const anchor=identity.externalAnchorId ? await tx.externalAnchor.findFirst({where:{id:identity.externalAnchorId,...(same?{}:{active:true})},select:{id:true,name:true}}) : await tx.user.findFirst({where:{id:identity.anchorId??"",AND:[roleWhere("ANCHOR")]},select:{id:true,name:true}});
@@ -35,14 +36,14 @@ export async function saveConfirmed(tx:Prisma.TransactionClient,token:string,raw
   const duplicate=await tx.confirmedLead.findFirst({where:{day:v.day,...identity,backendId:v.backendId}});
   if(duplicate&&duplicate.id!==old?.id)throw new UserActionError(duplicate.deletedAt?"该日期、主播和后端记录在回收站，请恢复原记录":"该日期、主播和后端已有记录，请编辑原记录");
   const data={day:v.day,...identity,anchorName:same?old!.anchorName:anchor!.name,backendId:v.backendId,backendName:old?.backendId===v.backendId?old.backendName:backend.name,backendUrl:old?.backendUrl??"",joinCount:v.joinCount,effectiveCount:v.effectiveCount,backendUnitCents:v.backendUnit,anchorUnitCents:v.anchorUnit};
-  const row=old?await tx.confirmedLead.update({where:{id:old.id},data:{...data,version:{increment:1}}}):await tx.confirmedLead.create({data});
+  const row=old?await tx.confirmedLead.update({where:{id:old.id},data:{...data,version:{increment:1}}}):await tx.confirmedLead.create({data:{...data,isSettled:false}});
   await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_UPDATE",targetType:"ConfirmedLead",targetId:row.id,ip,detail:{actorName:actor.name,reason:v.reason,before:json(old),after:json(row)}});return row.id;
 }
 export async function recycleConfirmed(tx:Prisma.TransactionClient,token:string,raw:unknown,ip:string) {
   const v=recycleSchema.parse(raw);await acquireUserMutationLock(tx);const actor=await requireSettlementBoss(tx,token);
   const old=await tx.confirmedLead.findUnique({where:{id:v.id}});
   if(!old||old.version!==v.version)throw new UserActionError("记录不存在或已更新，请刷新核对");
-  const deleting=v.operation==="delete";if(deleting===!!old.deletedAt)throw new UserActionError("记录状态已变化");
+  const deleting=v.operation==="delete";if(deleting&&old.isSettled)throw new UserActionError("已结算记录请先撤销结算，再删除");if(deleting===!!old.deletedAt)throw new UserActionError("记录状态已变化");
   const row=await tx.confirmedLead.update({where:{id:v.id},data:{deletedAt:deleting?new Date():null,version:{increment:1}}});
   await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_UPDATE",targetType:"ConfirmedLead",targetId:row.id,ip,detail:{actorName:actor.name,reason:v.reason,operation:v.operation,before:json(old),after:json(row)}});return row.id;
 }
@@ -54,7 +55,7 @@ export async function settlementOptions(tx:Prisma.TransactionClient,token:string
 }
 export async function readConfirmed(tx:Prisma.TransactionClient,token:string,raw:unknown) {
   await requireSettlementBoss(tx,token);const filters=resolveFilters(raw);
-  const where:Prisma.ConfirmedLeadWhereInput={deletedAt:filters.trash==="true"?{not:null}:null,...(filters.anchorId?anchorIds(filters.anchorId):{}),...(filters.backendId?{backendId:filters.backendId}:{}),day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})}};
+  const where:Prisma.ConfirmedLeadWhereInput={...settlementStatusWhere(filters.status),deletedAt:filters.trash==="true"?{not:null}:null,...(filters.anchorId?anchorIds(filters.anchorId):{}),...(filters.backendId?{backendId:filters.backendId}:{}),day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})}};
   const all=await tx.confirmedLead.findMany({where,orderBy:[{day:"desc"},{anchorName:"asc"},{id:"asc"}]});
   const pages=Math.max(1,Math.ceil(all.length/20)),page=Math.min(filters.page,pages);
   return {filters:{...filters,page},count:all.length,pages,rows:all.slice((page-1)*20,page*20),summary:{joins:all.reduce((n,r)=>n+r.joinCount,0),effective:all.reduce((n,r)=>n+r.effectiveCount,0),revenue:moneyText(all.reduce((n,r)=>n+totalCents(r.effectiveCount,r.backendUnitCents),BigInt(0))),commission:moneyText(all.reduce((n,r)=>n+totalCents(r.effectiveCount,r.anchorUnitCents),BigInt(0)))},...await settlementOptions(tx,token)};
@@ -77,10 +78,27 @@ export async function readAnchorIncome(tx:Prisma.TransactionClient,token:string,
 export async function readBossIncome(tx:Prisma.TransactionClient,token:string,raw:unknown) {
   await requireSettlementBoss(tx,token);
   const filters=resolveFilters(raw,new Date(),true);
-  const rows=await tx.confirmedLead.findMany({where:{deletedAt:null,...(filters.anchorId?anchorIds(filters.anchorId):{}),day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})}},select:{day:true,joinCount:true,effectiveCount:true,backendUnitCents:true},orderBy:{day:"desc"}});
+  const rows=await tx.confirmedLead.findMany({where:{deletedAt:null,...(filters.anchorId?anchorIds(filters.anchorId):{}),day:{...(filters.from?{gte:filters.from}:{}),...(filters.to?{lte:filters.to}:{})}},select:{day:true,joinCount:true,effectiveCount:true,backendUnitCents:true,isSettled:true},orderBy:{day:"desc"}});
   const grouped=new Map<string,{period:string;joins:number;effective:number;cents:bigint}>();
   for(const r of rows){const key=period(r.day,filters.group),g=grouped.get(key)??{period:key,joins:0,effective:0,cents:BigInt(0)};g.joins+=r.joinCount;g.effective+=r.effectiveCount;g.cents+=totalCents(r.effectiveCount,r.backendUnitCents);grouped.set(key,g);}
   const totals=[...grouped.values()].reduce((a,r)=>({joins:a.joins+r.joins,effective:a.effective+r.effective,cents:a.cents+r.cents}),{joins:0,effective:0,cents:BigInt(0)});
   const {anchors}=await settlementOptions(tx,token);
-  return {filters:{from:filters.from,to:filters.to,group:filters.group,anchorId:filters.anchorId},anchors,rows:[...grouped.values()].map(({cents,...r})=>({...r,income:moneyText(cents)})),totals:{joins:totals.joins,effective:totals.effective,income:moneyText(totals.cents)}};
+  return {settlementTotals:{all:summarizeIncome(rows),unpaid:summarizeIncome(rows.filter(r=>r.isSettled===false)),paid:summarizeIncome(rows.filter(r=>r.isSettled===true)),unknown:summarizeIncome(rows.filter(r=>r.isSettled===null))},filters:{from:filters.from,to:filters.to,group:filters.group,anchorId:filters.anchorId},anchors,rows:[...grouped.values()].map(({cents,...r})=>({...r,income:moneyText(cents)})),totals:{joins:totals.joins,effective:totals.effective,income:moneyText(totals.cents)}};
+}
+
+function summarizeIncome(rows:{joinCount:number;effectiveCount:number;backendUnitCents:number}[]) {
+  return {count:rows.length,joins:rows.reduce((n,r)=>n+r.joinCount,0),effective:rows.reduce((n,r)=>n+r.effectiveCount,0),income:moneyText(rows.reduce((n,r)=>n+totalCents(r.effectiveCount,r.backendUnitCents),BigInt(0)))};
+}
+export async function changeSettlementStatus(tx:Prisma.TransactionClient,token:string,raw:unknown,ip:string) {
+  const v=settlementStatusSchema.parse(raw);await acquireUserMutationLock(tx);const actor=await requireSettlementBoss(tx,token);
+  const rows=await tx.confirmedLead.findMany({where:{id:{in:v.records.map(r=>r.id)}}});
+  for(const expected of v.records){const row=rows.find(r=>r.id===expected.id);
+    if(!row||row.deletedAt||row.version!==expected.version)throw new UserActionError("记录已变化或已删除，请刷新核对；本次未保存任何结算标记");
+    if(v.operation==="settle"?row.isSettled===true:v.operation==="unsettle"?row.isSettled!==true:row.isSettled!==null)throw new UserActionError("结算状态已变化，请刷新核对");
+  }
+  const now=new Date();
+  for(const old of rows){const row=await tx.confirmedLead.update({where:{id:old.id},data:{isSettled:v.operation==="settle",settledAt:v.operation==="settle"?now:null,settledById:v.operation==="settle"?actor.id:null,settledByName:v.operation==="settle"?actor.name:null,version:{increment:1}}});
+    await writeAudit({db:tx,actorId:actor.id,action:"LIVE_REPORT_UPDATE",targetType:"ConfirmedLead",targetId:old.id,ip,detail:{actorName:actor.name,operation:v.operation,reason:v.reason|| (v.operation==="settle"?"确认后端已结清":"确认历史记录未结算"),before:json(old),after:json(row)}});
+  }
+  return rows[0].id;
 }

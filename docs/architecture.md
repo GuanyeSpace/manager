@@ -197,3 +197,6 @@ schema.ts提供isShiftExpired，开始准备和确认开播在全局写锁内复
 
 ### D064 场次名称（2026-10-06）
 lib/session-label.ts统一场次名称的只读格式化，页面调用时传实际startedAt；关联报表沿用reportPeople已解析的场次更正时间。原始label/sessionLabel仍用于保存及审计，格式化值不回填表单。待收尾查询补选startedAt，不改变权限或状态。
+
+## D065 结算状态与六卡汇总
+SettlementStatus/ConfirmedTable通过settlementAction提交单条及批量操作；changeSettlementStatus在事务内取得共同写锁并复核老板身份、所有记录版本/删除/结算状态，全部验证后更新与审计。saveConfirmed和recycleConfirmed同样阻止已结算写入。readBossIncome按全部过滤结果分组汇总整数分，readConfirmed统一状态筛选。revalidatePath刷新确定数据、主播及老板页。复用既有预览写保护，不新增权限。
