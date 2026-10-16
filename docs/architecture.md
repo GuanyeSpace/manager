@@ -200,3 +200,6 @@ lib/session-label.ts统一场次名称的只读格式化，页面调用时传实
 
 ## D065 结算状态与六卡汇总
 SettlementStatus/ConfirmedTable通过settlementAction提交单条及批量操作；changeSettlementStatus在事务内取得共同写锁并复核老板身份、所有记录版本/删除/结算状态，全部验证后更新与审计。saveConfirmed和recycleConfirmed同样阻止已结算写入。readBossIncome按全部过滤结果分组汇总整数分，readConfirmed统一状态筛选。revalidatePath刷新确定数据、主播及老板页。复用既有预览写保护，不新增权限。
+
+## 2026-10-16 保持登录
+D066：SessionRenewal在非预览/非登录页面前台触发POST /api/session/renew，近期无操作的后台页不自动续期；请求一分钟节流，服务端每日最多更新一次。入口要求同源Origin、x-session-renew=1并排除预览头/预览Referer；无会话401、拒绝403、成功204、临时异常503，响应no-store。renewLoginSession取得与改密/离职相同用户行锁，复核会话与在职状态后条件更新，不创建失效会话。事务成功后才发送Cookie；旧响应即使晚于退出，数据库撤销仍使其无效。

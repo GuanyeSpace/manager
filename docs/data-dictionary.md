@@ -731,3 +731,6 @@ endedAt为实际下班时间，不等于补登操作时间；超时不写入ende
 | ConfirmedLead | settledAt DateTime? | 标记结算操作时间，并非实际转账时间 |
 | ConfirmedLead | settledById / settledByName String? | 最近一次标记人ID、姓名快照；撤销后清空，旧值保留审计 |
 查询status=all/unpaid/paid/unknown；原人数、单价、金额快照和提成口径不变。
+
+## 2026-10-16 保持登录
+Session.rememberMe：Boolean，默认false；true为30天持续有效窗口，false为原7天固定期限。expiresAt继续为服务端权威到期时间，浏览器Cookie同步Expires与Max-Age；续期不会改createdAt或User.lastLoginAt。

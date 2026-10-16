@@ -32,6 +32,7 @@ export async function setSessionCookie(token: string, expiresAt: Date): Promise<
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production", // 生产环境必须走 https
     expires: expiresAt,
+    maxAge: Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000)),
     path: "/",
   });
 }

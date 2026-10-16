@@ -200,3 +200,6 @@ LeadTask新增可空actualLeadId（User外键）、actualLeadName（姓名快照
 
 ## D065 结算状态
 ConfirmedLead追加isSettled Boolean?（null历史待确认、false未结算、true已结算）、settledAt DateTime?、settledById String?、settledByName String?。操作者ID及姓名作为标记快照，撤销清空当前标记信息，历史留在审计。新建服务显式false；迁移不默认、不回填原行。第33迁移20261006000000_confirmed_settlement只加4列，25模型数量不变。
+
+## 2026-10-16 保持登录
+D066第34迁移20261016000000_remember_login仅为Session追加rememberMe Boolean @default(false)。旧会话false，expiresAt及createdAt不改。续期用expiresAt推算上次期限，不新增设备或登录表。

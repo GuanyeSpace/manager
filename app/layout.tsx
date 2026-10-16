@@ -1,3 +1,4 @@
+import { SessionRenewal } from "@/components/session-renewal";
 import { headers } from "next/headers";
 import { PREVIEW_HEADER } from "@/lib/auth/preview-path";
 import { verifiedPreviewContext } from "@/lib/auth/preview-context";
@@ -29,7 +30,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       lang="zh-CN"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col"><PreviewNavigationProvider prefix={preview?.prefix ?? null}><WorkspaceSwitcher />{children}</PreviewNavigationProvider></body>
+      <body className="min-h-full flex flex-col"><PreviewNavigationProvider prefix={preview?.prefix ?? null}><SessionRenewal preview={!!preview} /><WorkspaceSwitcher />{children}</PreviewNavigationProvider></body>
     </html>
   );
 }

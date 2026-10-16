@@ -414,3 +414,9 @@ D062交接：功能提交814f504已同步origin/main并核对；本轮实施、�
 ## 2026-10-06 23:18 D065结算标记与首页汇总上线
 功能提交9a5aa3803177a0493daa28b799c841548ecb31e9已同步main；本地Linux构建后发布。确定数据增加历史待确认/未结算/已结算、撤销原因与已结算锁定、整批原子标记及状态筛选，首页两行三列金额/有效人数汇总。第33迁移只追加4个可空列，25表原列摘要一致，277部署文件SHA一致。
 备份/var/backups/manager/manager-20261006T151804Z.dump及同名.screenshots.tar.gz均可读；旧程序/opt/manager/standalone-before-d065-20261006，旧源码/opt/manager/source-before-d065-20261006.tar.gz，摘要/opt/manager/data-before-d065-20261006.json。截图探针、服务及HTTPS检查通过；隔离浏览器18项及相关回归通过。详见[tasks/settlement-status-verification.md](tasks/settlement-status-verification.md)。
+
+## 2026-10-16
+D066开始：排查浏览器关闭重登，实施保持登录与同源续期；尚未发布。
+
+## 2026-10-16 D066隔离验收
+保持登录与续期已实现；隔离迁移原列守恒、认证并发/交叠回归、HTTPS代理浏览器关闭重开与续期、类型/lint/macOS构建通过。Linux包及正式发布待完成；原反馈根因未复现，已记录known-issues。

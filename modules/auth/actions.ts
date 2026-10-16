@@ -96,7 +96,7 @@ export async function loginAction(
   try {
     // 事务内锁行复核密码哈希与在职状态，再创建会话；提交成功后才写 cookie。
     session = await prisma.$transaction((tx) =>
-      createLoginSession(tx, { userId: user.id, verifiedHash: user.passwordHash, ip })
+      createLoginSession(tx, { userId: user.id, verifiedHash: user.passwordHash, ip, rememberMe: formData.get("rememberMe") === "on" })
     );
   } catch (e) {
     if (e instanceof AuthStateChangedError) {

@@ -1,7 +1,7 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import { EmploymentStatus, AuditAction } from "@/app/generated/prisma/enums";
 import { writeAudit } from "@/lib/audit";
-import { generateSessionToken, sessionExpiresAt } from "@/lib/auth/session-core";
+import { generateSessionToken, sessionExpiresAt, REMEMBER_DURATION_MS, SESSION_RENEW_INTERVAL_MS } from "@/lib/auth/session-core";
 
 export class AuthStateChangedError extends Error {}
 export class SessionRevokedError extends Error {}
@@ -14,7 +14,7 @@ export type AuthTestHooks = {
 // verifiedHash 是事务外验证密码时用到的哈希；锁行后若哈希已变，说明期间发生过改密/重置。
 export async function createLoginSession(
   tx: Prisma.TransactionClient,
-  input: { userId: string; verifiedHash: string; ip: string | null },
+  input: { userId: string; verifiedHash: string; ip: string | null; rememberMe?: boolean },
   hooks?: AuthTestHooks
 ): Promise<{ token: string; expiresAt: Date; mustChangePassword: boolean }> {
   const rows = await tx.$queryRaw<Array<{ passwordHash: string; employmentStatus: EmploymentStatus; mustChangePassword: boolean }>>`
@@ -28,9 +28,9 @@ export async function createLoginSession(
   await hooks?.afterUserLock?.();
 
   const token = generateSessionToken();
-  const expiresAt = sessionExpiresAt();
+  const expiresAt = sessionExpiresAt(input.rememberMe);
   await tx.user.update({ where: { id: input.userId }, data: { lastLoginAt: new Date() } });
-  await tx.session.create({ data: { id: token, userId: input.userId, expiresAt } });
+  await tx.session.create({ data: { id: token, userId: input.userId, expiresAt, rememberMe: input.rememberMe ?? false } });
   await writeAudit({
     db: tx,
     actorId: input.userId,
@@ -75,13 +75,13 @@ export async function changePasswordSession(
   }
 
   const token = generateSessionToken();
-  const expiresAt = sessionExpiresAt();
+  const expiresAt = sessionExpiresAt(currentSession.rememberMe);
   await tx.user.update({
     where: { id: input.userId },
     data: { passwordHash: input.newPasswordHash, mustChangePassword: false },
   });
   await tx.session.deleteMany({ where: { userId: input.userId } });
-  await tx.session.create({ data: { id: token, userId: input.userId, expiresAt } });
+  await tx.session.create({ data: { id: token, userId: input.userId, expiresAt, rememberMe: currentSession.rememberMe } });
   await writeAudit({
     db: tx,
     actorId: input.userId,
@@ -92,4 +92,22 @@ export async function changePasswordSession(
   });
 
   return { token, expiresAt };
+}
+
+// 与改密/重置/离职采用同一用户行锁；仅更新现存有效会话，不重新创建。
+export async function renewLoginSession(tx: Prisma.TransactionClient, token: string, now?: Date): Promise<Date | null> {
+  const initial = await tx.session.findUnique({ where: { id: token }, select: { userId: true } });
+  if (!initial) throw new SessionRevokedError();
+  const rows = await tx.$queryRaw<Array<{employmentStatus: EmploymentStatus}>>`
+    SELECT "employmentStatus" FROM "User" WHERE "id" = ${initial.userId} FOR UPDATE
+  `;
+  const session = await tx.session.findUnique({ where: { id: token } });
+  const checkedAt = now ?? new Date();
+  if (rows[0]?.employmentStatus !== EmploymentStatus.ACTIVE || !session || session.expiresAt <= checkedAt) throw new SessionRevokedError();
+  if (!session.rememberMe) return null;
+  if (session.expiresAt.getTime() - checkedAt.getTime() > REMEMBER_DURATION_MS - SESSION_RENEW_INTERVAL_MS) return session.expiresAt;
+  const expiresAt = new Date(checkedAt.getTime() + REMEMBER_DURATION_MS);
+  const updated = await tx.session.updateMany({ where: { id: token, expiresAt: session.expiresAt }, data: { expiresAt } });
+  if (updated.count !== 1) throw new SessionRevokedError();
+  return expiresAt;
 }
