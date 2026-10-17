@@ -1,10 +1,10 @@
 # 当前开发进度与接手状态
 
-最后更新：2026-10-06。状态依据：本地代码、当前会话测试与发布记录。此文件是可覆盖更新的当前快照，历史进度见 CHANGELOG.md / deployment.md。
+最后更新：2026-10-17。状态依据：本地代码、当前会话测试与发布记录。此文件是可覆盖更新的当前快照，历史进度见 CHANGELOG.md / deployment.md。
 
 ## 当前任务：D066 保持登录（2026-10-16）
 
-代码及隔离验收完成，待Linux包及备份发布：34迁移旧25表原列守恒、续期专项/登录并发及交叠回归通过，类型/lint/macOS构建通过。HTTPS代理真实登录关闭重开通过，新30天/旧7天、续期Cookie、退出及预览拒绝通过；员工原反馈未复现根因，不能声称已根治。见[tasks/remember-login-verification.md](tasks/remember-login-verification.md)。
+状态：2026-10-16 19:02已上线，功能dcd2d363120dd2d36bae8682a98c5e61ec2c55dd已推送main。默认保持登录、30天闲置窗口每日续期，未勾选及旧会话7天；退出、改密、重置、离职边界保持。隔离迁移、认证回归、HTTPS浏览器重开及续期、类型/lint/双平台构建通过。正式第34迁移、25表原列守恒、280文件SHA、备份可读和服务健康通过。2026-10-17补齐发布文档；临时服务及测试夹具已清理。员工原反馈未复现根因，不能声称已根治。见[tasks/remember-login-verification.md](tasks/remember-login-verification.md)。
 
 ## 上一任务：D065 后端结算标记与首页汇总（2026-10-06）
 
@@ -47,13 +47,13 @@
 | 项目 | 最近核验值 |
 | --- | --- |
 | 服务地址 | https://8.163.69.11 ，无域名的 IP HTTPS |
-| 最近业务发布 | 2026-10-06 23:18：D065结算标记与首页六卡 |
-| 发布前备份 | /var/backups/manager/manager-20261006T151804Z.dump 及同名 .screenshots.tar.gz |
-| 数据校验摘要 | /opt/manager/data-before-d065-20261006.json |
-| 保留旧程序 | /opt/manager/standalone-before-d065-20261006 |
-| 数据迁移 | 33 个，本轮只新增4个可空结算列 |
+| 最近业务发布 | 2026-10-16 19:02：D066保持登录 |
+| 发布前备份 | /var/backups/manager/manager-20261016T110214Z.dump 及同名 .screenshots.tar.gz |
+| 数据校验摘要 | /opt/manager/data-before-d066-20261016.json |
+| 保留旧程序 | /opt/manager/standalone-before-d066-20261016 |
+| 数据迁移 | 34 个，本轮追加Session.rememberMe，旧期限保留 |
 | 最新模型数量 | 25 个 Prisma model；本次发布核对全部25张业务表原列数据 |
-| 验证证据 | 277 个部署文件 SHA-256 一致；原数据摘要一致；截图应用用户读写探针通过；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
+| 验证证据 | 280 个部署文件 SHA-256 一致；原数据摘要一致；截图应用用户读写探针通过；HTTPS 登录 200、未登录工作台307；manager/nginx/备份/续期定时器 active |
 
 这些是最近一次核验结果，不是永久监控结果。后续上线前重新核对服务、证书、备份与迁移；不要据此推断今日业务数据条数。
 

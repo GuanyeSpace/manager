@@ -458,3 +458,6 @@ manager/nginx/docker和备份/续期timer active，standalone无.env，HTTPS登�
 ## 2026-10-06 23:18 D065结算标记与首页汇总上线
 功能提交9a5aa3803177a0493daa28b799c841548ecb31e9已同步main；本地Linux构建后发布。确定数据增加历史待确认/未结算/已结算、撤销原因与已结算锁定、整批原子标记及状态筛选，首页两行三列金额/有效人数汇总。第33迁移只追加4个可空列，25表原列摘要一致，277部署文件SHA一致。
 备份/var/backups/manager/manager-20261006T151804Z.dump及同名.screenshots.tar.gz均可读；旧程序/opt/manager/standalone-before-d065-20261006，旧源码/opt/manager/source-before-d065-20261006.tar.gz，摘要/opt/manager/data-before-d065-20261006.json。截图探针、服务及HTTPS检查通过；隔离浏览器18项及相关回归通过。详见[tasks/settlement-status-verification.md](tasks/settlement-status-verification.md)。
+
+## 2026-10-17 补记D066发布（实际上线2026-10-16 19:02）
+保持登录及续期已上线，功能dcd2d363120dd2d36bae8682a98c5e61ec2c55dd已同步main。第34兼容迁移、25表原列守恒、280文件SHA、双平台构建、认证回归及HTTPS代理浏览器验收通过。备份/var/backups/manager/manager-20261016T110214Z.dump及同名.screenshots.tar.gz可读；旧程序/opt/manager/standalone-before-d066-20261016、旧源码/opt/manager/source-before-d066-20261016.tar.gz、摘要/opt/manager/data-before-d066-20261016.json保留。线上登录页、续期拒绝边界、截图探针和服务健康通过。原关闭即重登反馈未复现根因。详见[tasks/remember-login-verification.md](tasks/remember-login-verification.md)。

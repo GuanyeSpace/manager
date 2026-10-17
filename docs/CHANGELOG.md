@@ -420,3 +420,6 @@ D066开始：排查浏览器关闭重登，实施保持登录与同源续期；�
 
 ## 2026-10-16 D066隔离验收
 保持登录与续期已实现；隔离迁移原列守恒、认证并发/交叠回归、HTTPS代理浏览器关闭重开与续期、类型/lint/macOS构建通过。Linux包及正式发布待完成；原反馈根因未复现，已记录known-issues。
+
+## 2026-10-17 补记D066发布（实际上线2026-10-16 19:02）
+保持登录及续期已上线，功能dcd2d363120dd2d36bae8682a98c5e61ec2c55dd已同步main。第34兼容迁移、25表原列守恒、280文件SHA、双平台构建、认证回归及HTTPS代理浏览器验收通过。备份/var/backups/manager/manager-20261016T110214Z.dump及同名.screenshots.tar.gz可读；旧程序/opt/manager/standalone-before-d066-20261016、旧源码/opt/manager/source-before-d066-20261016.tar.gz、摘要/opt/manager/data-before-d066-20261016.json保留。线上登录页、续期拒绝边界、截图探针和服务健康通过。原关闭即重登反馈未复现根因。详见[tasks/remember-login-verification.md](tasks/remember-login-verification.md)。
